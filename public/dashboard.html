@@ -607,10 +607,16 @@
         } else {
           statusEl.className = 'sidebar-status disconnected';
           statusEl.innerHTML = '<span class="dot"></span><span>WhatsApp desconectado</span>';
-          if (data.data?.qr) {
-            container.innerHTML = `<p class="text-warning mb-2">Escaneie o QR Code</p><div class="qr-container"><img src="${data.data.qr}" alt="QR"></div>`;
+          if (data.data?.qrAvailable) {
+            const imgRes = await fetch('/whatsapp/qr-image');
+            const imgData = await imgRes.json();
+            if (imgData.success && imgData.qrImage) {
+              container.innerHTML = `<p class="text-warning mb-2">Escaneie o QR Code com o WhatsApp</p><div class="qr-container"><img src="${imgData.qrImage}" alt="QR Code"></div>`;
+            } else {
+              container.innerHTML = '<p class="text-secondary">Aguardando QR Code...</p>';
+            }
           } else {
-            container.innerHTML = '<p class="text-secondary">Verificando...</p>';
+            container.innerHTML = '<p class="text-secondary">Aguardando QR Code...</p>';
           }
         }
       } catch (e) {

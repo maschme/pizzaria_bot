@@ -19,6 +19,10 @@ echo "📦 Instalando dependências (npm install)..."
 npm install --silent
 
 echo ""
+echo "🗄️ Criando database (se não existir)..."
+node database/create-database.js
+
+echo ""
 echo "🗄️ Rodando setup do banco (tabelas + seeds)..."
 node database/setup.js
 

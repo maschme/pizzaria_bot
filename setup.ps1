@@ -18,6 +18,10 @@ Write-Host "Instalando dependencias (npm install)..."
 npm install --silent
 
 Write-Host ""
+Write-Host "Criando database (se nao existir)..."
+node database/create-database.js
+
+Write-Host ""
 Write-Host "Rodando setup do banco (tabelas + seeds)..."
 node database/setup.js
 

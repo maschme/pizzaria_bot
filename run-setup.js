@@ -28,6 +28,9 @@ function run(cmd, args, opts = {}) {
 console.log('📦 Instalando dependências (npm install)...');
 run('npm', ['install', '--silent']);
 
+console.log('\n🗄️ Criando database (se não existir)...');
+run('node', ['database/create-database.js']);
+
 console.log('\n🗄️ Rodando setup do banco (tabelas + seeds)...');
 run('node', ['database/setup.js']);
 

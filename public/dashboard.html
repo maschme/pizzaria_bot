@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Pizzaria Bot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --sidebar-width: 260px;
+      --header-height: 60px;
+      --bg-base: #0f0f14;
+      --bg-elevated: #16161d;
+      --bg-card: #1c1c26;
+      --border-subtle: rgba(255,255,255,0.06);
+      --text-primary: #f0f0f5;
+      --text-secondary: #9898a6;
+      --accent: #e63946;
+      --accent-soft: rgba(230, 57, 70, 0.15);
+      --success: #22c55e;
+      --success-soft: rgba(34, 197, 94, 0.15);
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --radius: 14px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .sidebar-nav {
+      flex: 1;
+      padding: 1rem 0.75rem;
+    }
+    .sidebar-nav a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      margin-bottom: 0.25rem;
+      transition: color 0.2s, background 0.2s;
+    }
+    .sidebar-nav a:hover {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.04);
+    }
+    .sidebar-nav a.active {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .sidebar-nav a i {
+      font-size: 1.2rem;
+      width: 24px;
+      text-align: center;
+    }
+    .sidebar-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .sidebar-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .sidebar-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+    }
+    .sidebar-status.connected .dot { background: var(--success); }
+    .sidebar-status.disconnected .dot { background: var(--accent); }
+
+    /* Main area */
+    .main-wrap {
+      margin-left: var(--sidebar-width);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      height: var(--header-height);
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      padding: 0 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .topbar-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .content {
+      flex: 1;
+      padding: 1.5rem;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Cards */
+    .card-modern {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-modern .card-body { padding: 1.25rem 1.5rem; }
+
+    .kpi-card {
+      padding: 1.25rem 1.5rem;
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .kpi-card .kpi-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .kpi-card .kpi-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+    .kpi-card .kpi-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+
+    /* Charts */
+    .chart-wrap {
+      position: relative;
+      height: 240px;
+    }
+
+    /* Tables */
+    .table-modern {
+      color: var(--text-primary);
+    }
+    .table-modern thead th {
+      border-bottom: 1px solid var(--border-subtle);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      padding: 0.75rem 1rem;
+    }
+    .table-modern td {
+      border-color: var(--border-subtle);
+      padding: 0.85rem 1rem;
+      vertical-align: middle;
+    }
+    .table-modern tbody tr:hover {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .badge-modern {
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.75rem;
+    }
+    .badge-ativo { background: var(--success-soft); color: var(--success); }
+    .badge-inativo { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+
+    .btn-modern {
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+    }
+
+    .form-control-modern, .form-select-modern {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      border-radius: var(--radius-sm);
+    }
+    .form-control-modern:focus, .form-select-modern:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .nav-pills-modern .nav-link {
+      color: var(--text-secondary);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 1rem;
+      font-weight: 500;
+    }
+    .nav-pills-modern .nav-link:hover { color: var(--text-primary); }
+    .nav-pills-modern .nav-link.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .toast-container { position: fixed; top: 80px; right: 24px; z-index: 9999; }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-subtle);
+      border-radius: 50%;
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .qr-container { background: #fff; padding: 20px; border-radius: var(--radius); display: inline-block; }
+    .qr-container img { max-width: 240px; }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.6 } }
+
+    .grupo-row.ativo { background: rgba(34, 197, 94, 0.06); }
+    .grupo-row.geral { background: rgba(245, 158, 11, 0.06); }
+    .input-bairro { max-width: 140px; }
+    .sync-btn.syncing i { animation: spin 0.8s linear infinite; }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <i class="bi bi-robot"></i>
+      Pizzaria Bot
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="active" data-view="dashboard">
+        <i class="bi bi-grid-1x2-fill"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" data-view="whats">
+        <i class="bi bi-whatsapp"></i>
+        <span>Whats</span>
+      </a>
+      <a href="fluxos.html">
+        <i class="bi bi-diagram-3"></i>
+        <span>Fluxos</span>
+      </a>
+      <a href="ia-config.html">
+        <i class="bi bi-cpu"></i>
+        <span>IA & Prompts</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-status" id="sidebarStatus">
+        <span class="dot"></span>
+        <span>WhatsApp: --</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <h1 class="topbar-title" id="pageTitle">Dashboard</h1>
+    </header>
+
+    <main class="content">
+      <!-- View: Dashboard (Home - Gráficos e estatísticas) -->
+      <div id="viewDashboard" class="view active">
+        <div class="row g-4 mb-4">
+          <div class="col-md-3">
+            <div class="kpi-card d-flex justify-content-between align-items-start">
+              <div>
+                <div class="kpi-value" id="dashWhats">--</div>
+                <div class="kpi-label">WhatsApp</div>
+              </div>
+              <div class="kpi-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;"><i class="bi bi-whatsapp"></i></div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="kpi-card d-flex justify-content-between align-items-start">
+              <div>
+                <div class="kpi-value" id="dashGrupos">0</div>
+                <div class="kpi-label">Grupos ativos</div>
+              </div>
+              <div class="kpi-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;"><i class="bi bi-people"></i></div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="kpi-card d-flex justify-content-between align-items-start">
+              <div>
+                <div class="kpi-value" id="dashParticipantes">0</div>
+                <div class="kpi-label">Participantes total</div>
+              </div>
+              <div class="kpi-icon" style="background: rgba(168, 85, 247, 0.15); color: #a855f7;"><i class="bi bi-person-lines-fill"></i></div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="kpi-card d-flex justify-content-between align-items-start">
+              <div>
+                <div class="kpi-value" id="dashGatilhos">0</div>
+                <div class="kpi-label">Gatilhos ativos</div>
+              </div>
+              <div class="kpi-icon" style="background: var(--accent-soft); color: var(--accent);"><i class="bi bi-lightning-charge"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="card-modern">
+              <div class="card-body">
+                <h5 class="mb-4" style="font-weight: 600;">Grupos por status</h5>
+                <div class="chart-wrap">
+                  <canvas id="chartGrupos"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card-modern">
+              <div class="card-body">
+                <h5 class="mb-4" style="font-weight: 600;">Resumo do sistema</h5>
+                <div class="d-flex flex-column gap-3">
+                  <div class="d-flex justify-content-between align-items-center p-3 rounded" style="background: rgba(255,255,255,0.03);">
+                    <span class="text-secondary">Atendimento automático</span>
+                    <span class="badge-modern" id="dashAtendimento">--</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center p-3 rounded" style="background: rgba(255,255,255,0.03);">
+                    <span class="text-secondary">Campanha ativa</span>
+                    <span class="badge-modern" id="dashCampanha">--</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center p-3 rounded" style="background: rgba(255,255,255,0.03);">
+                    <span class="text-secondary">Grupos na campanha</span>
+                    <span id="dashCampanhaGrupos">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View: Whats (conteúdo original) -->
+      <div id="viewWhats" class="view">
+        <div class="row mb-4" id="qrSection">
+          <div class="col-12">
+            <div class="card-modern">
+              <div class="card-body text-center py-4">
+                <div id="whatsappContent">Carregando...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-3">
+            <div class="card-modern">
+              <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="text-secondary small">Atendimento Auto</div>
+                  <div class="form-check form-switch mt-2 mb-0">
+                    <input class="form-check-input" type="checkbox" id="switchAtendimento">
+                  </div>
+                  <span id="statusAtendimento" class="badge-modern badge-inativo">OFF</span>
+                </div>
+                <i class="bi bi-robot text-info" style="font-size: 1.5rem;"></i>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card-modern">
+              <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="text-secondary small">Campanha</div>
+                  <div class="form-check form-switch mt-2 mb-0">
+                    <input class="form-check-input" type="checkbox" id="switchCampanha">
+                  </div>
+                  <span id="statusCampanha" class="badge-modern badge-inativo">OFF</span>
+                </div>
+                <i class="bi bi-megaphone text-warning" style="font-size: 1.5rem;"></i>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card-modern">
+              <div class="card-body">
+                <div class="text-secondary small">Grupos ativos</div>
+                <div class="fs-4 fw-bold" id="gruposAtivos">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card-modern">
+              <div class="card-body">
+                <div class="text-secondary small">Gatilhos ativos</div>
+                <div class="fs-4 fw-bold" id="gatilhosAtivos">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ul class="nav nav-pills nav-pills-modern mb-4" id="mainTabs">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabGrupos"><i class="bi bi-people me-2"></i>Grupos</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabGatilhos"><i class="bi bi-lightning me-2"></i>Gatilhos</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabConfigs"><i class="bi bi-gear me-2"></i>Configurações</a></li>
+        </ul>
+
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="tabGrupos">
+            <div class="card-modern">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                  <h5 class="mb-0 fw-bold">Grupos do WhatsApp</h5>
+                  <button class="btn btn-danger btn-modern sync-btn" id="btnSincronizar"><i class="bi bi-arrow-repeat me-2"></i>Sincronizar</button>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-modern">
+                    <thead><tr><th>Status</th><th>Nome</th><th>Bairro</th><th>Link</th><th>Part.</th><th>Tipo</th><th>Ações</th></tr></thead>
+                    <tbody id="tabelaGrupos"><tr><td colspan="7" class="text-center py-4 text-secondary"><div class="loading"></div> Carregando...</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="tabGatilhos">
+            <div class="card-modern">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                  <h5 class="mb-0 fw-bold">Gatilhos</h5>
+                  <button class="btn btn-danger btn-modern" data-bs-toggle="modal" data-bs-target="#modalGatilho"><i class="bi bi-plus me-2"></i>Novo</button>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-modern">
+                    <thead><tr><th>Status</th><th>Nome</th><th>Tipo</th><th>Palavras-chave</th><th>Prioridade</th><th>Ações</th></tr></thead>
+                    <tbody id="tabelaGatilhos"><tr><td colspan="6" class="text-center py-4 text-secondary">Carregando...</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="tabConfigs">
+            <div class="card-modern">
+              <div class="card-body">
+                <h5 class="mb-4 fw-bold">Configurações</h5>
+                <div id="listaConfigs">Carregando...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Gatilho -->
+  <div class="modal fade" id="modalGatilho" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title">Novo Gatilho</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formGatilho">
+            <div class="mb-3"><label class="form-label">Nome</label><input type="text" class="form-control form-control-modern" name="nome" required></div>
+            <div class="mb-3"><label class="form-label">Tipo</label><select class="form-select form-select-modern" name="tipo"><option value="campanha">Campanha</option><option value="atendimento">Atendimento</option><option value="promocao">Promoção</option><option value="outro">Outro</option></select></div>
+            <div class="mb-3"><label class="form-label">Palavras-chave (vírgula)</label><input type="text" class="form-control form-control-modern" name="palavrasChave"></div>
+            <div class="mb-3"><label class="form-label">Mensagem exata</label><textarea class="form-control form-control-modern" name="mensagemExata" rows="2"></textarea></div>
+            <div class="mb-3"><label class="form-label">Prioridade</label><input type="number" class="form-control form-control-modern" name="prioridade" value="0"></div>
+          </form>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger btn-modern" id="btnSalvarGatilho">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const API_BASE = '/api/dashboard';
+    let chartGrupos = null;
+
+    function showToast(message, type = 'success') {
+      const el = document.createElement('div');
+      el.className = `toast show align-items-center text-white bg-${type} border-0`;
+      el.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      document.getElementById('toastContainer').appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    async function api(endpoint, options = {}) {
+      try {
+        const res = await fetch(`${API_BASE}${endpoint}`, { headers: { 'Content-Type': 'application/json' }, ...options });
+        return await res.json();
+      } catch (e) {
+        showToast('Erro de conexão', 'danger');
+        throw e;
+      }
+    }
+
+    function showView(name) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.sidebar-nav a[data-view]').forEach(a => a.classList.remove('active'));
+      const view = document.getElementById('view' + name.charAt(0).toUpperCase() + name.slice(1));
+      const link = document.querySelector(`.sidebar-nav a[data-view="${name}"]`);
+      if (view) view.classList.add('active');
+      if (link) link.classList.add('active');
+      document.getElementById('pageTitle').textContent = name === 'dashboard' ? 'Dashboard' : 'Whats';
+    }
+
+    document.querySelectorAll('.sidebar-nav a[data-view]').forEach(a => {
+      a.addEventListener('click', (e) => { e.preventDefault(); showView(a.dataset.view); });
+    });
+
+    async function carregarDashboard() {
+      const [statusRes, statsRes] = await Promise.all([api('/status'), api('/grupos/estatisticas')]);
+      if (!statusRes.success) return;
+      const d = statusRes.data;
+      const s = statsRes.success ? statsRes.data : {};
+
+      document.getElementById('dashWhats').textContent = d.whatsappConectado ? 'Conectado' : 'Desconectado';
+      document.getElementById('dashGrupos').textContent = d.grupos?.ativos ?? s.ativos ?? 0;
+      document.getElementById('dashParticipantes').textContent = (d.grupos?.totalParticipantes ?? s.totalParticipantes ?? 0).toLocaleString();
+      document.getElementById('dashGatilhos').textContent = d.gatilhosAtivos ?? 0;
+      document.getElementById('dashAtendimento').textContent = d.atendimentoAutomatico ? 'ON' : 'OFF';
+      document.getElementById('dashAtendimento').className = 'badge-modern ' + (d.atendimentoAutomatico ? 'badge-ativo' : 'badge-inativo');
+      document.getElementById('dashCampanha').textContent = d.campanhaAtiva ? 'ON' : 'OFF';
+      document.getElementById('dashCampanha').className = 'badge-modern ' + (d.campanhaAtiva ? 'badge-ativo' : 'badge-inativo');
+      document.getElementById('dashCampanhaGrupos').textContent = d.grupos?.campanha ?? s.campanha ?? 0;
+
+      const total = d.grupos?.total ?? s.total ?? 0;
+      const ativos = d.grupos?.ativos ?? s.ativos ?? 0;
+      const campanha = d.grupos?.campanha ?? s.campanha ?? 0;
+      const inativos = Math.max(0, total - ativos);
+      const ativosForaCampanha = Math.max(0, ativos - campanha);
+
+      if (chartGrupos) chartGrupos.destroy();
+      const ctx = document.getElementById('chartGrupos').getContext('2d');
+      chartGrupos = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Campanha', 'Ativos (outros)', 'Inativos'],
+          datasets: [{ data: [campanha, ativosForaCampanha, inativos], backgroundColor: ['#f59e0b', '#22c55e', 'rgba(255,255,255,0.08)'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9898a6', padding: 16 } } } }
+      });
+    }
+
+    async function carregarWhatsappStatus() {
+      try {
+        const res = await fetch('/whatsapp/status');
+        const data = await res.json();
+        const container = document.getElementById('whatsappContent');
+        const statusEl = document.getElementById('sidebarStatus');
+
+        if (data.data?.connected) {
+          statusEl.className = 'sidebar-status connected';
+          statusEl.innerHTML = '<span class="dot"></span><span>WhatsApp conectado</span>';
+          container.innerHTML = `<div class="text-success"><i class="bi bi-check-circle-fill" style="font-size:3rem"></i><h5 class="mt-2">Conectado</h5><p class="text-secondary mb-0">${data.data.info?.pushname || 'Bot'}</p></div>`;
+        } else {
+          statusEl.className = 'sidebar-status disconnected';
+          statusEl.innerHTML = '<span class="dot"></span><span>WhatsApp desconectado</span>';
+          if (data.data?.qr) {
+            container.innerHTML = `<p class="text-warning mb-2">Escaneie o QR Code</p><div class="qr-container"><img src="${data.data.qr}" alt="QR"></div>`;
+          } else {
+            container.innerHTML = '<p class="text-secondary">Verificando...</p>';
+          }
+        }
+      } catch (e) {
+        document.getElementById('sidebarStatus').innerHTML = '<span class="dot"></span><span>Erro</span>';
+        document.getElementById('whatsappContent').innerHTML = '<p class="text-danger">Erro ao carregar status</p>';
+      }
+    }
+
+    async function carregarStatus() {
+      const data = await api('/status');
+      if (!data.success) return;
+      const d = data.data;
+      document.getElementById('switchAtendimento').checked = d.atendimentoAutomatico;
+      document.getElementById('statusAtendimento').textContent = d.atendimentoAutomatico ? 'ON' : 'OFF';
+      document.getElementById('statusAtendimento').className = 'badge-modern ' + (d.atendimentoAutomatico ? 'badge-ativo' : 'badge-inativo');
+      document.getElementById('switchCampanha').checked = d.campanhaAtiva;
+      document.getElementById('statusCampanha').textContent = d.campanhaAtiva ? 'ON' : 'OFF';
+      document.getElementById('statusCampanha').className = 'badge-modern ' + (d.campanhaAtiva ? 'badge-ativo' : 'badge-inativo');
+      document.getElementById('gruposAtivos').textContent = d.grupos?.ativos ?? 0;
+      document.getElementById('gatilhosAtivos').textContent = d.gatilhosAtivos ?? 0;
+    }
+
+    async function carregarGrupos() {
+      const data = await api('/grupos');
+      const tbody = document.getElementById('tabelaGrupos');
+      if (!data.success || !data.data.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">Nenhum grupo. Use Sincronizar.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.data.map(g => `
+        <tr class="grupo-row ${g.ativo ? 'ativo' : ''} ${g.isGrupoGeral ? 'geral' : ''}">
+          <td><span class="badge-modern ${g.ativo ? 'badge-ativo' : 'badge-inativo'}">${g.ativo ? 'Ativo' : 'Inativo'}</span>${g.isGrupoGeral ? ' <span class="badge bg-warning text-dark ms-1">Geral</span>' : ''}</td>
+          <td><strong>${g.nome || '-'}</strong><div class="small text-secondary">${g.grupoId}</div></td>
+          <td><input type="text" class="form-control form-control-modern form-control-sm input-bairro" value="${g.bairro || ''}" placeholder="Bairro" data-grupo-id="${g.grupoId}" onchange="atualizarBairro(this)"></td>
+          <td><div class="d-flex align-items-center gap-1"><input type="text" class="form-control form-control-modern form-control-sm" value="${g.linkConvite || ''}" placeholder="Link" id="link-${g.grupoId.replace(/[@.]/g, '_')}" style="min-width:180px"><button class="btn btn-sm btn-outline-primary" onclick="salvarLink('${g.grupoId}')"><i class="bi bi-save"></i></button>${g.linkConvite ? '<span class="badge bg-success"><i class="bi bi-check"></i></span>' : '<span class="badge bg-danger pulse"><i class="bi bi-exclamation-triangle"></i></span>'}</div></td>
+          <td>${g.participantes || 0}</td>
+          <td><span class="badge bg-secondary">${g.tipo || '-'}</span></td>
+          <td><div class="btn-group">${g.ativo ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleGrupo('${g.grupoId}', false)"><i class="bi bi-x"></i></button>` : `<button class="btn btn-sm btn-outline-success" onclick="toggleGrupo('${g.grupoId}', true)"><i class="bi bi-check"></i></button>`}${!g.isGrupoGeral ? ` <button class="btn btn-sm btn-outline-warning" onclick="definirGeral('${g.grupoId}')" title="Geral"><i class="bi bi-star"></i></button>` : ''}</div></td>
+        </tr>
+      `).join('');
+    }
+
+    async function carregarGatilhos() {
+      const data = await api('/gatilhos');
+      const tbody = document.getElementById('tabelaGatilhos');
+      if (!data.success || !data.data.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-secondary">Nenhum gatilho.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.data.map(g => `
+        <tr>
+          <td><span class="badge-modern ${g.ativo ? 'badge-ativo' : 'badge-inativo'}">${g.ativo ? 'Ativo' : 'Inativo'}</span></td>
+          <td><strong>${g.nome}</strong></td>
+          <td><span class="badge bg-secondary">${g.tipo}</span></td>
+          <td><small>${(g.palavrasChave || []).join(', ') || '-'}</small></td>
+          <td>${g.prioridade}</td>
+          <td>${g.ativo ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleGatilho(${g.id}, false)"><i class="bi bi-pause"></i></button>` : `<button class="btn btn-sm btn-outline-success" onclick="toggleGatilho(${g.id}, true)"><i class="bi bi-play"></i></button>`} <button class="btn btn-sm btn-outline-danger" onclick="deletarGatilho(${g.id})"><i class="bi bi-trash"></i></button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function carregarConfiguracoes() {
+      const data = await api('/configuracoes');
+      if (!data.success) return;
+      const categorias = {};
+      for (const [chave, config] of Object.entries(data.data)) {
+        if (!categorias[config.categoria]) categorias[config.categoria] = [];
+        categorias[config.categoria].push({ chave, ...config });
+      }
+      const labels = { debounce_mensagens_ms: 'Debounce (ms)', delay_resposta_ms: 'Delay (ms)', atendimento_automatico: 'Atend. automático', campanha_ativa: 'Campanha' };
+      document.getElementById('listaConfigs').innerHTML = Object.entries(categorias).map(([cat, configs]) => `
+        <div class="mb-4">
+          <h6 class="text-uppercase text-secondary mb-3">${cat}</h6>
+          ${configs.map(c => `
+            <div class="row mb-3 align-items-center">
+              <div class="col-md-4"><label class="form-label mb-0">${labels[c.chave] || c.chave}</label><div class="small text-secondary">${c.descricao || ''}</div></div>
+              <div class="col-md-8">
+                ${c.tipo === 'boolean' ? `<div class="form-check form-switch"><input class="form-check-input" type="checkbox" ${c.valor ? 'checked' : ''} onchange="atualizarConfig('${c.chave}', this.checked)"></div>` : ['debounce_mensagens_ms','delay_resposta_ms'].includes(c.chave) ? `<div class="input-group"><input type="number" min="1000" max="120000" step="1000" class="form-control form-control-modern" value="${c.valor}" onchange="atualizarConfig('${c.chave}', this.value)"><span class="input-group-text bg-dark border-secondary text-secondary">ms</span></div>` : `<input type="${c.tipo === 'number' ? 'number' : 'text'}" class="form-control form-control-modern" value="${c.valor}" onchange="atualizarConfig('${c.chave}', this.value)">`}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+    }
+
+    async function toggleGrupo(grupoId, ativo) {
+      const data = await api(`/grupos/${encodeURIComponent(grupoId)}/${ativo ? 'ativar' : 'desativar'}`, { method: 'POST' });
+      if (data.success) { showToast(ativo ? 'Grupo ativado' : 'Grupo desativado'); carregarGrupos(); carregarStatus(); carregarDashboard(); }
+    }
+    async function definirGeral(grupoId) {
+      const data = await api(`/grupos/${encodeURIComponent(grupoId)}/definir-geral`, { method: 'POST' });
+      if (data.success) { showToast('Definido como geral'); carregarGrupos(); }
+    }
+    async function atualizarBairro(input) {
+      const data = await api(`/grupos/${encodeURIComponent(input.dataset.grupoId)}`, { method: 'PUT', body: JSON.stringify({ bairro: input.value }) });
+      if (data.success) showToast('Bairro atualizado');
+    }
+    async function salvarLink(grupoId) {
+      const input = document.getElementById('link-' + grupoId.replace(/[@.]/g, '_'));
+      if (!input?.value.trim()) { showToast('Digite o link', 'warning'); return; }
+      const data = await api(`/grupos/${encodeURIComponent(grupoId)}/link`, { method: 'POST', body: JSON.stringify({ linkConvite: input.value.trim() }) });
+      if (data.success) { showToast('Link salvo'); carregarGrupos(); }
+    }
+    async function toggleGatilho(id, ativo) {
+      const data = await api(`/gatilhos/${id}/${ativo ? 'ativar' : 'desativar'}`, { method: 'POST' });
+      if (data.success) { showToast(ativo ? 'Gatilho ativado' : 'Gatilho desativado'); carregarGatilhos(); carregarStatus(); carregarDashboard(); }
+    }
+    async function deletarGatilho(id) {
+      if (!confirm('Excluir este gatilho?')) return;
+      const data = await api(`/gatilhos/${id}`, { method: 'DELETE' });
+      if (data.success) { showToast('Gatilho excluído'); carregarGatilhos(); carregarDashboard(); }
+    }
+    async function atualizarConfig(chave, valor) {
+      const data = await api(`/configuracoes/${chave}`, { method: 'PUT', body: JSON.stringify({ valor }) });
+      if (data.success) { showToast('Configuração salva'); carregarStatus(); carregarDashboard(); }
+    }
+
+    document.getElementById('switchAtendimento').addEventListener('change', function() { atualizarConfig('atendimento_automatico', this.checked); });
+    document.getElementById('switchCampanha').addEventListener('change', function() { atualizarConfig('campanha_ativa', this.checked); });
+    document.getElementById('btnSincronizar').addEventListener('click', async function() {
+      this.disabled = true; this.classList.add('syncing');
+      const data = await api('/grupos/sincronizar', { method: 'POST' });
+      this.disabled = false; this.classList.remove('syncing');
+      if (data.success) { showToast('Sincronização concluída'); carregarGrupos(); carregarStatus(); carregarDashboard(); } else showToast(data.error || 'Erro', 'danger');
+    });
+    document.getElementById('btnSalvarGatilho').addEventListener('click', async function() {
+      const form = document.getElementById('formGatilho');
+      const fd = new FormData(form);
+      const palavrasChave = (fd.get('palavrasChave') || '').split(',').map(p => p.trim()).filter(Boolean);
+      const data = await api('/gatilhos', { method: 'POST', body: JSON.stringify({ nome: fd.get('nome'), tipo: fd.get('tipo'), palavrasChave, mensagemExata: fd.get('mensagemExata') || null, prioridade: parseInt(fd.get('prioridade')) || 0, ativo: true }) });
+      if (data.success) { showToast('Gatilho criado'); bootstrap.Modal.getInstance(document.getElementById('modalGatilho')).hide(); form.reset(); carregarGatilhos(); carregarDashboard(); }
+    });
+
+    async function init() {
+      await carregarWhatsappStatus();
+      await carregarDashboard();
+      await carregarStatus();
+      await carregarGrupos();
+      await carregarGatilhos();
+      await carregarConfiguracoes();
+      setInterval(carregarWhatsappStatus, 5000);
+      setInterval(() => { carregarStatus(); carregarDashboard(); }, 30000);
+    }
+    init();
+  </script>
+</body>
+</html>

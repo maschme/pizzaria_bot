@@ -1,0 +1,10 @@
+{
+  "grupos_whatsapp": {
+    "instrucaoProcessamento": "vc recebera apenas  nome do bairro, procure no arquivo o bairro e retorne apenas o link corrrespondente ao bairro, se nao localizar o bairro retorne o link do grupo_geral",
+    "formatoRetorno": "link"
+  },
+  "cupons_desconto": {
+    "instrucaoProcessamento": "",
+    "formatoRetorno": ""
+  }
+}

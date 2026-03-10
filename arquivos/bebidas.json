@@ -1,0 +1,89 @@
+{
+  "refrigerantes": [
+    {
+      "nome": "Coca Cola",
+      "volume": "2L",
+      "preco": 15.00
+    },
+    {
+      "nome": "Coca Cola",
+      "volume": "600ml",
+      "preco": 7.00
+    },
+    {
+      "nome": "Coca-Cola Zero Açúcar",
+      "volume": "350ml (lata)",
+      "preco": 5.00
+    },
+    {
+      "nome": "Guaraná",
+      "volume": "1,5L",
+      "preco": 12.00
+    },
+    {
+      "nome": "Guaraná",
+      "volume": "350ml (lata)",
+      "preco": 5.00
+    },
+    {
+      "nome": "Kuat",
+      "volume": "2L",
+      "preco": 12.00
+    },
+    {
+      "nome": "Água com gás",
+      "volume": "500ml",
+      "preco": 3.00
+    },
+    {
+      "nome": "Água sem gás",
+      "volume": "500ml",
+      "preco": 3.00
+    },
+    {
+      "nome": "Coca Cola Sem Açúcar",
+      "volume": "2L",
+      "preco": 15.00
+    },
+    {
+      "nome": "Fanta Laranja",
+      "volume": "2L",
+      "preco": 13.00
+    },
+    {
+      "nome": "Sprite",
+      "volume": "2L",
+      "preco": 13.00
+    }
+  ],
+  "cervejas": [
+    {
+      "nome": "Brahma",
+      "volume": "350ml (lata)",
+      "preco": 6.00
+    },
+    {
+      "nome": "Amstel",
+      "volume": "350ml (lata)",
+      "preco": 6.00
+    },
+    {
+      "nome": "Heineken",
+      "volume": "330ml (Long Neck)",
+      "preco": 10.00
+    }
+  ],
+  "sucos": [
+    {
+      "nome": "Del Valle 100% Uva",
+      "volume": "1L",
+      "preco": 12.00
+    },
+    {
+      "nome": "Del Valle Laranja",
+      "volume": "1L",
+      "preco": 12.00
+    }
+  ]
+}
+

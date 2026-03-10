@@ -1,0 +1,18 @@
+{
+  "categoria": "Sabores doces Especiais",
+  "observação": "Todas as pizzas doces vem com Creme de Leite, Mussarela​ e Leite Condensado​",
+  "sabores": [
+  {
+    "nome": "OURO BRANCO",
+    "ingredientes": ["Chocolate branco", "Bombom Ouro Branco picado"]
+  },
+  {
+    "nome": "PISTACHE",
+    "ingredientes": ["Chocolate branco", "Morango", "Creme de Pistache"]
+  },
+  {
+    "nome": "SONHO DE VALSA",
+    "ingredientes": ["Chocolate preto", "Bombom Sonho de Valsa picado"]
+  }
+]
+}

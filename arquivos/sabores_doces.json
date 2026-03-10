@@ -1,0 +1,114 @@
+{
+  "categoria": "Sabores doces tradicionais",
+  "observação": "Todas as pizzas doces vem com Creme de Leite, Mussarela​ e Leite Condensado​",
+  "sabores": [
+  {
+    "nome": "CAPUCCINO",
+    "ingredientes": [
+      "Ganache de capuccino",
+      "chocolate branco",
+      "doce de leite"
+    ]
+  },
+  {
+    "nome": "2 Amores",
+    "ingredientes": [
+      "Chocolate Preto",
+      "Chocolate Branco"
+    ]
+  },
+  {
+    "nome": "Banana",
+    "ingredientes": [
+      "Banana",
+      "Canela"
+    ]
+  },
+  {
+    "nome": "Banana com Chocolate Branco",
+    "ingredientes": [
+      "Banana",
+      "Canela",
+      "Chocolate Branco"
+    ]
+  },
+  {
+    "nome": "Banana com Chocolate Preto",
+    "ingredientes": [
+      "Banana",
+      "Canela",
+      "Chocolate Preto"
+    ]
+  },
+  {
+    "nome": "Beijinho",
+    "ingredientes": [
+      "Coco Ralado",
+      "Chocolate Branco"
+    ]
+  },
+  {
+    "nome": "Charge",
+    "ingredientes": [
+      "Amendoim",
+      "Chocolate Preto",
+      "Doce de Leite"
+    ]
+  },
+  {
+    "nome": "Chocolate Branco",
+    "ingredientes": [
+      "Chocolate Branco"
+    ]
+  },
+  {
+    "nome": "Chocolate Preto",
+    "ingredientes": [
+      "Chocolate Preto"
+    ]
+  },
+  {
+    "nome": "Confete",
+    "ingredientes": [
+      "Confete Colorido",
+      "Chocolate Preto"
+    ]
+  },
+  {
+    "nome": "DIVINA",
+    "ingredientes": [
+      "Abacaxi",
+      "Coco Ralado",
+      "Chocolate Branco"
+    ]
+  },
+  {
+    "nome": "Negresco",
+    "ingredientes": [
+      "Biscoito Negresco",
+      "Chocolate Branco"
+    ]
+  },
+  {
+    "nome": "Prestígio",
+    "ingredientes": [
+      "Coco Ralado",
+      "Chocolate Preto"
+    ]
+  },
+  {
+    "nome": "Sensação",
+    "ingredientes": [
+      "Morango",
+      "Chocolate Preto"
+    ]
+  },
+  {
+    "nome": "Tentação",
+    "ingredientes": [
+      "Morango",
+      "Chocolate Branco"
+    ]
+  }
+]
+}

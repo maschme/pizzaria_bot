@@ -1,0 +1,54 @@
+{
+    "categoria": "Pizzas",
+    "tamanhos": [
+      {
+        "nome": "Broto",
+        "diametro_cm": 25,
+        "fatias": 4,
+        "sabores": 1,
+        "preco_base": 38.99,
+        "preco_por_sabor_especial": 14.00
+      },
+      {
+        "nome": "Pequena",
+        "diametro_cm": 30,
+        "fatias": 8,
+        "sabores": 1,
+        "preco_base": 52.99,
+        "preco_por_sabor_especial": 14.00
+      },
+      {
+        "nome": "Média",
+        "diametro_cm": 35,
+        "fatias": 10,
+        "sabores": 2,
+        "preco_base": 62.99,
+        "preco_por_sabor_especial": 14.00
+      },
+      {
+        "nome": "Grande",
+        "diametro_cm": 40,
+        "fatias": 12,
+        "sabores": 3,
+        "preco_base": 73.99,
+        "preco_por_sabor_especial": 14.00
+      },
+      {
+        "nome": "Gigante",
+        "diametro_cm": 45,
+        "fatias": 16,
+        "sabores": 4,
+        "preco_base": 87.99,
+        "preco_por_sabor_especial": 14.00
+      },
+      {
+        "nome": "Exagerada",
+        "diametro_cm": 50,
+        "fatias": 20,
+        "sabores": 4,
+        "preco_base": 94.99,
+        "preco_por_sabor_especial": 14.00
+      }
+    ]
+  }
+  

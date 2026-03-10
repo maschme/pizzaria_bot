@@ -1,0 +1,36 @@
+[
+  {
+    "descricao": "Cupom de 10% de desconto valido até o dia 26/03/2026",
+    "codigo": "PIZZA10dia26",
+    "validade": "26/03/2026",
+    "texto": "🎟️ *Seu cupom de 10% de desconto:* PIZZA10dia26\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
+  },
+  {
+    "descricao": "Cupom de 10% de desconto valido até o dia 19/03/2026",
+    "codigo": "PIZZA10dia19",
+    "validade": "19/03/2026",
+    "texto": "🎟️ *Seu cupom de 10% de desconto:* PIZZA10dia19\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
+  },
+ {
+    "descricao": "Cupom de 30% de desconto valido até o dia 26/03/2026",
+    "codigo": "PIZZAdia26",
+    "validade": "26/03/2026",
+    "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA26\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
+  },
+  {
+    "descricao": "Cupom de 30% de desconto valido até o dia 19/03/2026",
+    "codigo": "PIZZAdia19",
+    "validade": "19/03/2026",
+    "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA19\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
+  },
+  {
+    "descricao": "Cupom de 30% de desconto valido até o dia 22/03/2026",
+    "codigo": "PIZZAdia22",
+    "validade": "22/03/2026",
+    "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA22\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
+  },
+  {
+    "codigo": "INDICADO10",
+    "texto": "🎁 *Cupom de 10% para você:* INDICADO10\n\nVocê foi indicado por um amigo! Use no seu primeiro pedido. 🍕"
+  }
+]

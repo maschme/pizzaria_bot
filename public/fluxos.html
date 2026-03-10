@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor de Fluxos - Pizzaria Bot</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #e63946;
+      --bg-dark: #1a1a2e;
+      --bg-card: #16213e;
+      --bg-canvas: #0f0f1a;
+      --text-light: #edf2f4;
+      --node-trigger: #e63946;
+      --node-message: #28a745;
+      --node-condition: #ffc107;
+      --node-ia: #6f42c1;
+      --node-action: #17a2b8;
+      --node-end: #6c757d;
+      --node-wait: #fd7e14;
+    --node-wait-contacts: #20c997;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50px;
+      background: rgba(26, 26, 46, 0.98);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      padding: 0 1rem;
+      z-index: 1000;
+      gap: 1rem;
+    }
+
+    .toolbar .brand {
+      font-weight: 700;
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .toolbar .flow-name {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-light);
+      font-size: 1rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      width: 250px;
+    }
+
+    .toolbar .flow-name:focus {
+      border-color: var(--primary-color);
+      outline: none;
+    }
+
+    .toolbar .actions {
+      margin-left: auto;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 50px;
+      left: 0;
+      width: 260px;
+      height: calc(100vh - 50px);
+      background: var(--bg-card);
+      border-right: 1px solid rgba(255,255,255,0.1);
+      padding: 1rem;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar h6 {
+      color: rgba(255,255,255,0.5);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .sidebar h6:first-child { margin-top: 0; }
+
+    .node-palette {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .palette-node {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      background: rgba(0,0,0,0.25);
+      border-radius: 8px;
+      cursor: grab;
+      transition: all 0.15s;
+      border: 2px solid transparent;
+    }
+
+    .palette-node:hover {
+      background: rgba(0,0,0,0.4);
+      transform: translateX(4px);
+    }
+
+    .palette-node:active { cursor: grabbing; }
+
+    .palette-node .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .palette-node.trigger .icon { background: var(--node-trigger); }
+    .palette-node.message .icon { background: var(--node-message); }
+    .palette-node.condition .icon { background: var(--node-condition); color: #000; }
+    .palette-node.ia .icon { background: var(--node-ia); }
+    .palette-node.action .icon { background: var(--node-action); }
+    .palette-node.wait .icon { background: var(--node-wait); }
+    .palette-node.wait_contacts .icon { background: var(--node-wait-contacts); }
+    .palette-node.end .icon { background: var(--node-end); }
+
+    .palette-node .info { flex: 1; min-width: 0; }
+    .palette-node .info .name { font-weight: 600; font-size: 0.85rem; }
+    .palette-node .info .desc { font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+
+    .fluxos-list { margin-top: 0.5rem; }
+
+    .fluxo-item {
+      padding: 0.6rem 0.75rem;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      margin-bottom: 0.4rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+    }
+
+    .fluxo-item:hover { background: rgba(0,0,0,0.35); }
+    .fluxo-item.active { border-left-color: var(--primary-color); background: rgba(230, 57, 70, 0.15); }
+
+    .fluxo-item .name { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fluxo-item .meta { font-size: 0.7rem; color: rgba(255,255,255,0.5); display: flex; gap: 0.5rem; margin-top: 0.2rem; align-items: center; }
+
+    .canvas-container {
+      position: fixed;
+      top: 50px;
+      left: 260px;
+      right: 320px;
+      bottom: 0;
+      background: var(--bg-canvas);
+      overflow: hidden;
+    }
+
+    #canvas {
+      position: absolute;
+      width: 8000px;
+      height: 8000px;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+      background-size: 25px 25px;
+      transform-origin: 0 0;
+    }
+
+    #canvas.grabbing { cursor: grabbing; }
+
+    .flow-node {
+      position: absolute;
+      min-width: 220px;
+      max-width: 280px;
+      background: var(--bg-card);
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      user-select: none;
+      border: 2px solid transparent;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .flow-node:hover { box-shadow: 0 6px 25px rgba(0,0,0,0.5); }
+    .flow-node.selected { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.3); }
+
+    .flow-node .node-header {
+      padding: 0.6rem 0.85rem;
+      border-radius: 8px 8px 0 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: move;
+    }
+
+    .flow-node.trigger .node-header { background: var(--node-trigger); }
+    .flow-node.message .node-header { background: var(--node-message); }
+    .flow-node.condition .node-header { background: var(--node-condition); color: #000; }
+    .flow-node.ia .node-header { background: var(--node-ia); }
+    .flow-node.action .node-header { background: var(--node-action); }
+    .flow-node.wait .node-header { background: var(--node-wait); }
+    .flow-node.wait_contacts .node-header { background: var(--node-wait-contacts); }
+    .flow-node.end .node-header { background: var(--node-end); }
+
+    .flow-node .node-header i { font-size: 0.95rem; }
+    .flow-node .node-header .title { font-weight: 600; font-size: 0.8rem; flex: 1; }
+
+    .flow-node .node-header .delete-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      opacity: 0.6;
+      padding: 0;
+      font-size: 0.9rem;
+      line-height: 1;
+    }
+
+    .flow-node .node-header .delete-btn:hover { opacity: 1; }
+
+    .flow-node .node-body {
+      padding: 0.75rem 0.85rem;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.8);
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .flow-node .node-body .preview {
+      background: rgba(0,0,0,0.2);
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      max-height: 60px;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    /* Handles */
+    .handle {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border: 3px solid var(--bg-card);
+      border-radius: 50%;
+      cursor: crosshair;
+      z-index: 10;
+      transition: transform 0.1s, background 0.1s;
+    }
+
+    .handle:hover {
+      transform: scale(1.3);
+      background: var(--primary-color);
+    }
+
+    .handle.connecting {
+      background: var(--primary-color);
+      transform: scale(1.4);
+    }
+
+    .handle.input { left: -7px; top: 50%; transform: translateY(-50%); }
+    .handle.output { right: -7px; top: 50%; transform: translateY(-50%); }
+    .handle.input:hover, .handle.output:hover { transform: translateY(-50%) scale(1.3); }
+
+    .flow-node.condition .handle.output-true { right: -7px; top: 35%; }
+    .flow-node.condition .handle.output-false { right: -7px; top: 65%; }
+    .flow-node.condition .output-label { position: absolute; right: 14px; font-size: 0.65rem; color: rgba(255,255,255,0.6); font-weight: 600; }
+    .flow-node.condition .output-label.true { top: 32%; }
+    .flow-node.condition .output-label.false { top: 62%; }
+
+    /* SVG Connections */
+    #connectionsSvg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .connection-path {
+      fill: none;
+      stroke: rgba(255,255,255,0.5);
+      stroke-width: 2.5;
+      pointer-events: stroke;
+      cursor: pointer;
+      transition: stroke 0.15s, stroke-width 0.15s;
+    }
+
+    .connection-path:hover {
+      stroke: var(--primary-color);
+      stroke-width: 3.5;
+    }
+
+    .connection-path.temp {
+      stroke: var(--primary-color);
+      stroke-width: 2;
+      stroke-dasharray: 8, 4;
+      pointer-events: none;
+    }
+
+    /* Properties Panel */
+    .properties-panel {
+      position: fixed;
+      top: 50px;
+      right: 0;
+      width: 320px;
+      height: calc(100vh - 50px);
+      background: var(--bg-card);
+      border-left: 1px solid rgba(255,255,255,0.1);
+      padding: 1rem;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .properties-panel h5 {
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+    }
+
+    .properties-panel .form-group { margin-bottom: 0.85rem; }
+
+    .properties-panel label {
+      display: block;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 0.3rem;
+      font-weight: 500;
+    }
+
+    .properties-panel input,
+    .properties-panel textarea,
+    .properties-panel select {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-light);
+      border-radius: 6px;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.82rem;
+    }
+
+    .properties-panel input:focus,
+    .properties-panel textarea:focus,
+    .properties-panel select:focus {
+      border-color: var(--primary-color);
+      outline: none;
+    }
+
+    .properties-panel textarea { min-height: 80px; resize: vertical; }
+
+    .properties-panel .empty-state {
+      text-align: center;
+      color: rgba(255,255,255,0.35);
+      padding: 3rem 1rem;
+    }
+
+    .properties-panel .empty-state i { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
+
+    .properties-panel .help-text {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.4);
+      margin-top: 0.25rem;
+    }
+
+    /* Zoom controls */
+    .zoom-controls {
+      position: fixed;
+      bottom: 20px;
+      left: 280px;
+      display: flex;
+      gap: 0.4rem;
+      z-index: 100;
+      background: var(--bg-card);
+      padding: 0.4rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+
+    .zoom-controls button {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-light);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .zoom-controls button:hover { background: rgba(255,255,255,0.1); }
+
+    .zoom-controls .zoom-level {
+      padding: 0 0.6rem;
+      display: flex;
+      align-items: center;
+      font-size: 0.8rem;
+      min-width: 50px;
+      justify-content: center;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      top: 70px;
+      right: 340px;
+      z-index: 9999;
+    }
+
+    .toast {
+      min-width: 250px;
+      border-radius: 8px;
+    }
+
+    /* Minimap */
+    .minimap {
+      position: fixed;
+      bottom: 20px;
+      right: 340px;
+      width: 180px;
+      height: 120px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 100;
+    }
+
+    .minimap-viewport {
+      position: absolute;
+      border: 2px solid var(--primary-color);
+      background: rgba(230, 57, 70, 0.1);
+      pointer-events: none;
+    }
+
+    .minimap-node {
+      position: absolute;
+      width: 8px;
+      height: 6px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <a href="dashboard.html" class="brand">
+      <i class="bi bi-robot"></i> Pizzaria Bot
+    </a>
+    <span class="text-muted mx-2">|</span>
+    <i class="bi bi-diagram-3"></i>
+    <input type="text" class="flow-name" id="flowName" value="Novo Fluxo" placeholder="Nome do fluxo">
+    
+    <div class="actions">
+      <button class="btn btn-sm btn-outline-secondary" onclick="novoFluxo()" title="Criar novo fluxo">
+        <i class="bi bi-plus-lg"></i> Novo
+      </button>
+      <button class="btn btn-sm btn-outline-info" onclick="criarFluxoExemplo()" title="Criar fluxo de exemplo">
+        <i class="bi bi-magic"></i> Exemplo
+      </button>
+      <button class="btn btn-sm btn-outline-primary" onclick="salvarFluxo()">
+        <i class="bi bi-save"></i> Salvar
+      </button>
+      <button class="btn btn-sm btn-outline-success" onclick="toggleAtivar()" id="btnAtivar">
+        <i class="bi bi-play"></i> Ativar
+      </button>
+      <a href="dashboard.html" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="info-executavel mb-3 p-2 rounded" style="background: rgba(230, 57, 70, 0.12); border: 1px solid rgba(230, 57, 70, 0.3); font-size: 0.75rem;">
+      <strong class="d-block mb-1"><i class="bi bi-info-circle"></i> O que é executável</strong>
+      <span>Toda lógica que você montar aqui é executada pelo bot: <strong>Gatilho → Mensagem → Aguardar → Condição → IA → Ação → Fim</strong>. Conecte os nós, salve e ative o fluxo. Fluxos com nome contendo &quot;Campanha&quot; (ou tipo Campanha), ao chegarem no Fim, passam o usuário para a campanha legada (ex.: Missão 2 – 10 contatos).</span>
+    </div>
+    <h6>Componentes</h6>
+    <div class="node-palette">
+      <div class="palette-node trigger" draggable="true" data-type="trigger">
+        <div class="icon"><i class="bi bi-lightning-fill"></i></div>
+        <div class="info">
+          <div class="name">Gatilho</div>
+          <div class="desc">Inicia o fluxo</div>
+        </div>
+      </div>
+      <div class="palette-node message" draggable="true" data-type="message">
+        <div class="icon"><i class="bi bi-chat-dots-fill"></i></div>
+        <div class="info">
+          <div class="name">Mensagem</div>
+          <div class="desc">Envia texto</div>
+        </div>
+      </div>
+      <div class="palette-node wait" draggable="true" data-type="wait">
+        <div class="icon"><i class="bi bi-hourglass-split"></i></div>
+        <div class="info">
+          <div class="name">Aguardar</div>
+          <div class="desc">Espera resposta</div>
+        </div>
+      </div>
+      <div class="palette-node wait_contacts" draggable="true" data-type="wait_contacts">
+        <div class="icon"><i class="bi bi-people-fill"></i></div>
+        <div class="info">
+          <div class="name">Aguardar contatos</div>
+          <div class="desc">Indicações (vCard)</div>
+        </div>
+      </div>
+      <div class="palette-node condition" draggable="true" data-type="condition">
+        <div class="icon"><i class="bi bi-signpost-split-fill"></i></div>
+        <div class="info">
+          <div class="name">Condição</div>
+          <div class="desc">Decisão IA</div>
+        </div>
+      </div>
+      <div class="palette-node ia" draggable="true" data-type="ia">
+        <div class="icon"><i class="bi bi-cpu-fill"></i></div>
+        <div class="info">
+          <div class="name">IA</div>
+          <div class="desc">Processa com IA</div>
+        </div>
+      </div>
+      <div class="palette-node action" draggable="true" data-type="action">
+        <div class="icon"><i class="bi bi-gear-fill"></i></div>
+        <div class="info">
+          <div class="name">Ação</div>
+          <div class="desc">Executa função</div>
+        </div>
+      </div>
+      <div class="palette-node end" draggable="true" data-type="end">
+        <div class="icon"><i class="bi bi-stop-circle-fill"></i></div>
+        <div class="info">
+          <div class="name">Fim</div>
+          <div class="desc">Finaliza fluxo</div>
+        </div>
+      </div>
+    </div>
+
+    <h6>Meus Fluxos</h6>
+    <div class="fluxos-list" id="listaFluxos">
+      <div class="text-muted small p-2">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-container" id="canvasContainer">
+    <div id="canvas">
+      <svg id="connectionsSvg"></svg>
+    </div>
+  </div>
+
+  <!-- Properties Panel -->
+  <div class="properties-panel" id="propertiesPanel">
+    <div class="empty-state">
+      <i class="bi bi-cursor"></i>
+      <p>Selecione um nó para<br>editar suas propriedades</p>
+    </div>
+  </div>
+
+  <!-- Zoom Controls -->
+  <div class="zoom-controls">
+    <button onclick="zoomOut()" title="Diminuir zoom"><i class="bi bi-dash"></i></button>
+    <div class="zoom-level" id="zoomLevel">100%</div>
+    <button onclick="zoomIn()" title="Aumentar zoom"><i class="bi bi-plus"></i></button>
+    <button onclick="resetView()" title="Centralizar"><i class="bi bi-fullscreen"></i></button>
+  </div>
+
+  <!-- Minimap -->
+  <div class="minimap" id="minimap"></div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // ============================================================
+    // STATE
+    // ============================================================
+    let currentFluxoId = null;
+    let currentFluxoAtivo = false;
+    let nodes = [];
+    let edges = [];
+    let selectedNodeId = null;
+    let nodeIdCounter = 1;
+    
+    let viewport = { x: 0, y: 0, zoom: 1 };
+    let isPanning = false;
+    let isDraggingNode = false;
+    let isConnecting = false;
+    
+    let draggedNode = null;
+    let dragOffset = { x: 0, y: 0 };
+    let panStart = { x: 0, y: 0 };
+    let connectionStart = null;
+    let tempConnectionLine = null;
+
+    const canvas = document.getElementById('canvas');
+    const canvasContainer = document.getElementById('canvasContainer');
+    const svg = document.getElementById('connectionsSvg');
+
+    // ============================================================
+    // NODE TEMPLATES
+    // ============================================================
+    const nodeTemplates = {
+      trigger: {
+        icon: 'bi-lightning-fill',
+        title: 'Gatilho',
+        hasInput: false,
+        hasOutput: true,
+        defaultData: { tipo: 'mensagem_exata', valor: '', palavras: [] }
+      },
+      message: {
+        icon: 'bi-chat-dots-fill',
+        title: 'Mensagem',
+        hasInput: true,
+        hasOutput: true,
+        defaultData: { texto: '', delay: 0 }
+      },
+      wait: {
+        icon: 'bi-hourglass-split',
+        title: 'Aguardar',
+        hasInput: true,
+        hasOutput: true,
+        defaultData: { timeout: 300000, variavelResposta: 'resposta' }
+      },
+      wait_contacts: {
+        icon: 'bi-people-fill',
+        title: 'Aguardar contatos',
+        hasInput: true,
+        hasOutput: true,
+        defaultData: { meta: 10, mensagemConvite: '', mensagemProgresso: '✅ Total: {{qtIndicados}}/{{metaIndicados}} indicações. Continue enviando!', variavelResposta: 'qtIndicados' }
+      },
+      condition: {
+        icon: 'bi-signpost-split-fill',
+        title: 'Condição',
+        hasInput: true,
+        hasOutput: false,
+        hasOutputTrue: true,
+        hasOutputFalse: true,
+        defaultData: { pergunta: '', promptId: null }
+      },
+      ia: {
+        icon: 'bi-cpu-fill',
+        title: 'IA',
+        hasInput: true,
+        hasOutput: true,
+        defaultData: { promptId: null, provedorId: null, instrucao: '', variavelSaida: 'respostaIA' }
+      },
+      action: {
+        icon: 'bi-gear-fill',
+        title: 'Ação',
+        hasInput: true,
+        hasOutput: true,
+        defaultData: { tipo: 'requisicao', requisicaoTipo: '', funcao: '', parametros: {}, arquivoCupons: 'cupons_desconto', promptCupom: '' }
+      },
+      end: {
+        icon: 'bi-stop-circle-fill',
+        title: 'Fim',
+        hasInput: true,
+        hasOutput: false,
+        defaultData: { mensagemFinal: '' }
+      }
+    };
+
+    // ============================================================
+    // UTILITIES
+    // ============================================================
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const id = 'toast_' + Date.now();
+      const bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-warning text-dark';
+      
+      container.innerHTML += `
+        <div class="toast show ${bgClass} text-white mb-2" id="${id}">
+          <div class="toast-body d-flex align-items-center gap-2">
+            <i class="bi ${type === 'success' ? 'bi-check-circle' : type === 'danger' ? 'bi-x-circle' : 'bi-exclamation-triangle'}"></i>
+            ${message}
+          </div>
+        </div>
+      `;
+      setTimeout(() => document.getElementById(id)?.remove(), 3000);
+    }
+
+    function generateNodeId() {
+      return `node_${nodeIdCounter++}`;
+    }
+
+    function screenToCanvas(clientX, clientY) {
+      const rect = canvasContainer.getBoundingClientRect();
+      return {
+        x: (clientX - rect.left - viewport.x) / viewport.zoom,
+        y: (clientY - rect.top - viewport.y) / viewport.zoom
+      };
+    }
+
+    function getNodeCenter(nodeId) {
+      const el = document.getElementById(nodeId);
+      if (!el) return null;
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node) return null;
+      return {
+        x: node.x + el.offsetWidth / 2,
+        y: node.y + el.offsetHeight / 2
+      };
+    }
+
+    function getHandlePosition(nodeId, handleType) {
+      const el = document.getElementById(nodeId);
+      const node = nodes.find(n => n.id === nodeId);
+      if (!el || !node) return null;
+
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+
+      if (handleType === 'input') {
+        return { x: node.x, y: node.y + height / 2 };
+      } else if (handleType === 'output') {
+        return { x: node.x + width, y: node.y + height / 2 };
+      } else if (handleType === 'output-true') {
+        return { x: node.x + width, y: node.y + height * 0.35 };
+      } else if (handleType === 'output-false') {
+        return { x: node.x + width, y: node.y + height * 0.65 };
+      }
+      return null;
+    }
+
+    // ============================================================
+    // NODE MANAGEMENT
+    // ============================================================
+    function createNode(type, x, y, data = null) {
+      const template = nodeTemplates[type];
+      if (!template) return null;
+
+      const node = {
+        id: generateNodeId(),
+        type,
+        x,
+        y,
+        data: data || { ...template.defaultData }
+      };
+
+      nodes.push(node);
+      renderNode(node);
+      selectNode(node.id);
+      updateMinimap();
+      return node;
+    }
+
+    function renderNode(node) {
+      const template = nodeTemplates[node.type];
+      let el = document.getElementById(node.id);
+      
+      if (!el) {
+        el = document.createElement('div');
+        el.id = node.id;
+        canvas.appendChild(el);
+      }
+
+      el.className = `flow-node ${node.type}${selectedNodeId === node.id ? ' selected' : ''}`;
+      el.style.left = `${node.x}px`;
+      el.style.top = `${node.y}px`;
+
+      let preview = '';
+      switch (node.type) {
+        case 'trigger':
+          preview = node.data.tipo === 'palavra_chave' 
+            ? `Palavras: ${(node.data.palavras || []).join(', ') || '(vazio)'}`
+            : `"${node.data.valor || '(configurar)'}"`;
+          break;
+        case 'message':
+          preview = node.data.texto?.substring(0, 80) || '(configurar mensagem)';
+          break;
+        case 'wait':
+          preview = `Aguarda resposta → {{${node.data.variavelResposta || 'resposta'}}}`;
+          break;
+        case 'wait_contacts':
+          preview = `Aguarda ${node.data.meta || 10} contatos (indicações)`;
+          break;
+        case 'condition':
+          preview = node.data.pergunta?.substring(0, 60) || '(configurar pergunta)';
+          break;
+        case 'ia':
+          preview = node.data.instrucao?.substring(0, 60) || '(configurar instrução)';
+          break;
+        case 'action':
+          preview = node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
+          break;
+        case 'end':
+          preview = node.data.mensagemFinal?.substring(0, 60) || 'Fim do fluxo';
+          break;
+      }
+
+      el.innerHTML = `
+        <div class="node-header">
+          <i class="bi ${template.icon}"></i>
+          <span class="title">${template.title}</span>
+          <button class="delete-btn" data-action="delete" title="Excluir"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="node-body">
+          <div class="preview">${preview}</div>
+        </div>
+        ${template.hasInput ? '<div class="handle input" data-handle="input"></div>' : ''}
+        ${template.hasOutput ? '<div class="handle output" data-handle="output"></div>' : ''}
+        ${template.hasOutputTrue ? '<div class="handle output output-true" data-handle="output-true"></div><span class="output-label true">Sim</span>' : ''}
+        ${template.hasOutputFalse ? '<div class="handle output output-false" data-handle="output-false"></div><span class="output-label false">Não</span>' : ''}
+      `;
+
+      // Event listeners
+      el.onmousedown = (e) => handleNodeMouseDown(e, node);
+      el.onclick = (e) => {
+        if (!e.target.closest('[data-action="delete"]') && !e.target.closest('.handle')) {
+          selectNode(node.id);
+        }
+      };
+    }
+
+    function handleNodeMouseDown(e, node) {
+      // Delete button
+      if (e.target.closest('[data-action="delete"]')) {
+        e.stopPropagation();
+        deleteNode(node.id);
+        return;
+      }
+
+      // Handle (connection start)
+      const handle = e.target.closest('.handle');
+      if (handle && handle.dataset.handle !== 'input') {
+        e.stopPropagation();
+        startConnection(node.id, handle.dataset.handle, e);
+        return;
+      }
+
+      // Node drag
+      if (e.target.closest('.node-header') && !handle) {
+        e.stopPropagation();
+        isDraggingNode = true;
+        draggedNode = node;
+        dragOffset = {
+          x: e.clientX / viewport.zoom - node.x,
+          y: e.clientY / viewport.zoom - node.y
+        };
+        selectNode(node.id);
+      }
+    }
+
+    function deleteNode(nodeId) {
+      nodes = nodes.filter(n => n.id !== nodeId);
+      edges = edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+      
+      document.getElementById(nodeId)?.remove();
+      
+      if (selectedNodeId === nodeId) {
+        selectedNodeId = null;
+        renderPropertiesPanel();
+      }
+      
+      renderConnections();
+      updateMinimap();
+    }
+
+    function selectNode(nodeId) {
+      const prevSelected = selectedNodeId;
+      selectedNodeId = nodeId;
+      
+      if (prevSelected) {
+        const prevEl = document.getElementById(prevSelected);
+        if (prevEl) prevEl.classList.remove('selected');
+      }
+      
+      if (nodeId) {
+        const el = document.getElementById(nodeId);
+        if (el) el.classList.add('selected');
+      }
+      
+      renderPropertiesPanel();
+    }
+
+    // ============================================================
+    // CONNECTIONS
+    // ============================================================
+    function startConnection(nodeId, handleType, e) {
+      isConnecting = true;
+      connectionStart = { nodeId, handleType };
+      
+      const handle = e.target.closest('.handle');
+      if (handle) handle.classList.add('connecting');
+      
+      const pos = getHandlePosition(nodeId, handleType);
+      if (!pos) return;
+      
+      tempConnectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      tempConnectionLine.classList.add('connection-path', 'temp');
+      svg.appendChild(tempConnectionLine);
+      
+      updateTempConnection(e.clientX, e.clientY);
+    }
+
+    function updateTempConnection(clientX, clientY) {
+      if (!isConnecting || !tempConnectionLine || !connectionStart) return;
+      
+      const startPos = getHandlePosition(connectionStart.nodeId, connectionStart.handleType);
+      if (!startPos) return;
+      
+      const endPos = screenToCanvas(clientX, clientY);
+      const path = createBezierPath(startPos.x, startPos.y, endPos.x, endPos.y);
+      tempConnectionLine.setAttribute('d', path);
+    }
+
+    function endConnection(e) {
+      if (!isConnecting) return;
+      
+      // Remove connecting class from handle
+      document.querySelectorAll('.handle.connecting').forEach(h => h.classList.remove('connecting'));
+      
+      // Check if dropped on input handle
+      const targetHandle = e.target.closest('.handle[data-handle="input"]');
+      if (targetHandle) {
+        const targetNode = targetHandle.closest('.flow-node');
+        if (targetNode && targetNode.id !== connectionStart.nodeId) {
+          // Check if connection already exists
+          const exists = edges.some(edge => 
+            edge.source === connectionStart.nodeId && 
+            edge.target === targetNode.id &&
+            edge.sourceHandle === connectionStart.handleType
+          );
+          
+          if (!exists) {
+            edges.push({
+              id: `edge_${Date.now()}`,
+              source: connectionStart.nodeId,
+              target: targetNode.id,
+              sourceHandle: connectionStart.handleType
+            });
+            renderConnections();
+          }
+        }
+      }
+      
+      // Cleanup
+      if (tempConnectionLine) {
+        tempConnectionLine.remove();
+        tempConnectionLine = null;
+      }
+      isConnecting = false;
+      connectionStart = null;
+    }
+
+    function createBezierPath(x1, y1, x2, y2) {
+      const dx = Math.abs(x2 - x1);
+      const controlOffset = Math.min(dx * 0.5, 150);
+      return `M ${x1} ${y1} C ${x1 + controlOffset} ${y1}, ${x2 - controlOffset} ${y2}, ${x2} ${y2}`;
+    }
+
+    function renderConnections() {
+      // Clear existing connections (except temp)
+      svg.querySelectorAll('.connection-path:not(.temp)').forEach(p => p.remove());
+      
+      edges.forEach(edge => {
+        const startPos = getHandlePosition(edge.source, edge.sourceHandle);
+        const endPos = getHandlePosition(edge.target, 'input');
+        
+        if (!startPos || !endPos) return;
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.classList.add('connection-path');
+        path.setAttribute('d', createBezierPath(startPos.x, startPos.y, endPos.x, endPos.y));
+        path.setAttribute('data-edge-id', edge.id);
+        path.style.pointerEvents = 'stroke';
+        path.onclick = () => {
+          if (confirm('Remover esta conexão?')) {
+            edges = edges.filter(e => e.id !== edge.id);
+            renderConnections();
+          }
+        };
+        svg.appendChild(path);
+      });
+    }
+
+    // ============================================================
+    // CANVAS INTERACTIONS
+    // ============================================================
+    canvasContainer.onmousedown = (e) => {
+      if (e.target === canvasContainer || e.target === canvas || e.target === svg) {
+        isPanning = true;
+        canvas.classList.add('grabbing');
+        panStart = { x: e.clientX - viewport.x, y: e.clientY - viewport.y };
+        selectNode(null);
+      }
+    };
+
+    document.onmousemove = (e) => {
+      if (isPanning) {
+        viewport.x = e.clientX - panStart.x;
+        viewport.y = e.clientY - panStart.y;
+        updateCanvasTransform();
+      } else if (isDraggingNode && draggedNode) {
+        draggedNode.x = e.clientX / viewport.zoom - dragOffset.x - viewport.x / viewport.zoom;
+        draggedNode.y = e.clientY / viewport.zoom - dragOffset.y - viewport.y / viewport.zoom;
+        
+        const el = document.getElementById(draggedNode.id);
+        if (el) {
+          el.style.left = `${draggedNode.x}px`;
+          el.style.top = `${draggedNode.y}px`;
+        }
+        renderConnections();
+        updateMinimap();
+      } else if (isConnecting) {
+        updateTempConnection(e.clientX, e.clientY);
+      }
+    };
+
+    document.onmouseup = (e) => {
+      if (isPanning) {
+        isPanning = false;
+        canvas.classList.remove('grabbing');
+      }
+      if (isDraggingNode) {
+        isDraggingNode = false;
+        draggedNode = null;
+      }
+      if (isConnecting) {
+        endConnection(e);
+      }
+    };
+
+    // Drag & Drop from palette
+    document.querySelectorAll('.palette-node').forEach(node => {
+      node.ondragstart = (e) => {
+        e.dataTransfer.setData('nodeType', node.dataset.type);
+        e.dataTransfer.effectAllowed = 'copy';
+      };
+    });
+
+    canvasContainer.ondragover = (e) => e.preventDefault();
+    
+    canvasContainer.ondrop = (e) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('nodeType');
+      if (type) {
+        const pos = screenToCanvas(e.clientX, e.clientY);
+        createNode(type, pos.x - 110, pos.y - 30);
+      }
+    };
+
+    // Zoom
+    canvasContainer.onwheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.08 : 0.08;
+      const newZoom = Math.max(0.25, Math.min(2, viewport.zoom + delta));
+      
+      // Zoom towards mouse position
+      const rect = canvasContainer.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      viewport.x = mouseX - (mouseX - viewport.x) * (newZoom / viewport.zoom);
+      viewport.y = mouseY - (mouseY - viewport.y) * (newZoom / viewport.zoom);
+      viewport.zoom = newZoom;
+      
+      updateCanvasTransform();
+      updateMinimap();
+    };
+
+    function updateCanvasTransform() {
+      canvas.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+      document.getElementById('zoomLevel').textContent = `${Math.round(viewport.zoom * 100)}%`;
+      renderConnections();
+    }
+
+    function zoomIn() {
+      viewport.zoom = Math.min(2, viewport.zoom + 0.15);
+      updateCanvasTransform();
+      updateMinimap();
+    }
+
+    function zoomOut() {
+      viewport.zoom = Math.max(0.25, viewport.zoom - 0.15);
+      updateCanvasTransform();
+      updateMinimap();
+    }
+
+    function resetView() {
+      if (nodes.length === 0) {
+        viewport = { x: 100, y: 100, zoom: 1 };
+      } else {
+        // Center on nodes
+        const bounds = nodes.reduce((acc, n) => ({
+          minX: Math.min(acc.minX, n.x),
+          minY: Math.min(acc.minY, n.y),
+          maxX: Math.max(acc.maxX, n.x + 220),
+          maxY: Math.max(acc.maxY, n.y + 100)
+        }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+        
+        const rect = canvasContainer.getBoundingClientRect();
+        const centerX = (bounds.minX + bounds.maxX) / 2;
+        const centerY = (bounds.minY + bounds.maxY) / 2;
+        
+        viewport.zoom = 1;
+        viewport.x = rect.width / 2 - centerX;
+        viewport.y = rect.height / 2 - centerY;
+      }
+      updateCanvasTransform();
+      updateMinimap();
+    }
+
+    // ============================================================
+    // MINIMAP
+    // ============================================================
+    function updateMinimap() {
+      const minimap = document.getElementById('minimap');
+      if (nodes.length === 0) {
+        minimap.innerHTML = '';
+        return;
+      }
+
+      const bounds = nodes.reduce((acc, n) => ({
+        minX: Math.min(acc.minX, n.x),
+        minY: Math.min(acc.minY, n.y),
+        maxX: Math.max(acc.maxX, n.x + 220),
+        maxY: Math.max(acc.maxY, n.y + 100)
+      }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+      const padding = 50;
+      bounds.minX -= padding;
+      bounds.minY -= padding;
+      bounds.maxX += padding;
+      bounds.maxY += padding;
+
+      const scaleX = 180 / (bounds.maxX - bounds.minX);
+      const scaleY = 120 / (bounds.maxY - bounds.minY);
+      const scale = Math.min(scaleX, scaleY);
+
+      let html = '';
+      nodes.forEach(n => {
+        const x = (n.x - bounds.minX) * scale;
+        const y = (n.y - bounds.minY) * scale;
+        const color = getComputedStyle(document.documentElement).getPropertyValue(`--node-${n.type}`) || '#666';
+        html += `<div class="minimap-node" style="left:${x}px;top:${y}px;background:${color}"></div>`;
+      });
+
+      minimap.innerHTML = html;
+    }
+
+    // ============================================================
+    // PROPERTIES PANEL
+    // ============================================================
+    function renderPropertiesPanel() {
+      const panel = document.getElementById('propertiesPanel');
+      
+      if (!selectedNodeId) {
+        panel.innerHTML = `
+          <div class="empty-state">
+            <i class="bi bi-cursor"></i>
+            <p>Selecione um nó para<br>editar suas propriedades</p>
+          </div>
+        `;
+        return;
+      }
+      
+      const node = nodes.find(n => n.id === selectedNodeId);
+      if (!node) return;
+      
+      const template = nodeTemplates[node.type];
+      
+      let content = `
+        <h5><i class="bi ${template.icon}"></i> ${template.title}</h5>
+        <div class="form-group">
+          <label>ID</label>
+          <input type="text" value="${node.id}" disabled class="text-muted">
+        </div>
+      `;
+      
+      switch (node.type) {
+        case 'trigger':
+          content += `
+            <div class="form-group">
+              <label>Tipo de Gatilho</label>
+              <select onchange="updateNodeData('tipo', this.value); if(this.value==='palavra_chave') updateNodeData('palavras', []); renderNode(nodes.find(n=>n.id==='${node.id}')); renderPropertiesPanel();">
+                <option value="mensagem_exata" ${node.data.tipo === 'mensagem_exata' ? 'selected' : ''}>Mensagem Exata</option>
+                <option value="palavra_chave" ${node.data.tipo === 'palavra_chave' ? 'selected' : ''}>Contém Palavra-chave</option>
+                <option value="qualquer" ${node.data.tipo === 'qualquer' ? 'selected' : ''}>Qualquer Mensagem</option>
+              </select>
+            </div>
+            ${node.data.tipo === 'mensagem_exata' ? `
+              <div class="form-group">
+                <label>Mensagem que ativa</label>
+                <input type="text" value="${node.data.valor || ''}" onchange="updateNodeData('valor', this.value)" placeholder="Ex: Quero desconto">
+              </div>
+            ` : node.data.tipo === 'palavra_chave' ? `
+              <div class="form-group">
+                <label>Palavras-chave (separadas por vírgula)</label>
+                <input type="text" value="${(node.data.palavras || []).join(', ')}" onchange="updateNodeData('palavras', this.value.split(',').map(p=>p.trim()).filter(p=>p))" placeholder="Ex: desconto, promoção, oferta">
+              </div>
+            ` : ''}
+          `;
+          break;
+          
+        case 'message':
+          content += `
+            <div class="form-group">
+              <label>Mensagem</label>
+              <textarea onchange="updateNodeData('texto', this.value)" placeholder="Digite a mensagem...">${node.data.texto || ''}</textarea>
+              <div class="help-text">Use {{variavel}} para dados dinâmicos</div>
+            </div>
+            <div class="form-group">
+              <label>Delay antes de enviar (ms)</label>
+              <input type="number" value="${node.data.delay || 0}" onchange="updateNodeData('delay', parseInt(this.value) || 0)" min="0" step="500">
+            </div>
+          `;
+          break;
+
+        case 'wait':
+          content += `
+            <div class="form-group">
+              <label>Nome da variável para salvar resposta</label>
+              <input type="text" value="${node.data.variavelResposta || 'resposta'}" onchange="updateNodeData('variavelResposta', this.value)" placeholder="resposta">
+              <div class="help-text">Acesse depois com {{${node.data.variavelResposta || 'resposta'}}}</div>
+            </div>
+            <div class="form-group">
+              <label>Timeout (ms)</label>
+              <input type="number" value="${node.data.timeout || 300000}" onchange="updateNodeData('timeout', parseInt(this.value))" min="10000" step="10000">
+              <div class="help-text">Tempo máximo de espera (padrão: 5 min)</div>
+            </div>
+          `;
+          break;
+
+        case 'wait_contacts':
+          content += `
+            <div class="form-group">
+              <label>Meta de indicações</label>
+              <input type="number" value="${node.data.meta ?? 10}" onchange="updateNodeData('meta', parseInt(this.value) || 10)" min="1" placeholder="10">
+              <div class="help-text">Quantidade de contatos (vCard) para concluir</div>
+            </div>
+            <div class="form-group">
+              <label>Mensagem de convite (editável)</label>
+              <textarea onchange="updateNodeData('mensagemConvite', this.value)" placeholder="Ex: Quer 30%? Envie 10 contatos da sua agenda...">${node.data.mensagemConvite || ''}</textarea>
+              <div class="help-text">Enviada ao entrar neste nó. Use {{metaIndicados}} se quiser.</div>
+            </div>
+            <div class="form-group">
+              <label>Mensagem de progresso (opcional)</label>
+              <textarea onchange="updateNodeData('mensagemProgresso', this.value)" placeholder="Ex: Total: {{qtIndicados}}/{{metaIndicados}}">${node.data.mensagemProgresso || ''}</textarea>
+              <div class="help-text">Use {{qtIndicados}} e {{metaIndicados}}. Se vazio, usa mensagem padrão.</div>
+            </div>
+          `;
+          break;
+          
+        case 'condition':
+          content += `
+            <div class="form-group">
+              <label>Pergunta para IA avaliar</label>
+              <textarea onchange="updateNodeData('pergunta', this.value)" placeholder="Ex: O cliente confirmou que entrou no grupo?">${node.data.pergunta || ''}</textarea>
+              <div class="help-text">A IA responderá SIM ou NÃO baseado na última mensagem do cliente</div>
+            </div>
+          `;
+          break;
+          
+        case 'ia':
+          content += `
+            <div class="form-group">
+              <label>Instrução para IA</label>
+              <textarea onchange="updateNodeData('instrucao', this.value)" placeholder="Ex: Extraia o bairro da mensagem do cliente">${node.data.instrucao || ''}</textarea>
+            </div>
+            <div class="form-group">
+              <label>Salvar resultado em</label>
+              <input type="text" value="${node.data.variavelSaida || 'respostaIA'}" onchange="updateNodeData('variavelSaida', this.value)" placeholder="respostaIA">
+              <div class="help-text">Acesse depois com {{${node.data.variavelSaida || 'respostaIA'}}}</div>
+            </div>
+          `;
+          break;
+          
+        case 'action':
+          content += `
+            <div class="form-group">
+              <label>Tipo de Ação</label>
+              <select onchange="updateNodeData('tipo', this.value); renderNode(nodes.find(n=>n.id==='${node.id}')); renderPropertiesPanel();">
+                <option value="requisicao" ${node.data.tipo === 'requisicao' ? 'selected' : ''}>Requisição Externa</option>
+                <option value="enviar_cupom" ${node.data.tipo === 'enviar_cupom' ? 'selected' : ''}>Enviar cupom</option>
+                <option value="salvar_variavel" ${node.data.tipo === 'salvar_variavel' ? 'selected' : ''}>Salvar Variável</option>
+                <option value="webhook" ${node.data.tipo === 'webhook' ? 'selected' : ''}>Webhook</option>
+              </select>
+            </div>
+            ${node.data.tipo === 'requisicao' ? `
+              <div class="form-group">
+                <label>Tipo de Requisição</label>
+                <input type="text" value="${node.data.requisicaoTipo || ''}" onchange="updateNodeData('requisicaoTipo', this.value)" placeholder="Ex: gruposdewhats, taxa_entrega">
+              </div>
+            ` : node.data.tipo === 'enviar_cupom' ? `
+              <div class="form-group">
+                <label>Arquivo de cupons</label>
+                <input type="text" value="${node.data.arquivoCupons || 'cupons_desconto'}" onchange="updateNodeData('arquivoCupons', this.value)" placeholder="cupons_desconto">
+                <div class="help-text">Nome do arquivo em Arquivos de Dados</div>
+              </div>
+              <div class="form-group">
+                <label>Prompt (instrução para IA)</label>
+                <textarea onchange="updateNodeData('promptCupom', this.value)" placeholder="Ex: Encontre um cupom de 10% com validade para 10 dias a partir de hoje {{dataatual}}. Retorne apenas o texto pronto para enviar ao cliente." rows="3">${node.data.promptCupom || ''}</textarea>
+                <div class="help-text">Cada nó pode ter um prompt único. Use {{dataatual}} ou {{dataHoraAtual}}. Se vazio, envia o primeiro cupom do arquivo.</div>
+              </div>
+            ` : node.data.tipo === 'webhook' ? `
+              <div class="form-group">
+                <label>URL do Webhook</label>
+                <input type="text" value="${node.data.webhookUrl || ''}" onchange="updateNodeData('webhookUrl', this.value)" placeholder="https://...">
+              </div>
+            ` : `
+              <div class="form-group">
+                <label>Nome da Variável</label>
+                <input type="text" value="${node.data.nomeVariavel || ''}" onchange="updateNodeData('nomeVariavel', this.value)">
+              </div>
+              <div class="form-group">
+                <label>Valor</label>
+                <input type="text" value="${node.data.valorVariavel || ''}" onchange="updateNodeData('valorVariavel', this.value)">
+              </div>
+            `}
+          `;
+          break;
+          
+        case 'end':
+          content += `
+            <div class="form-group">
+              <label>Mensagem Final (opcional)</label>
+              <textarea onchange="updateNodeData('mensagemFinal', this.value)" placeholder="Mensagem de despedida...">${node.data.mensagemFinal || ''}</textarea>
+            </div>
+          `;
+          break;
+      }
+      
+      panel.innerHTML = content;
+    }
+
+    function updateNodeData(key, value) {
+      const node = nodes.find(n => n.id === selectedNodeId);
+      if (node) {
+        node.data[key] = value;
+        renderNode(node);
+      }
+    }
+
+    // ============================================================
+    // API & PERSISTENCE
+    // ============================================================
+    async function api(endpoint, options = {}) {
+      try {
+        const response = await fetch(`/api/fluxos${endpoint}`, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options
+        });
+        return await response.json();
+      } catch (error) {
+        console.error('API Error:', error);
+        showToast('Erro de conexão', 'danger');
+        return { success: false, error: error.message };
+      }
+    }
+
+    async function carregarFluxos() {
+      const data = await api('/');
+      if (!data.success) return;
+      
+      const lista = document.getElementById('listaFluxos');
+      
+      if (data.data.length === 0) {
+        lista.innerHTML = '<div class="text-muted small p-2">Nenhum fluxo criado</div>';
+        return;
+      }
+      
+      lista.innerHTML = data.data.map(f => `
+        <div class="fluxo-item ${f.id === currentFluxoId ? 'active' : ''}" onclick="carregarFluxo(${f.id})">
+          <div class="name">${f.nome}</div>
+          <div class="meta">
+            <span class="badge ${f.ativo ? 'bg-success' : 'bg-secondary'}" style="font-size:0.65rem">${f.ativo ? 'Ativo' : 'Inativo'}</span>
+            <span>v${f.versao}</span>
+            <span>${f.nodes?.length || 0} nós</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function carregarFluxo(id) {
+      const data = await api(`/${id}`);
+      if (!data.success) return;
+      
+      const fluxo = data.data;
+      currentFluxoId = fluxo.id;
+      currentFluxoAtivo = fluxo.ativo;
+      
+      document.getElementById('flowName').value = fluxo.nome;
+      updateAtivarButton();
+      
+      // Clear canvas
+      document.querySelectorAll('.flow-node').forEach(n => n.remove());
+      svg.querySelectorAll('.connection-path').forEach(p => p.remove());
+      
+      nodes = fluxo.nodes || [];
+      edges = fluxo.edges || [];
+      viewport = fluxo.viewport || { x: 100, y: 100, zoom: 1 };
+      
+      // Find max node id
+      nodeIdCounter = 1;
+      nodes.forEach(n => {
+        const num = parseInt(n.id.replace('node_', '')) || 0;
+        if (num >= nodeIdCounter) nodeIdCounter = num + 1;
+      });
+      
+      // Render
+      nodes.forEach(node => renderNode(node));
+      updateCanvasTransform();
+      
+      // Render connections after DOM update
+      requestAnimationFrame(() => {
+        renderConnections();
+        updateMinimap();
+      });
+      
+      selectedNodeId = null;
+      renderPropertiesPanel();
+      carregarFluxos();
+    }
+
+    async function salvarFluxo() {
+      const nome = document.getElementById('flowName').value.trim() || 'Novo Fluxo';
+      
+      // Get trigger from first trigger node
+      const triggerNode = nodes.find(n => n.type === 'trigger');
+      const gatilho = triggerNode ? triggerNode.data : null;
+      
+      const dados = { nome, nodes, edges, viewport, gatilho };
+      
+      let data;
+      if (currentFluxoId) {
+        data = await api(`/${currentFluxoId}`, { method: 'PUT', body: JSON.stringify(dados) });
+      } else {
+        data = await api('/', { method: 'POST', body: JSON.stringify(dados) });
+        if (data.success) currentFluxoId = data.data.id;
+      }
+      
+      if (data.success) {
+        showToast('Fluxo salvo com sucesso!');
+        carregarFluxos();
+      } else {
+        showToast(data.error || 'Erro ao salvar', 'danger');
+      }
+    }
+
+    async function toggleAtivar() {
+      if (!currentFluxoId) {
+        showToast('Salve o fluxo primeiro', 'warning');
+        return;
+      }
+      
+      const endpoint = currentFluxoAtivo ? 'desativar' : 'ativar';
+      const result = await api(`/${currentFluxoId}/${endpoint}`, { method: 'POST' });
+      
+      if (result.success) {
+        currentFluxoAtivo = !currentFluxoAtivo;
+        updateAtivarButton();
+        showToast(currentFluxoAtivo ? 'Fluxo ativado!' : 'Fluxo desativado!');
+        carregarFluxos();
+      }
+    }
+
+    function updateAtivarButton() {
+      const btn = document.getElementById('btnAtivar');
+      if (currentFluxoAtivo) {
+        btn.innerHTML = '<i class="bi bi-pause"></i> Desativar';
+        btn.classList.remove('btn-outline-success');
+        btn.classList.add('btn-outline-warning');
+      } else {
+        btn.innerHTML = '<i class="bi bi-play"></i> Ativar';
+        btn.classList.remove('btn-outline-warning');
+        btn.classList.add('btn-outline-success');
+      }
+    }
+
+    function novoFluxo() {
+      currentFluxoId = null;
+      currentFluxoAtivo = false;
+      nodes = [];
+      edges = [];
+      nodeIdCounter = 1;
+      selectedNodeId = null;
+      
+      document.getElementById('flowName').value = 'Novo Fluxo';
+      updateAtivarButton();
+      
+      document.querySelectorAll('.flow-node').forEach(n => n.remove());
+      svg.querySelectorAll('.connection-path').forEach(p => p.remove());
+      
+      viewport = { x: 100, y: 100, zoom: 1 };
+      updateCanvasTransform();
+      
+      renderPropertiesPanel();
+      updateMinimap();
+      carregarFluxos();
+    }
+
+    // ============================================================
+    // EXEMPLO: CAMPANHA DE DESCONTO
+    // ============================================================
+    async function criarFluxoExemplo() {
+      if (nodes.length > 0) {
+        if (!confirm('Isso vai substituir o fluxo atual. Continuar?')) return;
+      }
+
+      novoFluxo();
+      document.getElementById('flowName').value = 'Campanha 30% Desconto';
+
+      // Criar nós
+      const n1 = createNode('trigger', 50, 200, {
+        tipo: 'palavra_chave',
+        valor: '',
+        palavras: ['desconto', '30%', 'promoção', 'campanha']
+      });
+
+      const n2 = createNode('message', 320, 200, {
+        texto: `🍕 Olá! Vi que você quer liberar os seus *30% de desconto*! Vamos lá? 🔥
+
+São 3 missões rápidas e a pizza sai quase de graça!
+
+Para começarmos, preciso saber: *qual é o seu bairro?*`,
+        delay: 500
+      });
+
+      const n3 = createNode('wait', 590, 200, {
+        variavelResposta: 'respostaBairro',
+        timeout: 300000
+      });
+
+      const n4 = createNode('ia', 860, 200, {
+        instrucao: `Extraia APENAS o nome do bairro da mensagem. Se não conseguir identificar, responda "NAO_IDENTIFICADO".
+Exemplos: "moro no centro" → Centro | "meu bairro é gloria" → Glória`,
+        variavelSaida: 'bairro',
+        promptId: null,
+        provedorId: null
+      });
+
+      const n5 = createNode('action', 1130, 200, {
+        tipo: 'requisicao',
+        requisicaoTipo: 'gruposdewhats',
+        funcao: ''
+      });
+
+      const n6 = createNode('message', 1400, 200, {
+        texto: `✅ Encontrei! Seu bairro é *{{bairro}}*
+
+🎯 *MISSÃO 1* - Entre no nosso grupo de promoções:
+👉 {{linkGrupo}}
+
+Depois de entrar, me avise aqui que eu confirmo! 😉`,
+        delay: 1000
+      });
+
+      const n7 = createNode('wait', 1670, 200, {
+        variavelResposta: 'confirmacaoGrupo',
+        timeout: 600000
+      });
+
+      const n8 = createNode('condition', 1940, 200, {
+        pergunta: 'O cliente confirmou que entrou no grupo de WhatsApp? (respondeu "entrei", "pronto", "feito", "já entrei", etc)',
+        promptId: null
+      });
+
+      const n9 = createNode('message', 2250, 80, {
+        texto: `🎉 *MISSÃO 1 CONCLUÍDA!* Você liberou *+10%*! 🔥`,
+        delay: 500
+      });
+
+      const n10 = createNode('message', 2250, 320, {
+        texto: `Hmm, não consegui confirmar sua entrada no grupo 🤔\n\nEntre no grupo pelo link e me avise:\n👉 {{linkGrupo}}`,
+        delay: 500
+      });
+
+      const n9b = createNode('message', 2520, 80, {
+        texto: `🔥 *Quer chegar a 30%?* Envie *{{metaIndicados}} contatos* da sua agenda!\n\nCada indicado ganha *10% de desconto* na 1ª compra.\n*Como:* contato → ⋮ → Compartilhar contato → envie aqui.`,
+        delay: 300
+      });
+
+      const n9c = createNode('wait_contacts', 2790, 80, {
+        meta: 10,
+        mensagemConvite: '',
+        mensagemProgresso: '✅ Total: *{{qtIndicados}}/{{metaIndicados}}* indicações. Continue enviando!'
+      });
+
+      const n9d = createNode('message', 3060, 80, {
+        texto: `🎉 *MISSÃO 2 CONCLUÍDA!* Seu *30% de desconto* está liberado!`,
+        delay: 300
+      });
+
+      const n9e = createNode('action', 3330, 80, {
+        tipo: 'enviar_cupom',
+        arquivoCupons: 'cupons_desconto'
+      });
+
+      const n11 = createNode('end', 3600, 80, {
+        mensagemFinal: 'Obrigado por participar da campanha! 🍕'
+      });
+
+      const n12 = createNode('end', 2550, 320, {
+        mensagemFinal: ''
+      });
+
+      // Criar conexões
+      edges = [
+        { id: 'e1', source: n1.id, target: n2.id, sourceHandle: 'output' },
+        { id: 'e2', source: n2.id, target: n3.id, sourceHandle: 'output' },
+        { id: 'e3', source: n3.id, target: n4.id, sourceHandle: 'output' },
+        { id: 'e4', source: n4.id, target: n5.id, sourceHandle: 'output' },
+        { id: 'e5', source: n5.id, target: n6.id, sourceHandle: 'output' },
+        { id: 'e6', source: n6.id, target: n7.id, sourceHandle: 'output' },
+        { id: 'e7', source: n7.id, target: n8.id, sourceHandle: 'output' },
+        { id: 'e8', source: n8.id, target: n9.id, sourceHandle: 'output-true' },
+        { id: 'e9', source: n8.id, target: n10.id, sourceHandle: 'output-false' },
+        { id: 'e9a', source: n9.id, target: n9b.id, sourceHandle: 'output' },
+        { id: 'e9b', source: n9b.id, target: n9c.id, sourceHandle: 'output' },
+        { id: 'e9c', source: n9c.id, target: n9d.id, sourceHandle: 'output' },
+        { id: 'e9d', source: n9d.id, target: n9e.id, sourceHandle: 'output' },
+        { id: 'e9e', source: n9e.id, target: n11.id, sourceHandle: 'output' },
+        { id: 'e11', source: n10.id, target: n12.id, sourceHandle: 'output' }
+      ];
+
+      // Render connections
+      requestAnimationFrame(() => {
+        renderConnections();
+        updateMinimap();
+        resetView();
+      });
+
+      showToast('Fluxo de exemplo criado! Clique em Salvar para persistir.');
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      carregarFluxos();
+      resetView();
+    });
+  </script>
+</body>
+</html>

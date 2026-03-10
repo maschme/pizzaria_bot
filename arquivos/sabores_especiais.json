@@ -1,0 +1,139 @@
+{
+"categoria": "Sabores salgados Especiais",
+"observação": "todos os sabores levam molho, queijo mussarela e orégano",
+"sabores": [
+  
+  {
+    "nome": "Alcatra com Pasta de Alho",
+    "ingredientes": ["Alcatra", "Pasta de Alho Santa Massa"]
+  },
+  {
+    "nome": "Costela com Pasta de Alho",
+    "ingredientes": ["Costela", "Pasta de Alho Santa Massa"]
+  },
+  {
+    "nome": "4 Queijos com Bacon",
+    "ingredientes": ["Provolone", "Parmesão", "Catupiry", "Bacon"]
+  },
+  {
+    "nome": "4 Queijos com Batata Frita",
+    "ingredientes": ["Provolone", "Parmesão", "Catupiry", "Batata Frita"]
+  },
+  {
+    "nome": "Alcatra ao Alho",
+    "ingredientes": ["Alcatra", "Alho"]
+  },
+  {
+    "nome": "Alcatra ao Molho Madeira",
+    "ingredientes": ["Alcatra", "Tomate", "Cheddar", "Molho Madeira"]
+  },
+  {
+    "nome": "Americana",
+    "ingredientes": ["Bacon", "Batata Frita"]
+  },
+  {
+    "nome": "Bolonhesa",
+    "ingredientes": ["Carne", "Milho", "Palmito"]
+  },
+  {
+    "nome": "Brócolis com Tomate Seco",
+    "ingredientes": ["Brócolis", "Tomate Seco"]
+  },
+  {
+    "nome": "Brócolis com Tomate Seco Cream",
+    "ingredientes": ["Brócolis", "Tomate Seco", "Bacon", "Cream Cheese"]
+  },
+  {
+    "nome": "Chapeado",
+    "ingredientes": ["Alcatra", "Palmito", "Cebola", "Batata Frita"]
+  },
+  {
+    "nome": "Costela",
+    "ingredientes": ["Costela Desfiada"]
+  },
+  {
+    "nome": "Costela Barbecue",
+    "ingredientes": ["Costela", "Molho Barbecue"]
+  },
+  {
+    "nome": "Costela com Catupiry",
+    "ingredientes": ["Costela", "Catupiry"]
+  },
+  {
+    "nome": "Costela com Cheddar",
+    "ingredientes": ["Costela", "Cheddar"]
+  },
+  {
+    "nome": "Costela Cremosa",
+    "ingredientes": ["Costela Assada Desfiada", "Cream Cheese"]
+  },
+  {
+    "nome": "Do Chefe",
+    "ingredientes": ["Batata Frita", "Bacon", "Calabresa", "Catupiry"]
+  },
+  {
+    "nome": "Do Chefe 2",
+    "ingredientes": ["Batata Frita", "Presunto", "Calabresa", "Cheddar"]
+  },
+  {
+    "nome": "Doritos",
+    "ingredientes": ["Doritos"]
+  },
+  {
+    "nome": "Doritos Turbinado",
+    "ingredientes": ["Frango", "Cheddar", "Doritos"]
+  },
+  {
+    "nome": "Dragão",
+    "ingredientes": ["Alcatra", "Cebola", "Pimenta"]
+  },
+  {
+    "nome": "Filé Acebolado",
+    "ingredientes": ["Alcatra", "Cebola"]
+  },
+  {
+    "nome": "Filé com Cheddar",
+    "ingredientes": ["Alcatra", "Cheddar"]
+  },
+  {
+    "nome": "Filé com Mostarda",
+    "ingredientes": ["Alcatra", "Mostarda"]
+  },
+  {
+    "nome": "Gaúcha",
+    "ingredientes": ["Alcatra", "Tomate"]
+  },
+  {
+    "nome": "Nordestina",
+    "ingredientes": ["Carne Seca Desfiada", "Catupiry"]
+  },
+  {
+    "nome": "Nordestina Cream",
+    "ingredientes": ["Carne Seca", "Cream Cheese"]
+  },
+  {
+    "nome": "Pepperoni",
+    "ingredientes": ["Pepperoni"]
+  },
+  {
+    "nome": "Strogonoff Carne",
+    "ingredientes": ["Strogonoff de Carne", "Batata Palha"]
+  },
+  {
+    "nome": "Strogonoff Frango",
+    "ingredientes": ["Strogonoff de Frango", "Batata Palha"]
+  },
+  {
+    "nome": "Suprema",
+    "ingredientes": ["Pepperoni", "Champignon", "Azeitona"]
+  },
+  {
+    "nome": "Tempero Napolitano",
+    "ingredientes": ["Alcatra", "Bacon", "Palmito"]
+  },
+  {
+    "nome": "Tex Mex",
+    "ingredientes": ["Alcatra", "Doritos", "Cheddar"]
+  }
+]
+}

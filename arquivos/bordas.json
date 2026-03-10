@@ -1,0 +1,69 @@
+{
+  "categoria": "Bordas Recheadas",
+  "precos_por_tamanho": {
+    "Broto": [
+      { "nome": "Catupiry", "preco": 10.00 },
+      { "nome": "Cheddar", "preco": 10.00 },
+      { "nome": "Chocolate Preto", "preco": 14.00 },
+      { "nome": "Doce de Leite", "preco": 10.00 },
+      { "nome": "Pasta de Alho Santa Massa", "preco": 10.00 },
+      { "nome": "Catupiry e Calabresa", "preco": 10.00 },
+      { "nome": "Catupiry e Bacon", "preco": 10.00 },
+      { "nome": "Cheddar e Calabresa", "preco": 10.00 },
+      { "nome": "Cheddar e Bacon", "preco": 10.00 },
+      { "nome": "Cream Cheese", "preco": 12.00 },
+      { "nome": "2 Amores", "preco": 14.00 }
+    ],
+    "Pequena_Média": [
+      { "nome": "Catupiry", "preco": 14.00 },
+      { "nome": "Cheddar", "preco": 14.00 },
+      { "nome": "Chocolate Preto", "preco": 18.00 },
+      { "nome": "Doce de Leite", "preco": 14.00 },
+      { "nome": "Vulcânica Cheddar", "preco": 16.00 },
+      { "nome": "Vulcânica Catupiry", "preco": 16.00 },
+      { "nome": "Vulcânica Catupiry e Cheddar", "preco": 18.00 },
+      { "nome": "Vulcânica Chocolate Preto", "preco": 18.00 },
+      { "nome": "Creme de Alho Santa Massa", "preco": 14.00 },
+      { "nome": "Catupiry e Calabresa", "preco": 14.00 },
+      { "nome": "Cheddar e Calabresa", "preco": 14.00 },
+      { "nome": "Catupiry e Bacon", "preco": 14.00 },
+      { "nome": "Cheddar e Bacon", "preco": 14.00 },
+      { "nome": "Cream Cheese", "preco": 16.00 },
+      { "nome": "2 Amores", "preco": 18.00 }
+    ],
+    "Grande": [
+      { "nome": "Catupiry", "preco": 16.00 },
+      { "nome": "Cheddar", "preco": 16.00 },
+      { "nome": "Chocolate Preto", "preco": 20.00 },
+      { "nome": "Doce de Leite", "preco": 16.00 },
+      { "nome": "Vulcânica Catupiry", "preco": 20.00 },
+      { "nome": "Vulcânica Cheddar", "preco": 20.00 },
+      { "nome": "Vulcânica Catupiry e Cheddar", "preco": 22.00 },
+      { "nome": "Vulcânica Chocolate ao Leite", "preco": 24.00 },
+      { "nome": "Pasta Alho Santa Massa", "preco": 16.00 },
+      { "nome": "Catupiry e Calabresa", "preco": 16.00 },
+      { "nome": "Catupiry e Bacon", "preco": 16.00 },
+      { "nome": "Cheddar e Calabresa", "preco": 16.00 },
+      { "nome": "Cheddar e Bacon", "preco": 16.00 },
+      { "nome": "2 Amores", "preco": 20.00 }
+    ],
+    "Gigante_Exagerada": [
+      { "nome": "Catupiry", "preco": 18.00 },
+      { "nome": "Cheddar", "preco": 18.00 },
+      { "nome": "Chocolate Preto", "preco": 22.00 },
+      { "nome": "Doce de Leite", "preco": 18.00 },
+      { "nome": "Vulcânica Catupiry", "preco": 22.00 },
+      { "nome": "Vulcânica Cheddar", "preco": 22.00 },
+      { "nome": "Vulcânica Catupiry e Cheddar", "preco": 24.00 },
+      { "nome": "Vulcânica Chocolate Preto", "preco": 26.00 },
+      { "nome": "Creme de Alho Santa Massa", "preco": 18.00 },
+      { "nome": "Catupiry e Calabresa", "preco": 18.00 },
+      { "nome": "Cheddar e Calabresa", "preco": 18.00 },
+      { "nome": "Catupiry e Bacon", "preco": 18.00 },
+      { "nome": "Cheddar e Bacon", "preco": 18.00 },
+      { "nome": "Cream Cheese", "preco": 19.00 },
+      { "nome": "2 Amores", "preco": 22.00 }
+    ]
+  }
+}
+

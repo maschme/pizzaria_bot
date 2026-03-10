@@ -1,0 +1,51 @@
+{
+  "categoria": "Grupos de Promoções WhatsApp",
+  "grupos": [
+    {
+      "bairro": "Centro",
+      "link": "https://chat.whatsapp.com/EXEMPLO_CENTRO",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "Bucarein",
+      "link": "https://chat.whatsapp.com/EXEMPLO_BUCAREIN",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "América",
+      "link": "https://chat.whatsapp.com/EXEMPLO_AMERICA",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "Saguaçu",
+      "link": "https://chat.whatsapp.com/EXEMPLO_SAGUACU",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "Glória",
+      "link": "https://chat.whatsapp.com/EXEMPLO_GLORIA",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "Iririú",
+      "link": "https://chat.whatsapp.com/EXEMPLO_IRIRIU",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "Jarivatuba",
+      "link": "https://chat.whatsapp.com/EXEMPLO_JARIVATUBA",
+      "grupoId": "XXXXXXXXXX@g.us"
+    },
+    {
+      "bairro": "Aventureiro",
+      "link": "https://chat.whatsapp.com/EXEMPLO_AVENTUREIRO",
+      "grupoId": "XXXXXXXXXX@g.us"
+    }
+  ],
+  "grupo_geral": {
+    "nome": "Promoções Tempero Napolitano - Geral",
+    "link": "https://chat.whatsapp.com/EXEMPLO_GERAL",
+    "grupoId": "XXXXXXXXXX@g.us"
+  },
+  "todosGruposIds": []
+}

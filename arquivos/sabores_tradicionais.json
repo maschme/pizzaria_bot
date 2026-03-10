@@ -1,0 +1,304 @@
+{
+"categoria": "Sabores salgados tradicionais",
+"observação": "todos os sabores levam molho, queijo mussarela e orégano",
+"sabores": [
+    {
+      "nome": "BRÓCOLIS COM BACON E PASTA DE ALHO",
+      "ingredientes": ["Brócolis", "Bacon", "Pasta de Alho Santa Massa"]
+    },
+    {
+      "nome": "BRÓCOLIS COM PALMITO",
+      "ingredientes": ["Brócolis", "Palmito"]
+    },
+    {
+      "nome": "CALABRESA COM PASTA DE ALHO",
+      "ingredientes": ["Calabresa", "Pasta de Alho Santa Massa"]
+    },
+    {
+      "nome": "CALABRESA CRISPY",
+      "ingredientes": ["Calabresa", "Cebola Crispy"]
+    },
+    {
+      "nome": "LINGUIÇA COM ALHO PORÓ E PASTA DE ALHO",
+      "ingredientes": ["Linguiça Churrasco Assada", "Alho Poró", "Pasta de Alho Santa Massa"]
+    },
+    {
+      "nome": "LOMBO COM ABACAXI",
+      "ingredientes": ["Lombo Fatiado", "Abacaxi"]
+    },
+    {
+      "nome": "LOMBO COM BARBECUE",
+      "ingredientes": ["Lombo Fatiado", "Molho Barbecue Hemmer"]
+    },
+    {
+      "nome": "PALMITO COM CREME",
+      "ingredientes": ["Palmito", "Creme de Leite"]
+    },
+    {
+      "nome": "PORTUGUESA COM PASTA DE ALHO",
+      "ingredientes": ["Presunto", "Ovo", "Cebola", "Azeitona", "Pasta de Alho Santa Massa"]
+    },
+    {
+      "nome": "MILHO COM CREME",
+      "ingredientes": ["Milho", "Creme de Leite"]
+    },
+    {
+      "nome": "4 Queijos",
+      "ingredientes": ["Provolone", "Parmesão", "Catupiry"]
+    },
+    {
+      "nome": "5 Queijos",
+      "ingredientes": ["Provolone", "Parmesão", "Catupiry", "Cheddar"]
+    },
+    {
+      "nome": "A Grega",
+      "ingredientes": ["Atum", "Ervilha", "Tomate", "Cebola"]
+    },
+    {
+      "nome": "Alho e Óleo",
+      "ingredientes": ["Alho", "Óleo"]
+    },
+    {
+      "nome": "Alho Poró",
+      "ingredientes": ["Alho poró"]
+    },
+    {
+      "nome": "Atum",
+      "ingredientes": ["Atum"]
+    },
+    {
+      "nome": "Atum com Cebola",
+      "ingredientes": ["Atum", "Cebola"]
+    },
+    {
+      "nome": "Bacon",
+      "ingredientes": ["Bacon"]
+    },
+    {
+      "nome": "Baiana",
+      "ingredientes": ["Calabresa", "Cebola", "Pimentão", "Pimenta"]
+    },
+    {
+      "nome": "Brócolis",
+      "ingredientes": ["Brócolis"]
+    },
+    {
+      "nome": "Brócolis com Bacon",
+      "ingredientes": ["Brócolis", "Bacon"]
+    },
+    {
+      "nome": "Cachorro-quente",
+      "ingredientes": ["Purê de Batata", "Milho", "Salsicha", "Molho de cachorro-quente", "Parmesão", "Batata-palha"]
+    },
+    {
+      "nome": "Calabresa",
+      "ingredientes": ["Calabresa"]
+    },
+    {
+      "nome": "Calabresa com Barbecue",
+      "ingredientes": ["Calabresa", "Barbecue"]
+    },
+    {
+      "nome": "Calabresa com Catupiry",
+      "ingredientes": ["Calabresa", "Catupiry"]
+    },
+    {
+      "nome": "Calabresa com cebola",
+      "ingredientes": ["Calabresa", "Cebola"]
+    },
+    {
+      "nome": "Calabresa com Cheddar",
+      "ingredientes": ["Calabresa", "Cheddar"]
+    },
+    {
+      "nome": "Carioca",
+      "ingredientes": ["Presunto", "Bacon", "Milho", "Ovo"]
+    },
+    {
+      "nome": "Catuperu",
+      "ingredientes": ["Peito de Peru", "Catupiry"]
+    },
+    {
+      "nome": "Champignon",
+      "ingredientes": ["Champignon"]
+    },
+    {
+      "nome": "Cheddar",
+      "ingredientes": ["Cheddar"]
+    },
+    {
+      "nome": "Crocante",
+      "ingredientes": ["Frango", "Bacon", "Batata Palha"]
+    },
+    {
+      "nome": "Da Casa",
+      "ingredientes": ["Palmito", "Lombo", "Tomate"]
+    },
+    {
+      "nome": "Ele e Ela",
+      "ingredientes": ["Presunto", "Tomate"]
+    },
+    {
+      "nome": "Espanhola",
+      "ingredientes": ["Calabresa", "Palmito", "Ovo"]
+    },
+    {
+      "nome": "Francesa",
+      "ingredientes": ["Frango", "Ervilha", "Cebola"]
+    },
+    {
+      "nome": "Frangalho",
+      "ingredientes": ["Frango", "Creme de Leite", "Alho"]
+    },
+    {
+      "nome": "Frango",
+      "ingredientes": ["Frango"]
+    },
+    {
+      "nome": "Frango Caipira",
+      "ingredientes": ["Frango", "Milho", "Batata Palha"]
+    },
+    {
+      "nome": "Frango com Catupiry",
+      "ingredientes": ["Frango", "Catupiry"]
+    },
+    {
+      "nome": "Frango com Cheddar",
+      "ingredientes": ["Frango", "Cheddar"]
+    },
+    {
+      "nome": "Frango com Cream Cheese",
+      "ingredientes": ["Frango", "Cream Cheese"]
+    },
+    {
+      "nome": "Linguiça Barbecue",
+      "ingredientes": ["Linguiça Suína", "Molho Barbecue"]
+    },
+    {
+      "nome": "Linguiça Crocante",
+      "ingredientes": ["Linguiça suína", "Catupiry", "Batata-palha"]
+    },
+    {
+      "nome": "Linguiça Crocante com Cheddar",
+      "ingredientes": ["Linguiça Suína", "Cheddar", "Batata Palha"]
+    },
+    {
+      "nome": "Linguiça Mostarda",
+      "ingredientes": ["Linguiça Suína", "Mostarda Escura"]
+    },
+    {
+      "nome": "linguiça poró",
+      "ingredientes": ["Linguiça Suína", "Alho-poró"]
+    },
+    {
+      "nome": "Linguiça Poró com Mostarda",
+      "ingredientes": ["Linguiça Suína", "Alho-poró", "Mostarda"]
+    },
+    {
+      "nome": "Lombo",
+      "ingredientes": ["Lombo"]
+    },
+    {
+      "nome": "Lombo com Catupiry",
+      "ingredientes": ["Lombo", "Catupiry"]
+    },
+    {
+      "nome": "Lombo com Cheddar",
+      "ingredientes": ["Lombo", "Cheddar"]
+    },
+    {
+      "nome": "Marguerita",
+      "ingredientes": ["Tomate", "Manjericão"]
+    },
+    {
+      "nome": "Milho",
+      "ingredientes": ["Milho"]
+    },
+    {
+      "nome": "Milho com Bacon",
+      "ingredientes": ["Milho", "Bacon"]
+    },
+    {
+      "nome": "Mineira",
+      "ingredientes": ["Bacon", "Catupiry", "Batata Palha"]
+    },
+    {
+      "nome": "Mineira com Cheddar",
+      "ingredientes": ["Bacon", "Cheddar", "Batata Palha"]
+    },
+    {
+      "nome": "Mista",
+      "ingredientes": ["Frango", "Calabresa", "Bacon", "Palmito"]
+    },
+    {
+      "nome": "Moda do Pizzaiolo",
+      "ingredientes": ["Presunto", "Champignon", "Milho", "Catupiry"]
+    },
+    {
+      "nome": "Modinha",
+      "ingredientes": ["Calabresa", "Tomate", "Palmito", "Cream Cheese"]
+    },
+    {
+      "nome": "Mussarela",
+      "ingredientes": ["Mussarela"]
+    },
+    {
+      "nome": "Napolitana",
+      "ingredientes": ["Parmesão", "Tomate"]
+    },
+    {
+      "nome": "Palmito",
+      "ingredientes": ["Palmito"]
+    },
+    {
+      "nome": "Paulista",
+      "ingredientes": ["Palmito", "Milho", "Ervilha", "Ovo", "Azeitona"]
+    },
+    {
+      "nome": "Peito De Perú com Cheddar",
+      "ingredientes": ["Peito de Perú", "Cheddar"]
+    },
+    {
+      "nome": "PEITO PERU CREAM",
+      "ingredientes": ["Peito de Perú", "Cream Cheese"]
+    },
+    {
+      "nome": "Portuguesa",
+      "ingredientes": ["Presunto", "Ovo", "Cebola", "Azeitona"]
+    },
+    {
+      "nome": "Primavera",
+      "ingredientes": ["Presunto", "Ovo", "Ervilha"]
+    },
+    {
+      "nome": "Purê de Batata com Bacon",
+      "ingredientes": ["Purê de Batata", "Bacon", "Parmesão"]
+    },
+    {
+      "nome": "Purê de Batata com Calabresa",
+      "ingredientes": ["Purê de Batata", "Calabresa", "Parmesão"]
+    },
+    {
+      "nome": "Purê de Batata com Frango",
+      "ingredientes": ["Purê de Batata", "Frango", "Parmesão"]
+    },
+    {
+      "nome": "Purê de Batata com Linguiça",
+      "ingredientes": ["Purê de Batata", "Linguiça suína", "Parmesão"]
+    },
+    {
+      "nome": "Siciliana",
+      "ingredientes": ["Champignon", "Azeitona", "Bacon"]
+    },
+    {
+      "nome": "Vegetariana",
+      "ingredientes": ["Ervilha", "Milho", "Tomate", "Palmito"]
+    },
+    {
+      "nome": "Vitaminada",
+      "ingredientes": ["Calabresa", "Bacon", "Ovos", "Tomate"]
+    }
+  ]
+  
+
+}

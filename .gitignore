@@ -1,0 +1,29 @@
+# Dependências
+node_modules/
+
+# Sessão/autenticação WhatsApp (não subir)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Variáveis de ambiente e segredos
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs e sistema
+npm-debug.log*
+logs/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Build / temporários
+dist/
+tmp/
+temp/
+*.tmp

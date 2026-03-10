@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuração de IA - Pizzaria Bot</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #e63946;
+      --secondary-color: #1d3557;
+      --accent-color: #f4a261;
+      --bg-dark: #1a1a2e;
+      --bg-card: #16213e;
+      --text-light: #edf2f4;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-card) 100%);
+      min-height: 100vh;
+      color: var(--text-light);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .navbar {
+      background: rgba(26, 26, 46, 0.95) !important;
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .navbar-brand {
+      font-weight: 700;
+      color: var(--primary-color) !important;
+    }
+
+    .nav-link {
+      color: var(--text-light) !important;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      opacity: 1;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+    }
+
+    .card-header {
+      background: rgba(0,0,0,0.2);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px 16px 0 0 !important;
+    }
+
+    .table {
+      color: var(--text-light);
+    }
+
+    .table thead th {
+      border-bottom: 2px solid rgba(255,255,255,0.1);
+      font-weight: 600;
+    }
+
+    .table td {
+      border-color: rgba(255,255,255,0.05);
+      vertical-align: middle;
+    }
+
+    .badge-ativo { background: #28a745; }
+    .badge-inativo { background: #6c757d; }
+    .badge-principal { background: var(--accent-color); color: #000; }
+
+    .btn-action {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .prompt-preview {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .nav-tabs .nav-link {
+      color: var(--text-light) !important;
+      border: none;
+      border-bottom: 2px solid transparent;
+    }
+
+    .nav-tabs .nav-link.active {
+      background: transparent;
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    .toast-container {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 9999;
+    }
+
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .form-control, .form-select {
+      background: rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-light);
+    }
+
+    .form-control:focus, .form-select:focus {
+      background: rgba(0,0,0,0.3);
+      border-color: var(--primary-color);
+      color: var(--text-light);
+      box-shadow: 0 0 0 0.2rem rgba(230, 57, 70, 0.25);
+    }
+
+    .form-control::placeholder {
+      color: rgba(255,255,255,0.4);
+    }
+
+    textarea.form-control {
+      min-height: 200px;
+      font-family: monospace;
+    }
+
+    .tipo-badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+    }
+
+    .tipo-sistema { background: #6f42c1; }
+    .tipo-atendimento { background: #007bff; }
+    .tipo-campanha { background: #fd7e14; }
+    .tipo-analise { background: #20c997; }
+    .tipo-extracao { background: #e83e8c; }
+
+    .handler-badge {
+      font-size: 0.75rem;
+    }
+
+    .handler-ia { background: #6f42c1; }
+    .handler-api { background: #17a2b8; }
+    .handler-json { background: #28a745; }
+    .handler-funcao { background: #ffc107; color: #000; }
+
+    .test-result {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .test-result.success {
+      border-left: 4px solid #28a745;
+    }
+
+    .test-result.error {
+      border-left: 4px solid #dc3545;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="dashboard.html">
+        <i class="bi bi-robot"></i> Pizzaria Bot
+      </a>
+      <div class="navbar-nav ms-auto flex-row gap-3">
+        <a class="nav-link" href="dashboard.html"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        <a class="nav-link" href="fluxos.html"><i class="bi bi-diagram-3"></i> Fluxos</a>
+        <a class="nav-link active" href="ia-config.html"><i class="bi bi-cpu"></i> IA & Prompts</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Main Content -->
+  <div class="container-fluid py-4">
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+      <li class="nav-item">
+        <button class="nav-link active" id="prompts-tab" data-bs-toggle="tab" data-bs-target="#prompts" type="button">
+          <i class="bi bi-file-text"></i> Prompts
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="provedores-tab" data-bs-toggle="tab" data-bs-target="#provedores" type="button">
+          <i class="bi bi-cloud"></i> Provedores de IA
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="requisicoes-tab" data-bs-toggle="tab" data-bs-target="#requisicoes" type="button">
+          <i class="bi bi-arrow-left-right"></i> Requisições Externas
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="arquivos-tab" data-bs-toggle="tab" data-bs-target="#arquivos" type="button">
+          <i class="bi bi-folder2-open"></i> Arquivos de Dados
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="teste-tab" data-bs-toggle="tab" data-bs-target="#teste" type="button">
+          <i class="bi bi-play-circle"></i> Testar IA
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="mainTabsContent">
+      <!-- Tab: Prompts -->
+      <div class="tab-pane fade show active" id="prompts" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Prompts do Sistema</h5>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalPrompt" onclick="novoPrompt()">
+              <i class="bi bi-plus-lg"></i> Novo Prompt
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Nome</th>
+                    <th>Tipo</th>
+                    <th>Descrição</th>
+                    <th>Versão</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaPrompts">
+                  <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">Carregando...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Provedores -->
+      <div class="tab-pane fade" id="provedores" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-cloud me-2"></i>Provedores de IA</h5>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalProvedor" onclick="novoProvedor()">
+              <i class="bi bi-plus-lg"></i> Novo Provedor
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Nome</th>
+                    <th>Tipo</th>
+                    <th>Modelo Padrão</th>
+                    <th>API Key</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaProvedores">
+                  <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">Carregando...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Requisições -->
+      <div class="tab-pane fade" id="requisicoes" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Requisições Externas</h5>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalRequisicao" onclick="novaRequisicao()">
+              <i class="bi bi-plus-lg"></i> Nova Requisição
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              Requisições externas são chamadas que a IA pode fazer durante o atendimento para buscar dados (cardápio, taxas, etc).
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Nome</th>
+                    <th>Tipo (código)</th>
+                    <th>Handler</th>
+                    <th>Descrição</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaRequisicoes">
+                  <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">Carregando...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Arquivos de Dados -->
+      <div class="tab-pane fade" id="arquivos" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Arquivos de Dados (JSON)</h5>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalArquivo" onclick="novoArquivo()">
+              <i class="bi bi-plus-lg"></i> Novo Arquivo
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              Arquivos JSON usados por requisições externas (ex: grupos_whatsapp, bordas, sabores_doces). Aqui você pode criar, editar e excluir arquivos, e definir <strong>como a IA deve processar</strong> o conteúdo e <strong>em que formato retornar</strong> o resultado.
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Tamanho</th>
+                    <th>Instrução IA</th>
+                    <th>Formato retorno</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaArquivos">
+                  <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">Carregando...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Teste -->
+      <div class="tab-pane fade" id="teste" role="tabpanel">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-play-circle me-2"></i>Testar IA</h5>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">Provedor</label>
+                  <select class="form-select" id="testeProvedor">
+                    <option value="">Usar provedor principal</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Prompt (opcional)</label>
+                  <select class="form-select" id="testePrompt">
+                    <option value="">Sem prompt de sistema</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Mensagem</label>
+                  <textarea class="form-control" id="testeMensagem" rows="4" placeholder="Digite sua mensagem para testar..."></textarea>
+                </div>
+                <button class="btn btn-primary w-100" onclick="executarTeste()">
+                  <i class="bi bi-send me-2"></i>Enviar Teste
+                </button>
+                
+                <div id="testeResultado" class="d-none">
+                  <hr>
+                  <h6>Resultado:</h6>
+                  <div class="test-result" id="testeResultadoConteudo"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informações</h5>
+              </div>
+              <div class="card-body">
+                <h6>Como funciona:</h6>
+                <ul>
+                  <li><strong>Provedor:</strong> Escolha qual serviço de IA usar (Qwen, Claude, etc)</li>
+                  <li><strong>Prompt:</strong> Selecione um prompt de sistema para contextualizar a IA</li>
+                  <li><strong>Mensagem:</strong> Simule uma mensagem de cliente</li>
+                </ul>
+                
+                <h6 class="mt-4">Dicas:</h6>
+                <ul>
+                  <li>Use para testar novos prompts antes de ativar</li>
+                  <li>Compare respostas entre diferentes provedores</li>
+                  <li>Verifique se as variáveis do prompt estão funcionando</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Prompt -->
+  <div class="modal fade" id="modalPrompt" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalPromptTitulo">Novo Prompt</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formPrompt">
+            <input type="hidden" id="promptId">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Nome (identificador)</label>
+                <input type="text" class="form-control" id="promptNome" required placeholder="ex: atendimento_inicial">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Tipo</label>
+                <select class="form-select" id="promptTipo" required>
+                  <option value="sistema">Sistema</option>
+                  <option value="atendimento">Atendimento</option>
+                  <option value="campanha">Campanha</option>
+                  <option value="analise">Análise</option>
+                  <option value="extracao">Extração</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descrição</label>
+              <input type="text" class="form-control" id="promptDescricao" placeholder="Breve descrição do propósito">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Conteúdo do Prompt</label>
+              <textarea class="form-control" id="promptConteudo" rows="12" required placeholder="Digite o conteúdo do prompt aqui...
+
+Use {{VARIAVEL}} para criar placeholders dinâmicos."></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Variáveis (separadas por vírgula)</label>
+              <input type="text" class="form-control" id="promptVariaveis" placeholder="ex: NOME_CLIENTE, ETAPA_ATUAL">
+              <small class="text-muted">Variáveis que podem ser substituídas dinamicamente no prompt</small>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="promptAtivo" checked>
+              <label class="form-check-label" for="promptAtivo">Ativo</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="salvarPrompt()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Provedor -->
+  <div class="modal fade" id="modalProvedor" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalProvedorTitulo">Novo Provedor</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formProvedor">
+            <input type="hidden" id="provedorId">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Nome</label>
+                <input type="text" class="form-control" id="provedorNome" required placeholder="ex: qwen-alibaba">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Tipo</label>
+                <select class="form-select" id="provedorTipo" required>
+                  <option value="openai">OpenAI</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="alibaba">Alibaba (Qwen)</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descrição</label>
+              <input type="text" class="form-control" id="provedorDescricao" placeholder="Breve descrição">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Base URL</label>
+              <input type="text" class="form-control" id="provedorBaseUrl" required placeholder="https://api.openai.com/v1">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">API Key</label>
+              <input type="password" class="form-control" id="provedorApiKey" required placeholder="sk-...">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Modelo Padrão</label>
+              <input type="text" class="form-control" id="provedorModeloPadrao" placeholder="ex: gpt-4, qwen-plus">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Modelos Disponíveis (separados por vírgula)</label>
+              <input type="text" class="form-control" id="provedorModelos" placeholder="ex: gpt-4, gpt-3.5-turbo">
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="provedorAtivo" checked>
+                  <label class="form-check-label" for="provedorAtivo">Ativo</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="provedorPrincipal">
+                  <label class="form-check-label" for="provedorPrincipal">Provedor Principal</label>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-info" onclick="testarProvedor()">
+            <i class="bi bi-lightning"></i> Testar Conexão
+          </button>
+          <button type="button" class="btn btn-primary" onclick="salvarProvedor()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Requisição -->
+  <div class="modal fade" id="modalRequisicao" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalRequisicaoTitulo">Nova Requisição Externa</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formRequisicao">
+            <input type="hidden" id="requisicaoId">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Nome</label>
+                <input type="text" class="form-control" id="requisicaoNome" required placeholder="ex: Consulta Cardápio">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Tipo (código usado pela IA)</label>
+                <input type="text" class="form-control" id="requisicaoTipo" required placeholder="ex: sabores_salgados">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Descrição</label>
+              <input type="text" class="form-control" id="requisicaoDescricao" placeholder="O que esta requisição faz">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Tipo de Handler</label>
+              <select class="form-select" id="requisicaoHandler" required onchange="toggleHandlerFields()">
+                <option value="ia">IA (usa outro prompt)</option>
+                <option value="api">API Externa</option>
+                <option value="json">Arquivo JSON</option>
+                <option value="funcao">Função Interna</option>
+              </select>
+            </div>
+            
+            <!-- Campos para IA -->
+            <div id="camposIA" class="handler-fields">
+              <div class="mb-3">
+                <label class="form-label">Prompt Associado</label>
+                <select class="form-select" id="requisicaoPromptId">
+                  <option value="">Selecione um prompt...</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Campos para API -->
+            <div id="camposAPI" class="handler-fields d-none">
+              <div class="row">
+                <div class="col-md-8 mb-3">
+                  <label class="form-label">Endpoint URL</label>
+                  <input type="text" class="form-control" id="requisicaoEndpoint" placeholder="https://api.exemplo.com/dados">
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Método</label>
+                  <select class="form-select" id="requisicaoMetodo">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Campos para JSON -->
+            <div id="camposJSON" class="handler-fields d-none">
+              <div class="mb-3">
+                <label class="form-label">Arquivo de Dados (JSON)</label>
+                <select class="form-select" id="requisicaoArquivoJson" placeholder="ex: grupos_whatsapp">
+                  <option value="">— Selecione ou digite abaixo —</option>
+                </select>
+                <small class="text-muted">Crie e edite arquivos na aba <strong>Arquivos de Dados</strong>. Você pode definir como a IA processa o arquivo e o formato de retorno.</small>
+              </div>
+            </div>
+            
+            <!-- Campos para Função -->
+            <div id="camposFuncao" class="handler-fields d-none">
+              <div class="mb-3">
+                <label class="form-label">Nome da Função</label>
+                <input type="text" class="form-control" id="requisicaoFuncaoNome" placeholder="ex: buscarGrupoWhatsapp">
+                <small class="text-muted">Função deve estar registrada no sistema</small>
+              </div>
+            </div>
+            
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="requisicaoAtivo" checked>
+              <label class="form-check-label" for="requisicaoAtivo">Ativo</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" onclick="salvarRequisicao()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Arquivo de Dados -->
+  <div class="modal fade" id="modalArquivo" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalArquivoTitulo">Novo Arquivo de Dados</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formArquivo">
+            <input type="hidden" id="arquivoNomeOriginal">
+            <div class="row">
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Nome do arquivo (sem .json)</label>
+                <input type="text" class="form-control" id="arquivoNome" required placeholder="ex: grupos_whatsapp" pattern="[a-zA-Z0-9_-]+">
+                <small class="text-muted">Apenas letras, números, _ e -. Será salvo como nome.json em /arquivos/</small>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Conteúdo JSON</label>
+              <textarea class="form-control font-monospace" id="arquivoConteudo" rows="14" placeholder='{"exemplo": "estrutura JSON"}' style="font-size: 0.85rem;"></textarea>
+              <small class="text-muted">Deve ser um JSON válido. Use para listas de grupos, cardápio, bairros, etc.</small>
+            </div>
+            <hr class="my-4">
+            <h6 class="text-info"><i class="bi bi-cpu me-2"></i>Processamento com IA (opcional)</h6>
+            <p class="small text-muted">Se preenchido, quando uma requisição usar este arquivo, a IA receberá o conteúdo + o contexto e seguirá sua instrução para retornar o resultado no formato indicado.</p>
+            <div class="mb-3">
+              <label class="form-label">Instrução para a IA</label>
+              <textarea class="form-control" id="arquivoInstrucao" rows="4" placeholder="Ex: Com base nos DADOS DO ARQUIVO e no CONTEXTO (ex: bairro informado pelo cliente), encontre o grupo de WhatsApp correspondente ao bairro. Se não houver grupo para o bairro, use o grupo_geral."></textarea>
+              <small class="text-muted">Descreva como a IA deve processar o arquivo e o contexto da requisição.</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Formato de retorno</label>
+              <input type="text" class="form-control" id="arquivoFormatoRetorno" placeholder="Ex: JSON com chaves: link, bairro, nome (ou texto livre)">
+              <small class="text-muted">Ex: &quot;JSON com chaves: link, bairro, nome&quot; ou &quot;Objeto com { encontrado, link, grupoId }&quot;</small>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-outline-info" onclick="validarJsonArquivo()"><i class="bi bi-check2-square"></i> Validar JSON</button>
+          <button type="button" class="btn btn-primary" onclick="salvarArquivo()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Visualizar Prompt -->
+  <div class="modal fade" id="modalVisualizarPrompt" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Visualizar Prompt</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="prompt-preview" id="promptPreviewConteudo"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const API_BASE = '/api/ia';
+
+    // Utilitários
+    async function api(endpoint, options = {}) {
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options
+        });
+        return await response.json();
+      } catch (error) {
+        console.error('Erro na API:', error);
+        showToast('Erro de conexão', 'danger');
+        return { success: false, error: error.message };
+      }
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast show bg-${type} text-white`;
+      toast.innerHTML = `
+        <div class="toast-body d-flex justify-content-between align-items-center">
+          ${message}
+          <button type="button" class="btn-close btn-close-white ms-2" onclick="this.parentElement.parentElement.remove()"></button>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // ============================================================
+    // PROMPTS
+    // ============================================================
+    async function carregarPrompts() {
+      const data = await api('/prompts');
+      if (!data.success) return;
+
+      const tbody = document.getElementById('tabelaPrompts');
+      
+      if (data.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum prompt cadastrado.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.data.map(p => `
+        <tr>
+          <td>
+            <span class="badge ${p.ativo ? 'badge-ativo' : 'badge-inativo'}">
+              ${p.ativo ? 'Ativo' : 'Inativo'}
+            </span>
+          </td>
+          <td><strong>${p.nome}</strong></td>
+          <td><span class="badge tipo-badge tipo-${p.tipo}">${p.tipo}</span></td>
+          <td>${p.descricao || '-'}</td>
+          <td>v${p.versao}</td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-info btn-action" onclick="visualizarPrompt(${p.id})" title="Visualizar">
+                <i class="bi bi-eye"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-primary btn-action" onclick="editarPrompt(${p.id})" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary btn-action" onclick="duplicarPrompt(${p.id})" title="Duplicar">
+                <i class="bi bi-copy"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger btn-action" onclick="deletarPrompt(${p.id})" title="Excluir">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      // Atualiza selects
+      atualizarSelectPrompts(data.data);
+    }
+
+    function atualizarSelectPrompts(prompts) {
+      const selects = ['testePrompt', 'requisicaoPromptId'];
+      selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        
+        const firstOption = select.options[0];
+        select.innerHTML = '';
+        select.appendChild(firstOption);
+        
+        prompts.filter(p => p.ativo).forEach(p => {
+          const option = document.createElement('option');
+          option.value = p.id;
+          option.textContent = `${p.nome} (${p.tipo})`;
+          select.appendChild(option);
+        });
+      });
+    }
+
+    function novoPrompt() {
+      document.getElementById('modalPromptTitulo').textContent = 'Novo Prompt';
+      document.getElementById('formPrompt').reset();
+      document.getElementById('promptId').value = '';
+      document.getElementById('promptAtivo').checked = true;
+    }
+
+    async function editarPrompt(id) {
+      const data = await api(`/prompts/${id}`);
+      if (!data.success) return;
+      
+      const p = data.data;
+      document.getElementById('modalPromptTitulo').textContent = 'Editar Prompt';
+      document.getElementById('promptId').value = p.id;
+      document.getElementById('promptNome').value = p.nome;
+      document.getElementById('promptTipo').value = p.tipo;
+      document.getElementById('promptDescricao').value = p.descricao || '';
+      document.getElementById('promptConteudo').value = p.conteudo;
+      document.getElementById('promptVariaveis').value = (p.variaveis || []).join(', ');
+      document.getElementById('promptAtivo').checked = p.ativo;
+      
+      new bootstrap.Modal(document.getElementById('modalPrompt')).show();
+    }
+
+    async function visualizarPrompt(id) {
+      const data = await api(`/prompts/${id}`);
+      if (!data.success) return;
+      
+      document.getElementById('promptPreviewConteudo').textContent = data.data.conteudo;
+      new bootstrap.Modal(document.getElementById('modalVisualizarPrompt')).show();
+    }
+
+    async function salvarPrompt() {
+      const id = document.getElementById('promptId').value;
+      const variaveis = document.getElementById('promptVariaveis').value
+        .split(',')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const dados = {
+        nome: document.getElementById('promptNome').value,
+        tipo: document.getElementById('promptTipo').value,
+        descricao: document.getElementById('promptDescricao').value,
+        conteudo: document.getElementById('promptConteudo').value,
+        variaveis,
+        ativo: document.getElementById('promptAtivo').checked
+      };
+      
+      const endpoint = id ? `/prompts/${id}` : '/prompts';
+      const method = id ? 'PUT' : 'POST';
+      
+      const data = await api(endpoint, { method, body: JSON.stringify(dados) });
+      
+      if (data.success) {
+        showToast(id ? 'Prompt atualizado!' : 'Prompt criado!');
+        bootstrap.Modal.getInstance(document.getElementById('modalPrompt')).hide();
+        carregarPrompts();
+      } else {
+        showToast(data.error || 'Erro ao salvar', 'danger');
+      }
+    }
+
+    async function duplicarPrompt(id) {
+      const novoNome = prompt('Nome para a cópia:');
+      if (!novoNome) return;
+      
+      const data = await api(`/prompts/${id}/duplicar`, {
+        method: 'POST',
+        body: JSON.stringify({ novoNome })
+      });
+      
+      if (data.success) {
+        showToast('Prompt duplicado!');
+        carregarPrompts();
+      } else {
+        showToast(data.error || 'Erro ao duplicar', 'danger');
+      }
+    }
+
+    async function deletarPrompt(id) {
+      if (!confirm('Tem certeza que deseja excluir este prompt?')) return;
+      
+      const data = await api(`/prompts/${id}`, { method: 'DELETE' });
+      
+      if (data.success) {
+        showToast('Prompt excluído!');
+        carregarPrompts();
+      } else {
+        showToast(data.error || 'Erro ao excluir', 'danger');
+      }
+    }
+
+    // ============================================================
+    // PROVEDORES
+    // ============================================================
+    async function carregarProvedores() {
+      const data = await api('/provedores');
+      if (!data.success) return;
+
+      const tbody = document.getElementById('tabelaProvedores');
+      
+      if (data.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum provedor cadastrado.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.data.map(p => `
+        <tr>
+          <td>
+            <span class="badge ${p.ativo ? 'badge-ativo' : 'badge-inativo'}">
+              ${p.ativo ? 'Ativo' : 'Inativo'}
+            </span>
+            ${p.isPrincipal ? '<span class="badge badge-principal ms-1">Principal</span>' : ''}
+          </td>
+          <td><strong>${p.nome}</strong></td>
+          <td><span class="badge bg-secondary">${p.tipo}</span></td>
+          <td>${p.modeloPadrao || '-'}</td>
+          <td><code>${p.apiKey}</code></td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-info btn-action" onclick="testarProvedorById(${p.id})" title="Testar">
+                <i class="bi bi-lightning"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-primary btn-action" onclick="editarProvedor(${p.id})" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              ${!p.isPrincipal ? `
+                <button class="btn btn-sm btn-outline-warning btn-action" onclick="definirPrincipal(${p.id})" title="Definir como Principal">
+                  <i class="bi bi-star"></i>
+                </button>
+              ` : ''}
+              <button class="btn btn-sm btn-outline-danger btn-action" onclick="deletarProvedor(${p.id})" title="Excluir">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      
+      // Atualiza select de teste
+      const select = document.getElementById('testeProvedor');
+      select.innerHTML = '<option value="">Usar provedor principal</option>';
+      data.data.filter(p => p.ativo).forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = `${p.nome} ${p.isPrincipal ? '(Principal)' : ''}`;
+        select.appendChild(option);
+      });
+    }
+
+    function novoProvedor() {
+      document.getElementById('modalProvedorTitulo').textContent = 'Novo Provedor';
+      document.getElementById('formProvedor').reset();
+      document.getElementById('provedorId').value = '';
+      document.getElementById('provedorAtivo').checked = true;
+    }
+
+    async function editarProvedor(id) {
+      const data = await api(`/provedores/${id}`);
+      if (!data.success) return;
+      
+      const p = data.data;
+      document.getElementById('modalProvedorTitulo').textContent = 'Editar Provedor';
+      document.getElementById('provedorId').value = p.id;
+      document.getElementById('provedorNome').value = p.nome;
+      document.getElementById('provedorTipo').value = p.tipo;
+      document.getElementById('provedorDescricao').value = p.descricao || '';
+      document.getElementById('provedorBaseUrl').value = p.baseUrl;
+      document.getElementById('provedorApiKey').value = ''; // Não mostra a key existente
+      document.getElementById('provedorModeloPadrao').value = p.modeloPadrao || '';
+      document.getElementById('provedorModelos').value = (p.modelos || []).join(', ');
+      document.getElementById('provedorAtivo').checked = p.ativo;
+      document.getElementById('provedorPrincipal').checked = p.isPrincipal;
+      
+      new bootstrap.Modal(document.getElementById('modalProvedor')).show();
+    }
+
+    async function salvarProvedor() {
+      const id = document.getElementById('provedorId').value;
+      const modelos = document.getElementById('provedorModelos').value
+        .split(',')
+        .map(v => v.trim())
+        .filter(v => v);
+      
+      const dados = {
+        nome: document.getElementById('provedorNome').value,
+        tipo: document.getElementById('provedorTipo').value,
+        descricao: document.getElementById('provedorDescricao').value,
+        baseUrl: document.getElementById('provedorBaseUrl').value,
+        modeloPadrao: document.getElementById('provedorModeloPadrao').value,
+        modelos,
+        ativo: document.getElementById('provedorAtivo').checked,
+        isPrincipal: document.getElementById('provedorPrincipal').checked
+      };
+      
+      // Só inclui apiKey se foi preenchida
+      const apiKey = document.getElementById('provedorApiKey').value;
+      if (apiKey) dados.apiKey = apiKey;
+      
+      const endpoint = id ? `/provedores/${id}` : '/provedores';
+      const method = id ? 'PUT' : 'POST';
+      
+      const data = await api(endpoint, { method, body: JSON.stringify(dados) });
+      
+      if (data.success) {
+        showToast(id ? 'Provedor atualizado!' : 'Provedor criado!');
+        bootstrap.Modal.getInstance(document.getElementById('modalProvedor')).hide();
+        carregarProvedores();
+      } else {
+        showToast(data.error || 'Erro ao salvar', 'danger');
+      }
+    }
+
+    async function testarProvedorById(id) {
+      showToast('Testando conexão...', 'info');
+      const data = await api(`/provedores/${id}/testar`, { method: 'POST' });
+      
+      if (data.success && data.data.sucesso) {
+        showToast(`✅ Conexão OK! (${data.data.tempo_ms}ms)`, 'success');
+      } else {
+        showToast(`❌ Falha: ${data.data?.erro || data.error}`, 'danger');
+      }
+    }
+
+    async function definirPrincipal(id) {
+      const data = await api(`/provedores/${id}/principal`, { method: 'POST' });
+      
+      if (data.success) {
+        showToast('Provedor definido como principal!');
+        carregarProvedores();
+      } else {
+        showToast(data.error || 'Erro', 'danger');
+      }
+    }
+
+    async function deletarProvedor(id) {
+      if (!confirm('Tem certeza que deseja excluir este provedor?')) return;
+      
+      const data = await api(`/provedores/${id}`, { method: 'DELETE' });
+      
+      if (data.success) {
+        showToast('Provedor excluído!');
+        carregarProvedores();
+      } else {
+        showToast(data.error || 'Erro ao excluir', 'danger');
+      }
+    }
+
+    // ============================================================
+    // REQUISIÇÕES EXTERNAS
+    // ============================================================
+    async function carregarRequisicoes() {
+      const data = await api('/requisicoes');
+      if (!data.success) return;
+
+      const tbody = document.getElementById('tabelaRequisicoes');
+      
+      if (data.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">Nenhuma requisição cadastrada.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.data.map(r => `
+        <tr>
+          <td>
+            <span class="badge ${r.ativo ? 'badge-ativo' : 'badge-inativo'}">
+              ${r.ativo ? 'Ativo' : 'Inativo'}
+            </span>
+          </td>
+          <td><strong>${r.nome}</strong></td>
+          <td><code>${r.tipo}</code></td>
+          <td><span class="badge handler-badge handler-${r.tipoHandler}">${r.tipoHandler.toUpperCase()}</span></td>
+          <td>${r.descricao || '-'}</td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-primary btn-action" onclick="editarRequisicao(${r.id})" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger btn-action" onclick="deletarRequisicao(${r.id})" title="Excluir">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function popularArquivosNoSelectRequisicao() {
+      const sel = document.getElementById('requisicaoArquivoJson');
+      const valorAtual = sel.value;
+      const data = await api('/arquivos');
+      sel.innerHTML = '<option value="">— Selecione um arquivo —</option>';
+      if (data.success && data.data.length) {
+        data.data.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.nome;
+          opt.textContent = a.nome + (a.instrucaoProcessamento ? ' (com IA)' : '');
+          sel.appendChild(opt);
+        });
+      }
+      if (valorAtual) sel.value = valorAtual;
+    }
+
+    async function novaRequisicao() {
+      document.getElementById('modalRequisicaoTitulo').textContent = 'Nova Requisição Externa';
+      document.getElementById('formRequisicao').reset();
+      document.getElementById('requisicaoId').value = '';
+      document.getElementById('requisicaoAtivo').checked = true;
+      toggleHandlerFields();
+      await popularArquivosNoSelectRequisicao();
+    }
+
+    function toggleHandlerFields() {
+      const handler = document.getElementById('requisicaoHandler').value;
+      
+      document.querySelectorAll('.handler-fields').forEach(el => el.classList.add('d-none'));
+      
+      switch (handler) {
+        case 'ia':
+          document.getElementById('camposIA').classList.remove('d-none');
+          break;
+        case 'api':
+          document.getElementById('camposAPI').classList.remove('d-none');
+          break;
+        case 'json':
+          document.getElementById('camposJSON').classList.remove('d-none');
+          popularArquivosNoSelectRequisicao();
+          break;
+        case 'funcao':
+          document.getElementById('camposFuncao').classList.remove('d-none');
+          break;
+      }
+    }
+
+    async function editarRequisicao(id) {
+      const data = await api(`/requisicoes/${id}`);
+      if (!data.success) return;
+      
+      const r = data.data;
+      document.getElementById('modalRequisicaoTitulo').textContent = 'Editar Requisição';
+      document.getElementById('requisicaoId').value = r.id;
+      document.getElementById('requisicaoNome').value = r.nome;
+      document.getElementById('requisicaoTipo').value = r.tipo;
+      document.getElementById('requisicaoDescricao').value = r.descricao || '';
+      document.getElementById('requisicaoHandler').value = r.tipoHandler;
+      document.getElementById('requisicaoPromptId').value = r.promptId || '';
+      document.getElementById('requisicaoEndpoint').value = r.endpoint || '';
+      document.getElementById('requisicaoMetodo').value = r.metodo || 'POST';
+      document.getElementById('requisicaoArquivoJson').value = (r.arquivoJson || '').replace('.json', '') || '';
+      document.getElementById('requisicaoFuncaoNome').value = r.funcaoNome || '';
+      document.getElementById('requisicaoAtivo').checked = r.ativo;
+      
+      toggleHandlerFields();
+      new bootstrap.Modal(document.getElementById('modalRequisicao')).show();
+    }
+
+    async function salvarRequisicao() {
+      const id = document.getElementById('requisicaoId').value;
+      const handler = document.getElementById('requisicaoHandler').value;
+      
+      const dados = {
+        nome: document.getElementById('requisicaoNome').value,
+        tipo: document.getElementById('requisicaoTipo').value,
+        descricao: document.getElementById('requisicaoDescricao').value,
+        tipoHandler: handler,
+        ativo: document.getElementById('requisicaoAtivo').checked
+      };
+      
+      // Campos específicos por handler
+      switch (handler) {
+        case 'ia':
+          dados.promptId = document.getElementById('requisicaoPromptId').value || null;
+          break;
+        case 'api':
+          dados.endpoint = document.getElementById('requisicaoEndpoint').value;
+          dados.metodo = document.getElementById('requisicaoMetodo').value;
+          break;
+        case 'json':
+          dados.arquivoJson = document.getElementById('requisicaoArquivoJson').value || '';
+          break;
+        case 'funcao':
+          dados.funcaoNome = document.getElementById('requisicaoFuncaoNome').value;
+          break;
+      }
+      
+      const endpoint = id ? `/requisicoes/${id}` : '/requisicoes';
+      const method = id ? 'PUT' : 'POST';
+      
+      const data = await api(endpoint, { method, body: JSON.stringify(dados) });
+      
+      if (data.success) {
+        showToast(id ? 'Requisição atualizada!' : 'Requisição criada!');
+        bootstrap.Modal.getInstance(document.getElementById('modalRequisicao')).hide();
+        carregarRequisicoes();
+      } else {
+        showToast(data.error || 'Erro ao salvar', 'danger');
+      }
+    }
+
+    async function deletarRequisicao(id) {
+      if (!confirm('Tem certeza que deseja excluir esta requisição?')) return;
+      
+      const data = await api(`/requisicoes/${id}`, { method: 'DELETE' });
+      
+      if (data.success) {
+        showToast('Requisição excluída!');
+        carregarRequisicoes();
+      } else {
+        showToast(data.error || 'Erro ao excluir', 'danger');
+      }
+    }
+
+    // ============================================================
+    // ARQUIVOS DE DADOS
+    // ============================================================
+    async function carregarArquivos() {
+      const data = await api('/arquivos');
+      const tbody = document.getElementById('tabelaArquivos');
+      if (!data.success) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Erro ao carregar.</td></tr>`;
+        return;
+      }
+      if (data.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">Nenhum arquivo. Clique em Novo Arquivo para criar (ex: grupos_whatsapp).</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = data.data.map(a => `
+        <tr>
+          <td><code>${a.nome}.json</code></td>
+          <td>${(a.tamanho || 0).toLocaleString()} bytes</td>
+          <td>${a.instrucaoProcessamento ? '<span class="badge bg-info">Com IA</span>' : '<span class="text-muted">—</span>'}</td>
+          <td>${a.formatoRetorno ? a.formatoRetorno.substring(0, 40) + (a.formatoRetorno.length > 40 ? '…' : '') : '<span class="text-muted">—</span>'}</td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-primary" onclick="editarArquivo('${a.nome}')" title="Editar"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger" onclick="excluirArquivo('${a.nome}')" title="Excluir"><i class="bi bi-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function novoArquivo() {
+      document.getElementById('modalArquivoTitulo').textContent = 'Novo Arquivo de Dados';
+      document.getElementById('arquivoNomeOriginal').value = '';
+      document.getElementById('arquivoNome').value = '';
+      document.getElementById('arquivoNome').readOnly = false;
+      document.getElementById('arquivoConteudo').value = '{\n  "exemplo": "estrutura"\n}';
+      document.getElementById('arquivoInstrucao').value = '';
+      document.getElementById('arquivoFormatoRetorno').value = '';
+      new bootstrap.Modal(document.getElementById('modalArquivo')).show();
+    }
+
+    async function editarArquivo(nome) {
+      const data = await api(`/arquivos/${encodeURIComponent(nome)}`);
+      if (!data.success) {
+        showToast(data.error || 'Arquivo não encontrado', 'danger');
+        return;
+      }
+      document.getElementById('modalArquivoTitulo').textContent = 'Editar Arquivo: ' + data.data.nome;
+      document.getElementById('arquivoNomeOriginal').value = data.data.nome;
+      document.getElementById('arquivoNome').value = data.data.nome;
+      document.getElementById('arquivoNome').readOnly = true;
+      document.getElementById('arquivoConteudo').value = typeof data.data.conteudo === 'string' ? data.data.conteudo : JSON.stringify(data.data.conteudo, null, 2);
+      document.getElementById('arquivoInstrucao').value = data.data.meta?.instrucaoProcessamento || '';
+      document.getElementById('arquivoFormatoRetorno').value = data.data.meta?.formatoRetorno || '';
+      new bootstrap.Modal(document.getElementById('modalArquivo')).show();
+    }
+
+    function validarJsonArquivo() {
+      const raw = document.getElementById('arquivoConteudo').value.trim();
+      if (!raw) {
+        showToast('Conteúdo vazio', 'warning');
+        return;
+      }
+      try {
+        JSON.parse(raw);
+        showToast('JSON válido!', 'success');
+      } catch (e) {
+        showToast('JSON inválido: ' + e.message, 'danger');
+      }
+    }
+
+    async function salvarArquivo() {
+      const nomeOriginal = document.getElementById('arquivoNomeOriginal').value;
+      const nome = document.getElementById('arquivoNome').value.trim().replace(/\.json$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (!nome) {
+        showToast('Informe o nome do arquivo', 'warning');
+        return;
+      }
+      const conteudo = document.getElementById('arquivoConteudo').value.trim();
+      try {
+        if (conteudo) JSON.parse(conteudo);
+      } catch (e) {
+        showToast('Conteúdo não é um JSON válido. Corrija ou use Validar JSON.', 'danger');
+        return;
+      }
+      const instrucaoProcessamento = document.getElementById('arquivoInstrucao').value.trim();
+      const formatoRetorno = document.getElementById('arquivoFormatoRetorno').value.trim();
+      const meta = { instrucaoProcessamento, formatoRetorno };
+
+      if (nomeOriginal) {
+        const data = await api(`/arquivos/${encodeURIComponent(nomeOriginal)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ conteudo, instrucaoProcessamento, formatoRetorno })
+        });
+        if (data.success) {
+          showToast('Arquivo atualizado!');
+          bootstrap.Modal.getInstance(document.getElementById('modalArquivo')).hide();
+          carregarArquivos();
+          popularArquivosNoSelectRequisicao();
+        } else {
+          showToast(data.error || 'Erro ao salvar', 'danger');
+        }
+      } else {
+        const data = await api('/arquivos', {
+          method: 'POST',
+          body: JSON.stringify({ nome, conteudo: conteudo || '{}', instrucaoProcessamento, formatoRetorno })
+        });
+        if (data.success) {
+          showToast('Arquivo criado!');
+          bootstrap.Modal.getInstance(document.getElementById('modalArquivo')).hide();
+          carregarArquivos();
+          popularArquivosNoSelectRequisicao();
+        } else {
+          showToast(data.error || 'Erro ao criar', 'danger');
+        }
+      }
+    }
+
+    async function excluirArquivo(nome) {
+      if (!confirm('Excluir o arquivo "' + nome + '.json"? Requisições que usam este arquivo deixarão de funcionar.')) return;
+      const data = await api(`/arquivos/${encodeURIComponent(nome)}`, { method: 'DELETE' });
+      if (data.success) {
+        showToast('Arquivo excluído!');
+        carregarArquivos();
+        popularArquivosNoSelectRequisicao();
+      } else {
+        showToast(data.error || 'Erro ao excluir', 'danger');
+      }
+    }
+
+    // ============================================================
+    // TESTE DE IA
+    // ============================================================
+    async function executarTeste() {
+      const provedorId = document.getElementById('testeProvedor').value;
+      const promptNome = document.getElementById('testePrompt').value;
+      const mensagem = document.getElementById('testeMensagem').value;
+      
+      if (!mensagem.trim()) {
+        showToast('Digite uma mensagem para testar', 'warning');
+        return;
+      }
+      
+      showToast('Enviando teste...', 'info');
+      
+      const dados = { mensagem };
+      if (provedorId) dados.provedorId = provedorId;
+      if (promptNome) {
+        // Busca o nome do prompt pelo ID
+        const select = document.getElementById('testePrompt');
+        const option = select.options[select.selectedIndex];
+        dados.promptNome = option.textContent.split(' (')[0];
+      }
+      
+      const data = await api('/testar', {
+        method: 'POST',
+        body: JSON.stringify(dados)
+      });
+      
+      const resultadoDiv = document.getElementById('testeResultado');
+      const conteudoDiv = document.getElementById('testeResultadoConteudo');
+      
+      resultadoDiv.classList.remove('d-none');
+      
+      if (data.success) {
+        conteudoDiv.className = 'test-result success';
+        conteudoDiv.innerHTML = `
+          <div class="mb-2"><small class="text-muted">Tempo: ${data.data.tempo_ms}ms</small></div>
+          <div style="white-space: pre-wrap;">${data.data.resposta}</div>
+        `;
+      } else {
+        conteudoDiv.className = 'test-result error';
+        conteudoDiv.textContent = data.error || 'Erro desconhecido';
+      }
+    }
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      carregarPrompts();
+      carregarProvedores();
+      carregarRequisicoes();
+      carregarArquivos();
+    });
+    document.getElementById('arquivos-tab')?.addEventListener('shown.bs.tab', () => carregarArquivos());
+  </script>
+</body>
+</html>

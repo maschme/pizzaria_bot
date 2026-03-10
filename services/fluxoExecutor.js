@@ -4,6 +4,7 @@ const provedorService = require('./provedorIAService');
 const requisicaoService = require('./requisicaoExternaService');
 const indicacaoService = require('./indicacaoService');
 const arquivoService = require('./arquivoService');
+const metaService = require('./metaService');
 
 /** Parse dd/mm/yyyy para Date (meia-noite). Retorna null se inválido. */
 function parseDataBR(str) {
@@ -162,6 +163,9 @@ class FluxoExecutor {
       case 'wait_contacts':
         await this.executeWaitContacts(node);
         break;
+      case 'condition_var':
+        await this.executeConditionVar(node);
+        break;
       case 'end':
         await this.executeEnd(node);
         return;
@@ -217,6 +221,47 @@ class FluxoExecutor {
       await this.client.sendMessage(this.chatId, texto);
     }
     console.log(`📇 Aguardando ${meta} contatos (indicações) para ${this.chatId}`);
+  }
+
+  // Executa nó de verificação por variável (sem IA): segue dois caminhos conforme comparação
+  async executeConditionVar(node) {
+    const nomeVar = (node.data.variavelNome || '').trim() || 'resposta';
+    const operador = (node.data.operador || 'igual').toLowerCase();
+    const valorComparacao = node.data.valorComparacao != null ? String(node.data.valorComparacao).trim() : '';
+    const valorAtual = this.variaveis[nomeVar] != null ? String(this.variaveis[nomeVar]).trim() : '';
+
+    let resultado = false;
+    switch (operador) {
+      case 'igual':
+      case '==':
+        resultado = valorAtual === valorComparacao;
+        break;
+      case 'diferente':
+      case '!=':
+        resultado = valorAtual !== valorComparacao;
+        break;
+      case 'contem':
+        resultado = valorAtual.toLowerCase().includes(valorComparacao.toLowerCase());
+        break;
+      case 'maior':
+        resultado = Number(valorAtual) > Number(valorComparacao);
+        break;
+      case 'menor':
+        resultado = Number(valorAtual) < Number(valorComparacao);
+        break;
+      case 'maior_igual':
+        resultado = Number(valorAtual) >= Number(valorComparacao);
+        break;
+      case 'menor_igual':
+        resultado = Number(valorAtual) <= Number(valorComparacao);
+        break;
+      default:
+        resultado = valorAtual === valorComparacao;
+    }
+    console.log(`🔀 [Variável] {{${nomeVar}}} (${operador}) "${valorComparacao}" → ${resultado ? 'SIM' : 'NÃO'}`);
+    const handleType = resultado ? 'output-true' : 'output-false';
+    const nextNode = this.findNextNode(node.id, handleType);
+    await this.executeNode(nextNode);
   }
 
   // Executa nó de condição
@@ -370,6 +415,28 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
             console.log(`📝 Variável salva: {{${node.data.nomeVariavel}}} = "${valor}"`);
           }
           break;
+
+        case 'marcar_meta': {
+          const metaNome = (node.data.metaNome || '').trim();
+          if (metaNome) {
+            const res = await metaService.marcarConcluido(this.chatId, metaNome);
+            this.variaveis['meta_' + metaNome] = 'concluido';
+            if (res.ok) console.log(`✅ Meta "${metaNome}" marcada como concluída para ${this.chatId}`);
+            else console.warn(`⚠️ Marcar meta "${metaNome}":`, res.erro);
+          }
+          break;
+        }
+
+        case 'verificar_meta': {
+          const metaNome = (node.data.metaNome || '').trim();
+          const variavelSaida = (node.data.variavelSaidaMeta || 'meta_' + metaNome).trim();
+          if (metaNome) {
+            const concluido = await metaService.verificarConcluido(this.chatId, metaNome);
+            this.variaveis[variavelSaida] = concluido ? 'concluido' : 'pendente';
+            console.log(`🔍 Meta "${metaNome}" para ${this.chatId}: ${concluido ? 'concluído' : 'pendente'} → {{${variavelSaida}}}`);
+          }
+          break;
+        }
           
         case 'webhook':
           if (node.data.webhookUrl) {

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, Location, Poll, List, Buttons, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');  // Adicione esta linha
 const fs = require('fs');
@@ -25,7 +26,9 @@ const fluxoRoutes = require('./routes/fluxoRoutes');
 const fluxoService = require('./services/fluxoService');
 const fluxoExecutor = require('./services/fluxoExecutor');
 const indicacaoService = require('./services/indicacaoService');
+const metaService = require('./services/metaService');
 const { setupDatabase } = require('./database/setup');
+const { dbConfig } = require('./database/connection');
 
 // Handoff: quando o fluxo visual de campanha termina (ex.: após entrada no grupo), passa o usuário para a campanha legada na Missão 2
 fluxoExecutor.setOnCampanhaFlowEnd(async (client, chatId, fluxo) => {
@@ -50,17 +53,7 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const mysql = require('mysql2/promise');
 const app = express();
-const port = 3007;
-
-// Configuração do banco de dados (servidor externo)
-const dbConfig = {
-  host: 'vms.cutplay.com.br',
-  user: 'mitouser',
-  password: 'naoteconto',
-  database: 'pizzaria'
-};
-
-
+const port = process.env.PORT || process.env.APP_PORT || 3007;
 
 const bordas = lerJson('bordas');
 const bebidas = lerJson('bebidas');
@@ -1144,6 +1137,11 @@ async function processarContatosIndicados(numero, msg, sessao) {
       sessao.descontoTotal = 30;
       sessao.etapa = 3;
       sessao.subEtapa = 'inicio';
+      try {
+        await metaService.marcarConcluido(numero, '10_indicacoes');
+      } catch (e) {
+        console.warn('⚠️ Meta 10_indicacoes:', e.message);
+      }
       const msgSucesso = `🎉 *Parabéns!* Suas *30% de desconto* estão liberadas!\n\n🚧 *Missão 3* em breve... Aguarde novidades!`;
       if (msg.reply) await msg.reply(msgSucesso);
     }
@@ -1493,7 +1491,11 @@ client.on('group_join', async (notification) => {
 
       if (result.affectedRows > 0) {
         console.log(`✅ SUCESSO: Lead ${numeroReal} marcado como entrou no grupo.`);
-        
+        try {
+          await metaService.marcarConcluido(numeroReal, 'entrada_grupo');
+        } catch (e) {
+          console.warn('⚠️ Meta entrada_grupo:', e.message);
+        }
         // Busca o id_negociacao do contato para mover no funil
         const [rows] = await connection.execute(
           'SELECT id_negociacao FROM contatos WHERE whatsapp_id = ?', 

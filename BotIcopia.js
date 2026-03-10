@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, Location, Poll, List, Buttons, LocalAuth, MessageMedia } = require('../index');
 const qrcode = require('qrcode-terminal');  // Adicione esta linha
 const fs = require('fs');
@@ -19,7 +20,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 const app = express();
-const port = 3007;
+const port = process.env.PORT || process.env.APP_PORT || 3007;
 
 
 

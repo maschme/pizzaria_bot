@@ -143,6 +143,7 @@
     .palette-node.trigger .icon { background: var(--node-trigger); }
     .palette-node.message .icon { background: var(--node-message); }
     .palette-node.condition .icon { background: var(--node-condition); color: #000; }
+    .palette-node.condition_var .icon { background: var(--node-condition); color: #000; }
     .palette-node.ia .icon { background: var(--node-ia); }
     .palette-node.action .icon { background: var(--node-action); }
     .palette-node.wait .icon { background: var(--node-wait); }
@@ -219,6 +220,7 @@
     .flow-node.trigger .node-header { background: var(--node-trigger); }
     .flow-node.message .node-header { background: var(--node-message); }
     .flow-node.condition .node-header { background: var(--node-condition); color: #000; }
+    .flow-node.condition_var .node-header { background: var(--node-condition); color: #000; }
     .flow-node.ia .node-header { background: var(--node-ia); }
     .flow-node.action .node-header { background: var(--node-action); }
     .flow-node.wait .node-header { background: var(--node-wait); }
@@ -287,9 +289,14 @@
 
     .flow-node.condition .handle.output-true { right: -7px; top: 35%; }
     .flow-node.condition .handle.output-false { right: -7px; top: 65%; }
+    .flow-node.condition_var .handle.output-true { right: -7px; top: 35%; }
+    .flow-node.condition_var .handle.output-false { right: -7px; top: 65%; }
     .flow-node.condition .output-label { position: absolute; right: 14px; font-size: 0.65rem; color: rgba(255,255,255,0.6); font-weight: 600; }
     .flow-node.condition .output-label.true { top: 32%; }
     .flow-node.condition .output-label.false { top: 62%; }
+    .flow-node.condition_var .output-label { position: absolute; right: 14px; font-size: 0.65rem; color: rgba(255,255,255,0.6); font-weight: 600; }
+    .flow-node.condition_var .output-label.true { top: 32%; }
+    .flow-node.condition_var .output-label.false { top: 62%; }
 
     /* SVG Connections */
     #connectionsSvg {
@@ -542,6 +549,13 @@
           <div class="desc">Decisão IA</div>
         </div>
       </div>
+      <div class="palette-node condition_var" draggable="true" data-type="condition_var">
+        <div class="icon"><i class="bi bi-diagram-3"></i></div>
+        <div class="info">
+          <div class="name">Verificar variável</div>
+          <div class="desc">Dois caminhos (Sim/Não)</div>
+        </div>
+      </div>
       <div class="palette-node ia" draggable="true" data-type="ia">
         <div class="icon"><i class="bi bi-cpu-fill"></i></div>
         <div class="info">
@@ -668,6 +682,15 @@
         hasOutputFalse: true,
         defaultData: { pergunta: '', promptId: null }
       },
+      condition_var: {
+        icon: 'bi-diagram-3',
+        title: 'Verificar variável',
+        hasInput: true,
+        hasOutput: false,
+        hasOutputTrue: true,
+        hasOutputFalse: true,
+        defaultData: { variavelNome: 'resposta', operador: 'igual', valorComparacao: '' }
+      },
       ia: {
         icon: 'bi-cpu-fill',
         title: 'IA',
@@ -680,7 +703,7 @@
         title: 'Ação',
         hasInput: true,
         hasOutput: true,
-        defaultData: { tipo: 'requisicao', requisicaoTipo: '', funcao: '', parametros: {}, arquivoCupons: 'cupons_desconto', promptCupom: '' }
+        defaultData: { tipo: 'requisicao', requisicaoTipo: '', funcao: '', parametros: {}, arquivoCupons: 'cupons_desconto', promptCupom: '', metaNome: '', variavelSaidaMeta: '' }
       },
       end: {
         icon: 'bi-stop-circle-fill',
@@ -808,11 +831,14 @@
         case 'condition':
           preview = node.data.pergunta?.substring(0, 60) || '(configurar pergunta)';
           break;
+        case 'condition_var':
+          preview = `{{${node.data.variavelNome || 'resposta'}}} ${node.data.operador || 'igual'} "${(node.data.valorComparacao || '').toString().substring(0, 20)}"`;
+          break;
         case 'ia':
           preview = node.data.instrucao?.substring(0, 60) || '(configurar instrução)';
           break;
         case 'action':
-          preview = node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
+          preview = node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : node.data.tipo === 'marcar_meta' ? `Marcar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'verificar_meta' ? `Verificar: ${node.data.metaNome || '(meta)'}` : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
           break;
         case 'end':
           preview = node.data.mensagemFinal?.substring(0, 60) || 'Fim do fluxo';
@@ -1282,6 +1308,33 @@
             </div>
           `;
           break;
+
+        case 'condition_var':
+          content += `
+            <div class="form-group">
+              <label>Nome da variável</label>
+              <input type="text" value="${node.data.variavelNome || 'resposta'}" onchange="updateNodeData('variavelNome', this.value)" placeholder="resposta ou meta_entrada_grupo">
+              <div class="help-text">Variável do fluxo (ex: {{meta_entrada_grupo}} após ação Verificar meta)</div>
+            </div>
+            <div class="form-group">
+              <label>Operador</label>
+              <select onchange="updateNodeData('operador', this.value)">
+                <option value="igual" ${node.data.operador === 'igual' ? 'selected' : ''}>Igual a</option>
+                <option value="diferente" ${node.data.operador === 'diferente' ? 'selected' : ''}>Diferente de</option>
+                <option value="contem" ${node.data.operador === 'contem' ? 'selected' : ''}>Contém</option>
+                <option value="maior" ${node.data.operador === 'maior' ? 'selected' : ''}>Maior que</option>
+                <option value="menor" ${node.data.operador === 'menor' ? 'selected' : ''}>Menor que</option>
+                <option value="maior_igual" ${node.data.operador === 'maior_igual' ? 'selected' : ''}>Maior ou igual</option>
+                <option value="menor_igual" ${node.data.operador === 'menor_igual' ? 'selected' : ''}>Menor ou igual</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Valor para comparar</label>
+              <input type="text" value="${node.data.valorComparacao != null ? node.data.valorComparacao : ''}" onchange="updateNodeData('valorComparacao', this.value)" placeholder="ex: concluido, pendente, 10">
+              <div class="help-text">Sim = segue pelo caminho "Sim"; Não = segue pelo "Não"</div>
+            </div>
+          `;
+          break;
           
         case 'ia':
           content += `
@@ -1304,11 +1357,29 @@
               <select onchange="updateNodeData('tipo', this.value); renderNode(nodes.find(n=>n.id==='${node.id}')); renderPropertiesPanel();">
                 <option value="requisicao" ${node.data.tipo === 'requisicao' ? 'selected' : ''}>Requisição Externa</option>
                 <option value="enviar_cupom" ${node.data.tipo === 'enviar_cupom' ? 'selected' : ''}>Enviar cupom</option>
+                <option value="marcar_meta" ${node.data.tipo === 'marcar_meta' ? 'selected' : ''}>Marcar meta concluída</option>
+                <option value="verificar_meta" ${node.data.tipo === 'verificar_meta' ? 'selected' : ''}>Verificar meta</option>
                 <option value="salvar_variavel" ${node.data.tipo === 'salvar_variavel' ? 'selected' : ''}>Salvar Variável</option>
                 <option value="webhook" ${node.data.tipo === 'webhook' ? 'selected' : ''}>Webhook</option>
               </select>
             </div>
-            ${node.data.tipo === 'requisicao' ? `
+            ${node.data.tipo === 'marcar_meta' ? `
+              <div class="form-group">
+                <label>Nome da meta</label>
+                <input type="text" value="${node.data.metaNome || ''}" onchange="updateNodeData('metaNome', this.value)" placeholder="entrada_grupo, 10_indicacoes, cupom_30_resgatado">
+                <div class="help-text">Identificador da meta (cadastrado em metas no banco). Após executar, {{meta_nome}} = concluido</div>
+              </div>
+            ` : node.data.tipo === 'verificar_meta' ? `
+              <div class="form-group">
+                <label>Nome da meta</label>
+                <input type="text" value="${node.data.metaNome || ''}" onchange="updateNodeData('metaNome', this.value)" placeholder="entrada_grupo, 10_indicacoes">
+              </div>
+              <div class="form-group">
+                <label>Salvar resultado em (variável)</label>
+                <input type="text" value="${node.data.variavelSaidaMeta || ''}" onchange="updateNodeData('variavelSaidaMeta', this.value)" placeholder="meta_entrada_grupo">
+                <div class="help-text">Será "concluido" ou "pendente". Use depois em Verificar variável.</div>
+              </div>
+            ` : node.data.tipo === 'requisicao' ? `
               <div class="form-group">
                 <label>Tipo de Requisição</label>
                 <input type="text" value="${node.data.requisicaoTipo || ''}" onchange="updateNodeData('requisicaoTipo', this.value)" placeholder="Ex: gruposdewhats, taxa_entrega">

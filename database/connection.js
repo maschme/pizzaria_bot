@@ -1,12 +1,13 @@
+require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-// Configuração centralizada do banco de dados (servidor externo)
+// Configuração centralizada do banco (Opção 1: uma instância = um .env = um banco por empresa)
 const dbConfig = {
-  database: 'pizzaria',
-  username: 'mitouser',
-  password: 'naoteconto',
-  host: 'vms.cutplay.com.br',  // Servidor externo
-  port: 3306,
+  host: process.env.DB_HOST || 'vms.cutplay.com.br',
+  port: parseInt(process.env.DB_PORT, 10) || 3306,
+  username: process.env.DB_USER || 'mitouser',
+  password: process.env.DB_PASSWORD || 'naoteconto',
+  database: process.env.DB_NAME || 'pizzaria',
   dialect: 'mysql',
   logging: false,
   pool: {
@@ -16,6 +17,8 @@ const dbConfig = {
     idle: 10000
   }
 };
+// mysql2 createConnection usa "user"; Sequelize usa "username"
+dbConfig.user = dbConfig.username;
 
 const sequelize = new Sequelize(
   dbConfig.database,

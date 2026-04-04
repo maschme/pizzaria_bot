@@ -1,12 +1,15 @@
+const { Op } = require('sequelize');
 const { Fluxo } = require('../Models/FluxoModel');
 
-// Cache de fluxos ativos
+// Cache de fluxos ativos (apenas conversação: atendimento, campanha, suporte – exclui automacao)
 let cacheFluxos = {};
 let cacheTimestamp = null;
 const CACHE_TTL = 60000;
 
 async function carregarFluxos() {
-  const fluxos = await Fluxo.findAll({ where: { ativo: true } });
+  const fluxos = await Fluxo.findAll({
+    where: { ativo: true, tipo: { [Op.ne]: 'automacao' } }
+  });
   cacheFluxos = {};
   fluxos.forEach(f => {
     cacheFluxos[f.id] = f;
@@ -69,7 +72,8 @@ async function criarFluxo(dados) {
   const fluxo = await Fluxo.create({
     nome: dados.nome || 'Novo Fluxo',
     descricao: dados.descricao,
-    tipo: dados.tipo || 'automacao',
+    // Editor de fluxos conversacionais usa este fallback.
+    tipo: dados.tipo || 'campanha',
     gatilho: dados.gatilho,
     nodes: dados.nodes || [],
     edges: dados.edges || [],

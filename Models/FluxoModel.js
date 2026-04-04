@@ -17,7 +17,7 @@ const Fluxo = sequelize.define('Fluxo', {
   },
   tipo: {
     type: DataTypes.ENUM('atendimento', 'campanha', 'automacao', 'suporte'),
-    defaultValue: 'automacao'
+    defaultValue: 'campanha'
   },
   gatilho: {
     type: DataTypes.TEXT,

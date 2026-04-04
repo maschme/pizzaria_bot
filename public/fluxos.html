@@ -606,6 +606,7 @@
     <div class="zoom-level" id="zoomLevel">100%</div>
     <button onclick="zoomIn()" title="Aumentar zoom"><i class="bi bi-plus"></i></button>
     <button onclick="resetView()" title="Centralizar"><i class="bi bi-fullscreen"></i></button>
+    <button onclick="trazerNosParaTela()" title="Recuperar nós fora da tela"><i class="bi bi-life-preserver"></i></button>
   </div>
 
   <!-- Minimap -->
@@ -703,7 +704,7 @@
         title: 'Ação',
         hasInput: true,
         hasOutput: true,
-        defaultData: { tipo: 'requisicao', requisicaoTipo: '', funcao: '', parametros: {}, arquivoCupons: 'cupons_desconto', promptCupom: '', metaNome: '', variavelSaidaMeta: '' }
+        defaultData: { tipo: 'requisicao', requisicaoTipo: '', funcao: '', parametros: {}, arquivoCupons: 'cupons_desconto', promptCupom: '', metaNome: '', variavelSaidaMeta: '', campoContato: 'cam_grupo', variavelSaidaContato: 'cam_grupo' }
       },
       end: {
         icon: 'bi-stop-circle-fill',
@@ -838,7 +839,7 @@
           preview = node.data.instrucao?.substring(0, 60) || '(configurar instrução)';
           break;
         case 'action':
-          preview = node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : node.data.tipo === 'marcar_meta' ? `Marcar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'verificar_meta' ? `Verificar: ${node.data.metaNome || '(meta)'}` : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
+          preview = node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : node.data.tipo === 'marcar_meta' ? `Marcar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'verificar_meta' ? `Verificar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'ler_contato' ? `Ler: ${node.data.campoContato || 'cam_grupo'} → {{${node.data.variavelSaidaContato || 'cam_grupo'}}}` : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
           break;
         case 'end':
           preview = node.data.mensagemFinal?.substring(0, 60) || 'Fim do fluxo';
@@ -890,9 +891,10 @@
         e.stopPropagation();
         isDraggingNode = true;
         draggedNode = node;
+        const mouseCanvas = screenToCanvas(e.clientX, e.clientY);
         dragOffset = {
-          x: e.clientX / viewport.zoom - node.x,
-          y: e.clientY / viewport.zoom - node.y
+          x: mouseCanvas.x - node.x,
+          y: mouseCanvas.y - node.y
         };
         selectNode(node.id);
       }
@@ -1049,8 +1051,9 @@
         viewport.y = e.clientY - panStart.y;
         updateCanvasTransform();
       } else if (isDraggingNode && draggedNode) {
-        draggedNode.x = e.clientX / viewport.zoom - dragOffset.x - viewport.x / viewport.zoom;
-        draggedNode.y = e.clientY / viewport.zoom - dragOffset.y - viewport.y / viewport.zoom;
+        const mouseCanvas = screenToCanvas(e.clientX, e.clientY);
+        draggedNode.x = mouseCanvas.x - dragOffset.x;
+        draggedNode.y = mouseCanvas.y - dragOffset.y;
         
         const el = document.getElementById(draggedNode.id);
         if (el) {
@@ -1156,6 +1159,39 @@
       }
       updateCanvasTransform();
       updateMinimap();
+    }
+
+    function trazerNosParaTela() {
+      if (!nodes.length) return;
+
+      const bounds = nodes.reduce((acc, n) => ({
+        minX: Math.min(acc.minX, n.x),
+        minY: Math.min(acc.minY, n.y),
+        maxX: Math.max(acc.maxX, n.x + 220),
+        maxY: Math.max(acc.maxY, n.y + 100)
+      }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+      const todosFora = bounds.maxX < 0 || bounds.maxY < 0 || bounds.minX > 8000 || bounds.minY > 8000;
+      if (!todosFora && bounds.minX >= 0 && bounds.minY >= 0 && bounds.maxX <= 8000 && bounds.maxY <= 8000) {
+        resetView();
+        showToast('Nós já estão na área do canvas; view centralizada.', 'warning');
+        return;
+      }
+
+      const margin = 250;
+      const offsetX = (bounds.minX < margin) ? (margin - bounds.minX) : (bounds.maxX > 8000 - margin ? (8000 - margin - bounds.maxX) : 0);
+      const offsetY = (bounds.minY < margin) ? (margin - bounds.minY) : (bounds.maxY > 8000 - margin ? (8000 - margin - bounds.maxY) : 0);
+
+      nodes.forEach(n => {
+        n.x += offsetX;
+        n.y += offsetY;
+      });
+
+      nodes.forEach(renderNode);
+      renderConnections();
+      updateMinimap();
+      resetView();
+      showToast('Nós reposicionados para a área visível.');
     }
 
     // ============================================================
@@ -1331,7 +1367,7 @@
             <div class="form-group">
               <label>Valor para comparar</label>
               <input type="text" value="${node.data.valorComparacao != null ? node.data.valorComparacao : ''}" onchange="updateNodeData('valorComparacao', this.value)" placeholder="ex: concluido, pendente, 10">
-              <div class="help-text">Sim = segue pelo caminho "Sim"; Não = segue pelo "Não"</div>
+              <div class="help-text">Sim = segue pelo caminho "Sim"; Não = segue pelo "Não". Variáveis de meta (ex.: meta_entrada_grupo) têm valor <strong>concluido</strong> ou <strong>pendente</strong> (não 0/1).</div>
             </div>
           `;
           break;
@@ -1359,6 +1395,7 @@
                 <option value="enviar_cupom" ${node.data.tipo === 'enviar_cupom' ? 'selected' : ''}>Enviar cupom</option>
                 <option value="marcar_meta" ${node.data.tipo === 'marcar_meta' ? 'selected' : ''}>Marcar meta concluída</option>
                 <option value="verificar_meta" ${node.data.tipo === 'verificar_meta' ? 'selected' : ''}>Verificar meta</option>
+                <option value="ler_contato" ${node.data.tipo === 'ler_contato' ? 'selected' : ''}>Ler campo do contato</option>
                 <option value="salvar_variavel" ${node.data.tipo === 'salvar_variavel' ? 'selected' : ''}>Salvar Variável</option>
                 <option value="webhook" ${node.data.tipo === 'webhook' ? 'selected' : ''}>Webhook</option>
               </select>
@@ -1394,6 +1431,23 @@
                 <label>Prompt (instrução para IA)</label>
                 <textarea onchange="updateNodeData('promptCupom', this.value)" placeholder="Ex: Encontre um cupom de 10% com validade para 10 dias a partir de hoje {{dataatual}}. Retorne apenas o texto pronto para enviar ao cliente." rows="3">${node.data.promptCupom || ''}</textarea>
                 <div class="help-text">Cada nó pode ter um prompt único. Use {{dataatual}} ou {{dataHoraAtual}}. Se vazio, envia o primeiro cupom do arquivo.</div>
+              </div>
+            ` : node.data.tipo === 'ler_contato' ? `
+              <div class="form-group">
+                <label>Campo do banco (contatos)</label>
+                <select onchange="updateNodeData('campoContato', this.value); updateNodeData('variavelSaidaContato', this.value); renderNode(nodes.find(n=>n.id==='${node.id}')); renderPropertiesPanel();">
+                  <option value="cam_grupo" ${node.data.campoContato === 'cam_grupo' ? 'selected' : ''}>cam_grupo (0 ou 1)</option>
+                  <option value="qt_indicados" ${node.data.campoContato === 'qt_indicados' ? 'selected' : ''}>qt_indicados</option>
+                  <option value="cam_indicacoes" ${node.data.campoContato === 'cam_indicacoes' ? 'selected' : ''}>cam_indicacoes (0 ou 1)</option>
+                  <option value="nome" ${node.data.campoContato === 'nome' ? 'selected' : ''}>nome</option>
+                  <option value="id_negociacao" ${node.data.campoContato === 'id_negociacao' ? 'selected' : ''}>id_negociacao</option>
+                </select>
+                <div class="help-text">Lê da tabela contatos. Depois use em Verificar variável.</div>
+              </div>
+              <div class="form-group">
+                <label>Salvar em variável</label>
+                <input type="text" value="${node.data.variavelSaidaContato || node.data.campoContato || 'cam_grupo'}" onchange="updateNodeData('variavelSaidaContato', this.value)" placeholder="cam_grupo">
+                <div class="help-text">Em Verificar variável use: nome = {{cam_grupo}}, valor = 1 (entrou) ou 0 (não entrou).</div>
               </div>
             ` : node.data.tipo === 'webhook' ? `
               <div class="form-group">
@@ -1454,15 +1508,16 @@
     async function carregarFluxos() {
       const data = await api('/');
       if (!data.success) return;
-      
+      // Lista apenas fluxos de conversação (exclui automações)
+      const fluxos = (data.data || []).filter(f => f.tipo !== 'automacao');
       const lista = document.getElementById('listaFluxos');
       
-      if (data.data.length === 0) {
-        lista.innerHTML = '<div class="text-muted small p-2">Nenhum fluxo criado</div>';
+      if (fluxos.length === 0) {
+        lista.innerHTML = '<div class="text-muted small p-2">Nenhum fluxo de conversação</div>';
         return;
       }
       
-      lista.innerHTML = data.data.map(f => `
+      lista.innerHTML = fluxos.map(f => `
         <div class="fluxo-item ${f.id === currentFluxoId ? 'active' : ''}" onclick="carregarFluxo(${f.id})">
           <div class="name">${f.nome}</div>
           <div class="meta">
@@ -1522,7 +1577,7 @@
       const triggerNode = nodes.find(n => n.type === 'trigger');
       const gatilho = triggerNode ? triggerNode.data : null;
       
-      const dados = { nome, nodes, edges, viewport, gatilho };
+      const dados = { nome, nodes, edges, viewport, gatilho, tipo: 'campanha' };
       
       let data;
       if (currentFluxoId) {

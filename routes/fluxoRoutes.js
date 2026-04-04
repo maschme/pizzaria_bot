@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const fluxoService = require('../services/fluxoService');
+const automacaoExecutor = require('../services/automacaoExecutor');
+const fluxoExecutor = require('../services/fluxoExecutor');
 
 // Listar todos os fluxos
 router.get('/', async (req, res) => {
@@ -25,6 +27,41 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Fluxo não encontrado' });
     }
     res.json({ success: true, data: fluxo });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Webhook e run PRECISAM vir antes de outras rotas POST /:id/... (ordem no Express)
+// POST /api/fluxos/:id/webhook — gatilho por HTTP (body = payload)
+router.post('/:id/webhook', async (req, res) => {
+  try {
+    const fluxo = await fluxoService.getFluxoPorId(req.params.id);
+    if (!fluxo) return res.status(404).json({ success: false, error: 'Fluxo não encontrado' });
+    if (fluxo.tipo !== 'automacao') {
+      return res.status(400).json({ success: false, error: 'Apenas automações têm webhook' });
+    }
+    if (!fluxo.ativo) {
+      return res.status(400).json({ success: false, error: 'Automação inativa' });
+    }
+    const result = await automacaoExecutor.executarAutomacao(fluxo, 'webhook', req.body);
+    res.json({ success: result.success, data: { variables: result.variables, logs: result.logs }, error: result.error });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/fluxos/:id/run — execução manual
+router.post('/:id/run', async (req, res) => {
+  try {
+    const fluxo = await fluxoService.getFluxoPorId(req.params.id);
+    if (!fluxo) return res.status(404).json({ success: false, error: 'Fluxo não encontrado' });
+    if (fluxo.tipo !== 'automacao') {
+      return res.status(400).json({ success: false, error: 'Apenas automações podem ser executadas por /run' });
+    }
+    const { triggerType = 'manual', payload = {} } = req.body;
+    const result = await automacaoExecutor.executarAutomacao(fluxo, triggerType, payload);
+    res.json({ success: result.success, data: { variables: result.variables, logs: result.logs }, error: result.error });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -85,7 +122,10 @@ router.post('/:id/ativar', async (req, res) => {
 router.post('/:id/desativar', async (req, res) => {
   try {
     const fluxo = await fluxoService.desativarFluxo(req.params.id);
-    res.json({ success: true, data: fluxo });
+    const sessoesEncerradas = fluxoExecutor.encerrarSessoesPorFluxoId
+      ? fluxoExecutor.encerrarSessoesPorFluxoId(req.params.id)
+      : 0;
+    res.json({ success: true, data: fluxo, sessoesEncerradas });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

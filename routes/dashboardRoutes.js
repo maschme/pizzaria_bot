@@ -4,6 +4,8 @@ const router = express.Router();
 const configService = require('../services/configuracaoService');
 const grupoService = require('../services/grupoWhatsappService');
 const gatilhoService = require('../services/gatilhoService');
+const contatoService = require('../services/contatoService');
+const fluxoExecutor = require('../services/fluxoExecutor');
 
 // Referência ao client do WhatsApp (será injetada)
 let whatsappClient = null;
@@ -297,6 +299,40 @@ router.delete('/gatilhos/:id', async (req, res) => {
     const { id } = req.params;
     await gatilhoService.deletarGatilho(id);
     res.json({ success: true, mensagem: 'Gatilho removido' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// 📇 CONTATOS (para testes de fluxo: listar e deletar)
+// ============================================================
+
+router.get('/contatos', async (req, res) => {
+  try {
+    const contatos = await contatoService.listarContatos();
+    const chatIdsEmFluxo = fluxoExecutor.getChatIdsEmFluxo ? fluxoExecutor.getChatIdsEmFluxo() : [];
+    const normalizar = (id) => String(id).replace(/\D/g, '');
+    const setEmFluxo = chatIdsEmFluxo.reduce((acc, c) => { acc[normalizar(c)] = true; return acc; }, {});
+    const data = contatos.map((c) => ({
+      ...c,
+      em_fluxo: setEmFluxo[normalizar(c.whatsapp_id)] || false
+    }));
+    res.json({ success: true, total: data.length, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/contatos/:whatsappId', async (req, res) => {
+  try {
+    const whatsappId = decodeURIComponent(req.params.whatsappId);
+    const wid = contatoService.normalizarWhatsappId(whatsappId);
+    if (!wid) return res.status(400).json({ success: false, error: 'whatsapp_id inválido' });
+    fluxoExecutor.encerrarFluxo(wid);
+    fluxoExecutor.encerrarFluxo(wid + '@c.us');
+    const result = await contatoService.deletarContato(wid);
+    res.json({ success: true, ...result, mensagem: result.deleted ? 'Contato removido' : 'Contato não encontrado' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

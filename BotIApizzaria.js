@@ -199,6 +199,8 @@ async function moverCardNoFunil(idNegociacao) {
 // ============================================================
 const config = {
   atendimentoAutomatico: false,  // true = IA responde | false = silencioso
+  // Segurança: fallback legado desligado por padrão para não disparar fluxos "fantasma".
+  gatilhosLegadoAtivos: String(process.env.LEGACY_GATILHOS_ATIVOS || 'false').toLowerCase() === 'true',
   
   // Gatilhos especiais que ativam fluxos específicos
   gatilhos: {
@@ -649,7 +651,7 @@ client.on('message', async (msg) => {
     return;
   }
   let gatilhoDetectado = await verificarGatilhoDB(texto);
-  if (!gatilhoDetectado) gatilhoDetectado = verificarGatilhoLocal(texto);
+  if (!gatilhoDetectado && config.gatilhosLegadoAtivos) gatilhoDetectado = verificarGatilhoLocal(texto);
   if (gatilhoDetectado && !sessoesCampanha.has(numero)) {
     console.log(`🎯 Gatilho detectado: ${gatilhoDetectado.tipo}`);
     await processarGatilho(gatilhoDetectado, numero, texto, msg);

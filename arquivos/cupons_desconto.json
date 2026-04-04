@@ -1,36 +1,22 @@
 [
   {
-    "descricao": "Cupom de 10% de desconto valido até o dia 26/03/2026",
-    "codigo": "PIZZA10dia26",
-    "validade": "26/03/2026",
-    "texto": "🎟️ *Seu cupom de 10% de desconto:* PIZZA10dia26\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
-  },
-  {
-    "descricao": "Cupom de 10% de desconto valido até o dia 19/03/2026",
-    "codigo": "PIZZA10dia19",
-    "validade": "19/03/2026",
-    "texto": "🎟️ *Seu cupom de 10% de desconto:* PIZZA10dia19\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
-  },
+  "descricao": "Cupom de 10% de desconto valido até o dia 30/04/2026",
+  "codigo": "PIZZA-JKW",
+  "validade": "30/04/2026",
+  "texto": "🎟️ *Seu cupom de 10% de desconto:* PIZZA-JKW\n\nUse em seu pedido e aproveite! Válido para 1 pedido ATÉ O DIA 30/04/2026 . 🍕\n\nfaça seu pedido no link abaixo e insira seu cupom no checkout ao final do pedido\nhttps://delivery.pizzariajoinville.com.br"
+},
+
  {
-    "descricao": "Cupom de 30% de desconto valido até o dia 26/03/2026",
-    "codigo": "PIZZAdia26",
-    "validade": "26/03/2026",
-    "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA26\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
-  },
-  {
-    "descricao": "Cupom de 30% de desconto valido até o dia 19/03/2026",
-    "codigo": "PIZZAdia19",
-    "validade": "19/03/2026",
-    "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA19\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
-  },
-  {
-    "descricao": "Cupom de 30% de desconto valido até o dia 22/03/2026",
-    "codigo": "PIZZAdia22",
-    "validade": "22/03/2026",
-    "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA22\n\nUse no pedido e aproveite! Válido para 1 pedido. 🍕"
-  },
-  {
-    "codigo": "INDICADO10",
-    "texto": "🎁 *Cupom de 10% para você:* INDICADO10\n\nVocê foi indicado por um amigo! Use no seu primeiro pedido. 🍕"
-  }
+  "descricao": "Cupom de 20% de desconto valido até o dia 30/04/2026",
+  "codigo": "PIZZA-VMM",
+  "validade": "30/04/2026",
+  "texto": "🎟️ *Seu cupom de 20% de desconto:* PIZZA-VMM\n\nUse em seu pedido e aproveite! Válido para 1 pedido ATÉ O DIA 30/04/2026 . 🍕\n\nfaça seu pedido no link abaixo e insira seu cupom no checkout ao final do pedido\nhttps://delivery.pizzariajoinville.com.br"
+},
+{
+  "descricao": "Cupom de 30% de desconto valido até o dia 30/04/2026",
+  "codigo": "PIZZA-VAL",
+  "validade": "30/04/2026",
+  "texto": "🎟️ *Seu cupom de 30% de desconto:* PIZZA-VAL\n\nUse em seu pedido e aproveite! Válido para 1 pedido ATÉ O DIA 30/04/2026 . 🍕\n\nfaça seu pedido no link abaixo e insira seu cupom no checkout ao final do pedido\nhttps://delivery.pizzariajoinville.com.br"
+}
+ 
 ]

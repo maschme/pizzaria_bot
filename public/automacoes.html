@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automações - Pizzaria Bot</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #6366f1;
+      --bg-dark: #1a1a2e;
+      --bg-card: #16213e;
+      --bg-canvas: #0f0f1a;
+      --text-light: #edf2f4;
+      --node-trigger: #e63946;
+      --node-condition: #ffc107;
+      --node-ia: #6f42c1;
+      --node-http: #0ea5e9;
+      --node-var: #10b981;
+      --node-merge: #8b5cf6;
+      --node-log: #64748b;
+      --node-end: #6c757d;
+      --node-sleep: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: var(--bg-dark); color: var(--text-light); font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; height: 100vh; }
+    .toolbar { position: fixed; top: 0; left: 0; right: 0; height: 50px; background: rgba(26,26,46,0.98); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; padding: 0 1rem; z-index: 1000; gap: 1rem; }
+    .toolbar .brand { font-weight: 700; color: var(--primary-color); text-decoration: none; }
+    .toolbar .flow-name { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: var(--text-light); padding: 0.4rem 0.75rem; border-radius: 6px; width: 250px; }
+    .toolbar .actions { margin-left: auto; display: flex; gap: 0.5rem; }
+    .sidebar { position: fixed; top: 50px; left: 0; width: 260px; height: calc(100vh - 50px); background: var(--bg-card); border-right: 1px solid rgba(255,255,255,0.1); padding: 1rem; overflow-y: auto; z-index: 100; }
+    .sidebar h6 { color: rgba(255,255,255,0.5); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin: 1rem 0 0.75rem; }
+    .node-palette { display: flex; flex-direction: column; gap: 0.5rem; }
+    .palette-node { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; background: rgba(0,0,0,0.25); border-radius: 8px; cursor: grab; border: 1px solid transparent; }
+    .palette-node:hover { border-color: var(--primary-color); background: rgba(99,102,241,0.15); }
+    .palette-node .icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .palette-node .info { flex: 1; min-width: 0; }
+    .palette-node .info .name { font-weight: 600; font-size: 0.85rem; }
+    .palette-node .info .desc { font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+    .palette-node.trigger_webhook .icon { background: var(--node-trigger); }
+    .palette-node.trigger_schedule .icon { background: #f59e0b; }
+    .palette-node.condition .icon { background: var(--node-condition); color: #000; }
+    .palette-node.set_variable .icon { background: var(--node-var); }
+    .palette-node.http_request .icon { background: var(--node-http); }
+    .palette-node.ia .icon { background: var(--node-ia); }
+    .palette-node.merge .icon { background: var(--node-merge); }
+    .palette-node.log .icon { background: var(--node-log); }
+    .palette-node.sleep .icon { background: var(--node-sleep); }
+    .palette-node.end .icon { background: var(--node-end); }
+    .flow-node { position: absolute; width: 220px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; cursor: default; z-index: 10; }
+    .flow-node.condition .handle.output-true { right: -7px; top: 35%; }
+    .flow-node.condition .handle.output-false { right: -7px; top: 65%; }
+    .flow-node .node-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); border-radius: 10px 10px 0 0; }
+    .flow-node .node-header .title { flex: 1; font-size: 0.85rem; font-weight: 600; }
+    .flow-node .node-body { padding: 0.5rem 0.75rem; font-size: 0.8rem; color: rgba(255,255,255,0.8); }
+    .flow-node .handle { position: absolute; width: 14px; height: 14px; background: var(--bg-dark); border: 2px solid var(--primary-color); border-radius: 50%; cursor: crosshair; }
+    .flow-node .handle.input { left: -7px; top: 50%; transform: translateY(-50%); }
+    .flow-node .handle.output { right: -7px; top: 50%; transform: translateY(-50%); }
+    .flow-node .preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    .flow-node .delete-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 0 0.25rem; }
+    .flow-node.selected { border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(99,102,241,0.3); }
+    .canvas-container { position: fixed; top: 50px; left: 260px; right: 320px; bottom: 0; overflow: hidden; background: var(--bg-canvas); }
+    #canvas { position: absolute; transform-origin: 0 0; }
+    .connection-path { fill: none; stroke: rgba(99,102,241,0.6); stroke-width: 2; }
+    .properties-panel { position: fixed; top: 50px; right: 0; width: 320px; height: calc(100vh - 50px); background: var(--bg-card); border-left: 1px solid rgba(255,255,255,0.1); padding: 1rem; overflow-y: auto; }
+    .properties-panel .form-group { margin-bottom: 1rem; }
+    .properties-panel label { display: block; font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-bottom: 0.25rem; }
+    .properties-panel input, .properties-panel select, .properties-panel textarea { width: 100%; padding: 0.4rem 0.5rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: var(--text-light); }
+    .fluxos-list .fluxo-item { padding: 0.5rem 0.75rem; border-radius: 8px; cursor: pointer; margin-bottom: 0.25rem; }
+    .fluxos-list .fluxo-item:hover { background: rgba(255,255,255,0.05); }
+    .fluxos-list .fluxo-item.active { background: rgba(99,102,241,0.2); border: 1px solid var(--primary-color); }
+    .zoom-controls { position: fixed; bottom: 1rem; left: 280px; display: flex; align-items: center; gap: 0.5rem; background: var(--bg-card); padding: 0.25rem 0.5rem; border-radius: 8px; z-index: 100; }
+    .toast-container { position: fixed; bottom: 1rem; right: 340px; z-index: 1000; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <a href="dashboard.html" class="brand"><i class="bi bi-robot"></i> Automações</a>
+    <input type="text" class="flow-name" id="flowName" placeholder="Nome da automação">
+    <div class="actions">
+      <button class="btn btn-sm btn-outline-warning" onclick="criarExemploWebhook()" title="Criar fluxo de exemplo acionado por POST"><i class="bi bi-file-earmark-plus"></i> Criar exemplo</button>
+      <button class="btn btn-sm btn-primary" onclick="salvarAutomacao()"><i class="bi bi-check-lg"></i> Salvar</button>
+      <button class="btn btn-sm btn-outline-info" onclick="executarAgora()" id="btnExecutar" title="Executar uma vez"><i class="bi bi-play-fill"></i> Executar</button>
+      <button class="btn btn-sm btn-outline-success" onclick="toggleAtivar()" id="btnAtivar"><i class="bi bi-play"></i> Ativar</button>
+      <a href="fluxos.html" class="btn btn-sm btn-outline-light"><i class="bi bi-diagram-3"></i> Fluxos</a>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <h6>Gatilhos</h6>
+    <div class="node-palette">
+      <div class="palette-node trigger_webhook" draggable="true" data-type="trigger_webhook">
+        <div class="icon"><i class="bi bi-link-45deg"></i></div>
+        <div class="info"><div class="name">Webhook</div><div class="desc">Inicia por HTTP POST</div></div>
+      </div>
+      <div class="palette-node trigger_schedule" draggable="true" data-type="trigger_schedule">
+        <div class="icon"><i class="bi bi-clock"></i></div>
+        <div class="info"><div class="name">Agendamento</div><div class="desc">Cron / manual</div></div>
+      </div>
+    </div>
+    <h6>Lógica e Dados</h6>
+    <div class="node-palette">
+      <div class="palette-node condition" draggable="true" data-type="condition">
+        <div class="icon"><i class="bi bi-diagram-3"></i></div>
+        <div class="info"><div class="name">Condição</div><div class="desc">If/Else (variável)</div></div>
+      </div>
+      <div class="palette-node set_variable" draggable="true" data-type="set_variable">
+        <div class="icon"><i class="bi bi-tag"></i></div>
+        <div class="info"><div class="name">Definir variável</div><div class="desc">Criar/atualizar</div></div>
+      </div>
+      <div class="palette-node merge" draggable="true" data-type="merge">
+        <div class="icon"><i class="bi bi-arrow-merge"></i></div>
+        <div class="info"><div class="name">Merge</div><div class="desc">Junção de caminhos</div></div>
+      </div>
+    </div>
+    <h6>Integração</h6>
+    <div class="node-palette">
+      <div class="palette-node http_request" draggable="true" data-type="http_request">
+        <div class="icon"><i class="bi bi-globe"></i></div>
+        <div class="info"><div class="name">Requisição HTTP</div><div class="desc">GET/POST API</div></div>
+      </div>
+      <div class="palette-node ia" draggable="true" data-type="ia">
+        <div class="icon"><i class="bi bi-cpu-fill"></i></div>
+        <div class="info"><div class="name">IA / LLM</div><div class="desc">Processar com IA</div></div>
+      </div>
+    </div>
+    <h6>Utilitários</h6>
+    <div class="node-palette">
+      <div class="palette-node log" draggable="true" data-type="log">
+        <div class="icon"><i class="bi bi-journal-text"></i></div>
+        <div class="info"><div class="name">Log</div><div class="desc">Registrar mensagem</div></div>
+      </div>
+      <div class="palette-node sleep" draggable="true" data-type="sleep">
+        <div class="icon"><i class="bi bi-hourglass-split"></i></div>
+        <div class="info"><div class="name">Atraso</div><div class="desc">Sleep (segundos)</div></div>
+      </div>
+      <div class="palette-node end" draggable="true" data-type="end">
+        <div class="icon"><i class="bi bi-stop-circle-fill"></i></div>
+        <div class="info"><div class="name">Fim</div><div class="desc">Encerra fluxo</div></div>
+      </div>
+    </div>
+    <h6>Minhas Automações</h6>
+    <div class="fluxos-list" id="listaFluxos">Carregando...</div>
+    <div class="mt-3 p-2 rounded small" style="background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);" id="webhookUrlBox">
+      <strong>Webhook (POST):</strong><br>
+      <code id="webhookUrlText" style="font-size:0.7rem; word-break: break-all;">Salve e ative para ver a URL</code>
+    </div>
+  </div>
+
+  <div class="canvas-container" id="canvasContainer">
+    <div id="canvas"><svg id="connectionsSvg"></svg></div>
+  </div>
+  <div class="properties-panel" id="propertiesPanel">
+    <div class="empty-state" style="text-align:center;padding:2rem;color:rgba(255,255,255,0.5);">
+      <i class="bi bi-cursor" style="font-size:2rem"></i>
+      <p>Selecione um nó para editar</p>
+    </div>
+  </div>
+  <div class="zoom-controls"><button onclick="zoomOut()"><i class="bi bi-dash"></i></button><span id="zoomLevel">100%</span><button onclick="zoomIn()"><i class="bi bi-plus"></i></button><button onclick="resetView()"><i class="bi bi-fullscreen"></i></button></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let currentFluxoId = null, currentFluxoAtivo = false, nodes = [], edges = [], selectedNodeId = null, nodeIdCounter = 1;
+    let viewport = { x: 100, y: 100, zoom: 1 }, isPanning = false, isDraggingNode = false, isConnecting = false;
+    let draggedNode = null, dragOffset = { x: 0, y: 0 }, connectionStart = null, tempConnectionLine = null;
+    const canvas = document.getElementById('canvas'), canvasContainer = document.getElementById('canvasContainer'), svg = document.getElementById('connectionsSvg');
+
+    const nodeTemplates = {
+      trigger_webhook: { icon: 'bi-link-45deg', title: 'Webhook', hasInput: false, hasOutput: true, defaultData: { variavelPayload: 'payload' } },
+      trigger_schedule: { icon: 'bi-clock', title: 'Agendamento', hasInput: false, hasOutput: true, defaultData: {} },
+      condition: { icon: 'bi-diagram-3', title: 'Condição', hasInput: true, hasOutput: false, hasOutputTrue: true, hasOutputFalse: true, defaultData: { variavelNome: 'valor', operador: 'igual', valorComparacao: '' } },
+      set_variable: { icon: 'bi-tag', title: 'Definir variável', hasInput: true, hasOutput: true, defaultData: { nomeVariavel: 'var', valor: '' } },
+      http_request: { icon: 'bi-globe', title: 'HTTP', hasInput: true, hasOutput: true, defaultData: { method: 'GET', url: '', variavelSaida: 'response', timeout: 30 } },
+      ia: { icon: 'bi-cpu-fill', title: 'IA', hasInput: true, hasOutput: true, defaultData: { instrucao: '', variavelSaida: 'respostaIA', incluirVariaveis: false } },
+      merge: { icon: 'bi-arrow-merge', title: 'Merge', hasInput: true, hasOutput: true, defaultData: {} },
+      log: { icon: 'bi-journal-text', title: 'Log', hasInput: true, hasOutput: true, defaultData: { mensagem: 'Log', nivel: 'info' } },
+      sleep: { icon: 'bi-hourglass-split', title: 'Atraso', hasInput: true, hasOutput: true, defaultData: { segundos: 5 } },
+      end: { icon: 'bi-stop-circle-fill', title: 'Fim', hasInput: true, hasOutput: false, defaultData: {} }
+    };
+
+    function generateNodeId() { return 'node_' + (nodeIdCounter++); }
+    function screenToCanvas(cx, cy) { const r = canvasContainer.getBoundingClientRect(); return { x: (cx - r.left - viewport.x) / viewport.zoom, y: (cy - r.top - viewport.y) / viewport.zoom }; }
+    function getHandlePosition(nodeId, handleType) {
+      const el = document.getElementById(nodeId), node = nodes.find(n => n.id === nodeId);
+      if (!el || !node) return null;
+      const w = el.offsetWidth, h = el.offsetHeight;
+      if (handleType === 'input') return { x: node.x, y: node.y + h/2 };
+      if (handleType === 'output') return { x: node.x + w, y: node.y + h/2 };
+      if (handleType === 'output-true') return { x: node.x + w, y: node.y + h*0.35 };
+      if (handleType === 'output-false') return { x: node.x + w, y: node.y + h*0.65 };
+      return null;
+    }
+
+    function createNode(type, x, y, data) {
+      const template = nodeTemplates[type];
+      if (!template) return null;
+      const node = { id: generateNodeId(), type, x, y, data: data || { ...template.defaultData } };
+      nodes.push(node);
+      renderNode(node);
+      selectNode(node.id);
+      return node;
+    }
+
+    function renderNode(node) {
+      const template = nodeTemplates[node.type];
+      let el = document.getElementById(node.id);
+      if (!el) { el = document.createElement('div'); el.id = node.id; canvas.appendChild(el); }
+      el.className = 'flow-node ' + node.type + (selectedNodeId === node.id ? ' selected' : '');
+      el.style.left = node.x + 'px'; el.style.top = node.y + 'px';
+      let preview = '';
+      if (node.type === 'trigger_webhook') preview = 'POST → {{' + (node.data.variavelPayload || 'payload') + '}}';
+      else if (node.type === 'trigger_schedule') preview = 'Agendamento / manual';
+      else if (node.type === 'condition') preview = '{{' + (node.data.variavelNome || 'valor') + '}} ' + (node.data.operador || 'igual') + ' "' + (node.data.valorComparacao || '') + '"';
+      else if (node.type === 'set_variable') preview = (node.data.nomeVariavel || 'var') + ' = ' + (String(node.data.valor || '').substring(0, 30));
+      else if (node.type === 'http_request') preview = (node.data.method || 'GET') + ' ' + (node.data.url || '').substring(0, 40);
+      else if (node.type === 'ia') preview = (node.data.instrucao || '').substring(0, 50) || '(instrução)';
+      else if (node.type === 'merge') preview = 'Junção';
+      else if (node.type === 'log') preview = (node.data.mensagem || 'Log').substring(0, 40);
+      else if (node.type === 'sleep') preview = (node.data.segundos || 0) + ' s';
+      else if (node.type === 'end') preview = 'Fim';
+      el.innerHTML = '<div class="node-header"><i class="bi ' + template.icon + '"></i><span class="title">' + template.title + '</span><button class="delete-btn" data-action="delete"><i class="bi bi-x-lg"></i></button></div><div class="node-body"><div class="preview">' + preview + '</div></div>' +
+        (template.hasInput ? '<div class="handle input" data-handle="input"></div>' : '') +
+        (template.hasOutput ? '<div class="handle output" data-handle="output"></div>' : '') +
+        (template.hasOutputTrue ? '<div class="handle output output-true" data-handle="output-true"></div><span class="output-label true">Sim</span>' : '') +
+        (template.hasOutputFalse ? '<div class="handle output output-false" data-handle="output-false"></div><span class="output-label false">Não</span>' : '');
+      el.onmousedown = function(e) {
+        if (e.target.closest('[data-action="delete"]')) { nodes = nodes.filter(n => n.id !== node.id); edges = edges.filter(e => e.source !== node.id && e.target !== node.id); el.remove(); renderConnections(); renderPropertiesPanel(); return; }
+        const h = e.target.closest('.handle'); if (h && h.dataset.handle !== 'input') { isConnecting = true; connectionStart = { nodeId: node.id, handleType: h.dataset.handle }; tempConnectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'path'); tempConnectionLine.classList.add('connection-path', 'temp'); svg.appendChild(tempConnectionLine); return; }
+        if (e.target.closest('.node-header')) { isDraggingNode = true; draggedNode = node; dragOffset = { x: e.clientX / viewport.zoom - node.x, y: e.clientY / viewport.zoom - node.y }; selectNode(node.id); }
+      };
+      el.onclick = function(e) { if (!e.target.closest('[data-action="delete"]') && !e.target.closest('.handle')) selectNode(node.id); };
+    }
+
+    function selectNode(id) { selectedNodeId = id; document.querySelectorAll('.flow-node').forEach(n => n.classList.remove('selected')); const el = document.getElementById(id); if (el) el.classList.add('selected'); renderPropertiesPanel(); }
+
+    function updateNodeData(key, val) { const n = nodes.find(x => x.id === selectedNodeId); if (n) { n.data[key] = val; renderNode(n); } }
+
+    function renderPropertiesPanel() {
+      const panel = document.getElementById('propertiesPanel');
+      if (!selectedNodeId) { panel.innerHTML = '<div class="empty-state" style="text-align:center;padding:2rem;color:rgba(255,255,255,0.5);"><i class="bi bi-cursor" style="font-size:2rem"></i><p>Selecione um nó</p></div>'; return; }
+      const node = nodes.find(n => n.id === selectedNodeId);
+      if (!node) return;
+      const t = nodeTemplates[node.type], d = node.data;
+      let html = '<h5><i class="bi ' + t.icon + '"></i> ' + t.title + '</h5><div class="form-group"><label>ID</label><input type="text" value="' + node.id + '" disabled class="text-muted"></div>';
+      switch (node.type) {
+        case 'trigger_webhook':
+          html += '<div class="form-group"><label>Salvar body em variável</label><input type="text" value="' + (d.variavelPayload || 'payload') + '" onchange="updateNodeData(\'variavelPayload\', this.value)" placeholder="payload"></div>';
+          break;
+        case 'condition':
+          html += '<div class="form-group"><label>Variável</label><input type="text" value="' + (d.variavelNome || 'valor') + '" onchange="updateNodeData(\'variavelNome\', this.value)"></div><div class="form-group"><label>Operador</label><select onchange="updateNodeData(\'operador\', this.value)"><option value="igual"' + (d.operador==='igual'?' selected':'') + '>Igual</option><option value="diferente"' + (d.operador==='diferente'?' selected':'') + '>Diferente</option><option value="contem"' + (d.operador==='contem'?' selected':'') + '>Contém</option><option value="maior"' + (d.operador==='maior'?' selected':'') + '>Maior</option><option value="menor"' + (d.operador==='menor'?' selected':'') + '>Menor</option></select></div><div class="form-group"><label>Valor</label><input type="text" value="' + (d.valorComparacao || '') + '" onchange="updateNodeData(\'valorComparacao\', this.value)"></div>';
+          break;
+        case 'set_variable':
+          html += '<div class="form-group"><label>Nome da variável</label><input type="text" value="' + (d.nomeVariavel || 'var') + '" onchange="updateNodeData(\'nomeVariavel\', this.value)"></div><div class="form-group"><label>Valor (use {{outra}} para interpolar)</label><input type="text" value="' + (d.valor || '') + '" onchange="updateNodeData(\'valor\', this.value)"></div>';
+          break;
+        case 'http_request':
+          html += '<div class="form-group"><label>Método</label><select onchange="updateNodeData(\'method\', this.value)"><option value="GET"' + (d.method==='GET'?' selected':'') + '>GET</option><option value="POST"' + (d.method==='POST'?' selected':'') + '>POST</option><option value="PUT"' + (d.method==='PUT'?' selected':'') + '>PUT</option><option value="DELETE"' + (d.method==='DELETE'?' selected':'') + '>DELETE</option></select></div><div class="form-group"><label>URL (use {{var}})</label><input type="text" value="' + (d.url || '') + '" onchange="updateNodeData(\'url\', this.value)" placeholder="https://..."></div><div class="form-group"><label>Salvar resposta em</label><input type="text" value="' + (d.variavelSaida || 'response') + '" onchange="updateNodeData(\'variavelSaida\', this.value)"></div><div class="form-group"><label>Timeout (s)</label><input type="number" value="' + (d.timeout || 30) + '" onchange="updateNodeData(\'timeout\', parseInt(this.value))"></div>';
+          break;
+        case 'ia':
+          html += '<div class="form-group"><label>Instrução (use {{var}})</label><textarea onchange="updateNodeData(\'instrucao\', this.value)" rows="3">' + (d.instrucao || '') + '</textarea></div><div class="form-group"><label>Salvar em</label><input type="text" value="' + (d.variavelSaida || 'respostaIA') + '" onchange="updateNodeData(\'variavelSaida\', this.value)"></div><div class="form-group"><label><input type="checkbox" ' + (d.incluirVariaveis ? 'checked' : '') + ' onchange="updateNodeData(\'incluirVariaveis\', this.checked)"> Incluir variáveis no contexto</label></div>';
+          break;
+        case 'log':
+          html += '<div class="form-group"><label>Mensagem (use {{var}})</label><input type="text" value="' + (d.mensagem || '') + '" onchange="updateNodeData(\'mensagem\', this.value)"></div><div class="form-group"><label>Nível</label><select onchange="updateNodeData(\'nivel\', this.value)"><option value="info"' + (d.nivel==='info'?' selected':'') + '>Info</option><option value="warn"' + (d.nivel==='warn'?' selected':'') + '>Aviso</option><option value="error"' + (d.nivel==='error'?' selected':'') + '>Erro</option></select></div>';
+          break;
+        case 'sleep':
+          html += '<div class="form-group"><label>Atraso (segundos)</label><input type="number" value="' + (d.segundos || 5) + '" onchange="updateNodeData(\'segundos\', parseInt(this.value))" min="0" max="600"></div>';
+          break;
+      }
+      panel.innerHTML = html;
+    }
+
+    function createBezierPath(x1,y1,x2,y2) {
+      const mx = (x1+x2)/2;
+      return 'M '+x1+' '+y1+' C '+(mx)+' '+y1+' '+(mx)+' '+y2+' '+x2+' '+y2;
+    }
+    function renderConnections() {
+      svg.querySelectorAll('.connection-path').forEach(p => p.remove());
+      edges.forEach(edge => {
+        const sp = getHandlePosition(edge.source, edge.sourceHandle || 'output'), ep = getHandlePosition(edge.target, 'input');
+        if (sp && ep) { const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', createBezierPath(sp.x, sp.y, ep.x, ep.y)); path.classList.add('connection-path'); svg.appendChild(path); }
+      });
+    }
+    canvasContainer.ondragover = e => e.preventDefault();
+    canvasContainer.ondrop = e => { e.preventDefault(); const type = e.dataTransfer.getData('nodeType'); if (type) { const pos = screenToCanvas(e.clientX, e.clientY); createNode(type, pos.x - 110, pos.y - 30); } };
+    document.querySelectorAll('.palette-node').forEach(el => {
+      el.ondragstart = e => { e.dataTransfer.setData('nodeType', el.dataset.type); };
+    });
+    document.addEventListener('mousemove', e => {
+      if (isDraggingNode && draggedNode) { draggedNode.x = e.clientX / viewport.zoom - dragOffset.x; draggedNode.y = e.clientY / viewport.zoom - dragOffset.y; const el = document.getElementById(draggedNode.id); if (el) { el.style.left = draggedNode.x + 'px'; el.style.top = draggedNode.y + 'px'; } renderConnections(); }
+      if (isConnecting && connectionStart && tempConnectionLine) { const sp = getHandlePosition(connectionStart.nodeId, connectionStart.handleType), pos = screenToCanvas(e.clientX, e.clientY); if (sp) tempConnectionLine.setAttribute('d', createBezierPath(sp.x, sp.y, pos.x, pos.y)); }
+    });
+    document.addEventListener('mouseup', (e) => {
+      if (isDraggingNode) isDraggingNode = false;
+      if (isConnecting) {
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        const inputHandle = target && target.closest('.handle[data-handle="input"]');
+        if (inputHandle) { const targetNode = inputHandle.closest('.flow-node'); if (targetNode && targetNode.id !== connectionStart.nodeId && !edges.some(e => e.source === connectionStart.nodeId && e.target === targetNode.id)) { edges.push({ id: 'e' + Date.now(), source: connectionStart.nodeId, target: targetNode.id, sourceHandle: connectionStart.handleType }); renderConnections(); } }
+        if (tempConnectionLine) { tempConnectionLine.remove(); tempConnectionLine = null; }
+        isConnecting = false;
+      }
+    });
+
+    function updateCanvasTransform() { canvas.style.transform = 'translate(' + viewport.x + 'px,' + viewport.y + 'px) scale(' + viewport.zoom + ')'; document.getElementById('zoomLevel').textContent = Math.round(viewport.zoom * 100) + '%'; renderConnections(); }
+    function zoomIn() { viewport.zoom = Math.min(2, viewport.zoom + 0.15); updateCanvasTransform(); }
+    function zoomOut() { viewport.zoom = Math.max(0.25, viewport.zoom - 0.15); updateCanvasTransform(); }
+    function resetView() { viewport = { x: 100, y: 100, zoom: 1 }; updateCanvasTransform(); }
+
+    async function api(endpoint, opts) {
+      try { const r = await fetch('/api/fluxos' + endpoint, { headers: { 'Content-Type': 'application/json' }, ...opts }); return await r.json(); }
+      catch (e) { console.error(e); return { success: false, error: e.message }; }
+    }
+    async function carregarLista() {
+      const data = await api('/?tipo=automacao');
+      if (!data.success) return;
+      const lista = document.getElementById('listaFluxos');
+      if (!data.data.length) { lista.innerHTML = '<div class="text-muted small p-2">Nenhuma automação</div>'; updateWebhookUrl(); return; }
+      lista.innerHTML = data.data.map(f => '<div class="fluxo-item ' + (f.id === currentFluxoId ? 'active' : '') + '" onclick="carregarFluxo(' + f.id + ')"><div class="name">' + f.nome + '</div><div class="meta"><span class="badge ' + (f.ativo ? 'bg-success' : 'bg-secondary') + '" style="font-size:0.65rem">' + (f.ativo ? 'Ativo' : 'Inativo') + '</span></div></div>').join('');
+      updateWebhookUrl();
+    }
+    function updateWebhookUrl() {
+      const el = document.getElementById('webhookUrlText');
+      if (!el) return;
+      if (currentFluxoId) {
+        const base = window.location.origin;
+        el.textContent = base + '/api/fluxos/' + currentFluxoId + '/webhook';
+      } else {
+        el.textContent = 'Salve a automação e ative para ver a URL';
+      }
+    }
+    async function carregarFluxo(id) {
+      const data = await api('/' + id);
+      if (!data.success) return;
+      const f = data.data;
+      currentFluxoId = f.id; currentFluxoAtivo = f.ativo;
+      document.getElementById('flowName').value = f.nome;
+      document.querySelectorAll('.flow-node').forEach(n => n.remove());
+      svg.querySelectorAll('.connection-path').forEach(p => p.remove());
+      nodes = f.nodes || []; edges = f.edges || []; viewport = f.viewport || { x: 100, y: 100, zoom: 1 };
+      nodeIdCounter = 1; nodes.forEach(n => { const num = parseInt(n.id.replace('node_', '')) || 0; if (num >= nodeIdCounter) nodeIdCounter = num + 1; });
+      nodes.forEach(n => renderNode(n)); updateCanvasTransform(); requestAnimationFrame(() => { renderConnections(); });
+      selectedNodeId = null; renderPropertiesPanel(); carregarLista();
+      document.getElementById('btnAtivar').innerHTML = currentFluxoAtivo ? '<i class="bi bi-pause"></i> Desativar' : '<i class="bi bi-play"></i> Ativar';
+      updateWebhookUrl();
+    }
+    async function salvarAutomacao() {
+      const nome = document.getElementById('flowName').value.trim() || 'Nova Automação';
+      const payload = { nome, nodes, edges, viewport, tipo: 'automacao' };
+      let data = currentFluxoId ? await api('/' + currentFluxoId, { method: 'PUT', body: JSON.stringify(payload) }) : await api('/', { method: 'POST', body: JSON.stringify(payload) });
+      if (data.success) { if (!currentFluxoId) currentFluxoId = data.data.id; document.getElementById('toastContainer').innerHTML += '<div class="toast show bg-success text-white mb-2"><div class="toast-body">Salvo!</div></div>'; setTimeout(() => document.querySelector('#toastContainer .toast')?.remove(), 2000); carregarLista(); updateWebhookUrl(); }
+      else { document.getElementById('toastContainer').innerHTML += '<div class="toast show bg-danger text-white mb-2"><div class="toast-body">' + (data.error || 'Erro') + '</div></div>'; }
+    }
+    async function toggleAtivar() {
+      if (!currentFluxoId) return;
+      const result = await api('/' + currentFluxoId + '/' + (currentFluxoAtivo ? 'desativar' : 'ativar'), { method: 'POST' });
+      if (result.success) { currentFluxoAtivo = !currentFluxoAtivo; document.getElementById('btnAtivar').innerHTML = currentFluxoAtivo ? '<i class="bi bi-pause"></i> Desativar' : '<i class="bi bi-play"></i> Ativar'; carregarLista(); }
+    }
+    async function executarAgora() {
+      if (!currentFluxoId) { alert('Salve a automação primeiro.'); return; }
+      const result = await api('/' + currentFluxoId + '/run', { method: 'POST', body: JSON.stringify({ triggerType: 'manual', payload: {} }) });
+      if (result.success) alert('Executado. Variáveis: ' + JSON.stringify(result.data?.variables || {}).substring(0, 200)); else alert('Erro: ' + (result.error || result.message));
+    }
+
+    // ============================================================
+    // EXEMPLO: fluxo completo acionado por POST (webhook)
+    // ============================================================
+    function criarExemploWebhook() {
+      if (nodes.length > 0 && !confirm('Isso vai substituir o fluxo atual. Continuar?')) return;
+
+      nodeIdCounter = 1;
+      const n1 = { id: 'node_1', type: 'trigger_webhook', x: 50, y: 200, data: { variavelPayload: 'payload' } };
+      const n2 = { id: 'node_2', type: 'log', x: 320, y: 200, data: { mensagem: 'Webhook recebido. Dados: {{payload}}', nivel: 'info' } };
+      const n3 = { id: 'node_3', type: 'set_variable', x: 590, y: 200, data: { nomeVariavel: 'status', valor: 'processado' } };
+      const n4 = { id: 'node_4', type: 'http_request', x: 860, y: 200, data: { method: 'GET', url: 'https://httpbin.org/get', variavelSaida: 'response', timeout: 15 } };
+      const n5 = { id: 'node_5', type: 'log', x: 1130, y: 200, data: { mensagem: 'API chamada. Status HTTP: {{response_status}}', nivel: 'info' } };
+      const n6 = { id: 'node_6', type: 'end', x: 1400, y: 200, data: {} };
+
+      nodes = [n1, n2, n3, n4, n5, n6];
+      edges = [
+        { id: 'e1', source: 'node_1', target: 'node_2', sourceHandle: 'output' },
+        { id: 'e2', source: 'node_2', target: 'node_3', sourceHandle: 'output' },
+        { id: 'e3', source: 'node_3', target: 'node_4', sourceHandle: 'output' },
+        { id: 'e4', source: 'node_4', target: 'node_5', sourceHandle: 'output' },
+        { id: 'e5', source: 'node_5', target: 'node_6', sourceHandle: 'output' }
+      ];
+      nodeIdCounter = 10;
+      currentFluxoId = null;
+      currentFluxoAtivo = false;
+      document.getElementById('flowName').value = 'Exemplo Webhook (POST)';
+
+      document.querySelectorAll('.flow-node').forEach(el => el.remove());
+      svg.querySelectorAll('.connection-path').forEach(p => p.remove());
+      nodes.forEach(n => renderNode(n));
+      renderConnections();
+      selectedNodeId = null;
+      renderPropertiesPanel();
+      updateCanvasTransform();
+      resetView();
+      carregarLista();
+
+      document.getElementById('btnAtivar').innerHTML = '<i class="bi bi-play"></i> Ativar';
+      document.getElementById('toastContainer').innerHTML += '<div class="toast show bg-success text-white mb-2"><div class="toast-body">Exemplo criado! Salve e ative. Dispare com: POST /api/fluxos/{id}/webhook</div></div>';
+      setTimeout(() => document.querySelector('#toastContainer .toast')?.remove(), 5000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { carregarLista(); resetView(); });
+  </script>
+</body>
+</html>

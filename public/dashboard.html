@@ -285,9 +285,17 @@
         <i class="bi bi-whatsapp"></i>
         <span>Whats</span>
       </a>
+      <a href="#" data-view="contatos">
+        <i class="bi bi-person-lines-fill"></i>
+        <span>Contatos</span>
+      </a>
       <a href="fluxos.html">
         <i class="bi bi-diagram-3"></i>
         <span>Fluxos</span>
+      </a>
+      <a href="automacoes.html">
+        <i class="bi bi-gear-wide-connected"></i>
+        <span>Automações</span>
       </a>
       <a href="ia-config.html">
         <i class="bi bi-cpu"></i>
@@ -492,6 +500,34 @@
           </div>
         </div>
       </div>
+
+      <!-- View: Contatos (listar e deletar para testes de fluxo) -->
+      <div id="viewContatos" class="view">
+        <div class="card-modern">
+          <div class="card-body">
+            <h5 class="mb-4 fw-bold">Contatos</h5>
+            <p class="text-secondary small mb-4">Lista de contatos do sistema. Use &quot;Deletar&quot; para remover um contato e testar o fluxo novamente.</p>
+            <div class="table-responsive">
+              <table class="table table-modern">
+                <thead>
+                  <tr>
+                    <th>WhatsApp</th>
+                    <th>Nome</th>
+                    <th>cam_grupo</th>
+                    <th>qt_indicados</th>
+                    <th>cam_indicacoes</th>
+                    <th>Em fluxo?</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaContatos">
+                  <tr><td colspan="7" class="text-center py-4 text-secondary">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -552,7 +588,9 @@
       const link = document.querySelector(`.sidebar-nav a[data-view="${name}"]`);
       if (view) view.classList.add('active');
       if (link) link.classList.add('active');
-      document.getElementById('pageTitle').textContent = name === 'dashboard' ? 'Dashboard' : 'Whats';
+      const titles = { dashboard: 'Dashboard', whats: 'Whats', contatos: 'Contatos' };
+      document.getElementById('pageTitle').textContent = titles[name] || name;
+      if (name === 'contatos') carregarContatos();
     }
 
     document.querySelectorAll('.sidebar-nav a[data-view]').forEach(a => {
@@ -732,6 +770,46 @@
     async function atualizarConfig(chave, valor) {
       const data = await api(`/configuracoes/${chave}`, { method: 'PUT', body: JSON.stringify({ valor }) });
       if (data.success) { showToast('Configuração salva'); carregarStatus(); carregarDashboard(); }
+    }
+
+    async function carregarContatos() {
+      const tbody = document.getElementById('tabelaContatos');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
+      const data = await api('/contatos');
+      if (!data.success) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">' + (data.error || 'Erro ao carregar') + '</td></tr>';
+        return;
+      }
+      const list = data.data || [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">Nenhum contato.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(c => {
+        const wid = (c.whatsapp_id || '').toString();
+        return `
+        <tr>
+          <td><code>${wid}</code></td>
+          <td>${(c.nome || '-')}</td>
+          <td>${(c.cam_grupo ?? '-')}</td>
+          <td>${(c.qt_indicados ?? '-')}</td>
+          <td>${(c.cam_indicacoes ?? '-')}</td>
+          <td><span class="badge-modern ${c.em_fluxo ? 'badge-ativo' : 'badge-inativo'}">${c.em_fluxo ? 'Sim' : 'Não'}</span></td>
+          <td><button class="btn btn-sm btn-outline-danger btn-deletar-contato" data-whatsapp-id="${wid.replace(/"/g, '&quot;')}" title="Deletar contato"><i class="bi bi-trash"></i></button></td>
+        </tr>
+      `;
+      }).join('');
+      tbody.querySelectorAll('.btn-deletar-contato').forEach(btn => {
+        btn.addEventListener('click', function() { deletarContato(this.getAttribute('data-whatsapp-id')); });
+      });
+    }
+
+    async function deletarContato(whatsappId) {
+      if (!confirm('Deletar este contato? O fluxo ativo será encerrado e os dados removidos.')) return;
+      const data = await api('/contatos/' + encodeURIComponent(whatsappId), { method: 'DELETE' });
+      if (data.success) { showToast(data.mensagem || 'Contato removido'); carregarContatos(); }
+      else showToast(data.error || 'Erro ao deletar', 'danger');
     }
 
     document.getElementById('switchAtendimento').addEventListener('change', function() { atualizarConfig('atendimento_automatico', this.checked); });

@@ -1,3 +1,5 @@
+const mysql = require('mysql2/promise');
+const { dbConfig } = require('../database/connection');
 const fluxoService = require('./fluxoService');
 const promptService = require('./promptService');
 const provedorService = require('./provedorIAService');
@@ -5,6 +7,8 @@ const requisicaoService = require('./requisicaoExternaService');
 const indicacaoService = require('./indicacaoService');
 const arquivoService = require('./arquivoService');
 const metaService = require('./metaService');
+
+const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
 /** Parse dd/mm/yyyy para Date (meia-noite). Retorna null se inválido. */
 function parseDataBR(str) {
@@ -437,6 +441,75 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
           }
           break;
         }
+
+        case 'ler_contato': {
+          const campo = (node.data.campoContato || 'cam_grupo').trim().toLowerCase();
+          const variavelSaida = (node.data.variavelSaidaContato || campo).trim() || 'cam_grupo';
+          if (!CAMPOS_CONTATO_PERMITIDOS.includes(campo)) {
+            console.warn(`⚠️ Ler contato: campo "${campo}" não permitido. Use: ${CAMPOS_CONTATO_PERMITIDOS.join(', ')}`);
+            break;
+          }
+          const wid = metaService.normalizarWhatsappId(this.chatId);
+          if (!wid) {
+            this.variaveis[variavelSaida] = '';
+            console.log(`📋 Ler contato {{${variavelSaida}}}: chatId inválido`);
+            break;
+          }
+          try {
+            const conn = await mysql.createConnection({
+              host: dbConfig.host,
+              port: dbConfig.port || 3306,
+              user: dbConfig.username,
+              password: dbConfig.password,
+              database: dbConfig.database
+            });
+            let rows = [];
+            const [rows1] = await conn.execute(
+              `SELECT \`${campo}\` FROM contatos WHERE whatsapp_id = ? LIMIT 1`,
+              [wid]
+            );
+            rows = rows1;
+            if (rows.length === 0 && this.chatId && String(this.chatId) !== wid) {
+              const [rows2] = await conn.execute(
+                `SELECT \`${campo}\` FROM contatos WHERE whatsapp_id = ? LIMIT 1`,
+                [String(this.chatId).trim()]
+              );
+              rows = rows2;
+            }
+            if (rows.length === 0) {
+              try {
+                await conn.execute(
+                  'INSERT INTO contatos (whatsapp_id) VALUES (?) ON DUPLICATE KEY UPDATE updated_at = NOW()',
+                  [wid]
+                );
+                const [rowsNovo] = await conn.execute(
+                  `SELECT \`${campo}\` FROM contatos WHERE whatsapp_id = ? LIMIT 1`,
+                  [wid]
+                );
+                rows = rowsNovo;
+              } catch (ins) {
+                if (ins.code !== 'ER_NO_SUCH_TABLE') console.warn('⚠️ Ler contato (criar linha):', ins.message);
+              }
+            }
+            await conn.end();
+            const valor = rows.length > 0 ? (rows[0][campo] != null ? String(rows[0][campo]) : '') : '';
+            this.variaveis[variavelSaida] = valor;
+            if (valor === '') {
+              console.log(`📋 Ler contato {{${variavelSaida}}} = ${campo} → (vazio: nenhum registro em contatos para esse número)`);
+            } else {
+              console.log(`📋 Ler contato {{${variavelSaida}}} = ${campo} → "${valor}"`);
+            }
+          } catch (e) {
+            if (e.code === 'ER_NO_SUCH_TABLE') {
+              this.variaveis[variavelSaida] = '';
+              console.warn('⚠️ Ler contato: tabela contatos não existe');
+            } else {
+              this.variaveis[variavelSaida] = '';
+              console.warn('⚠️ Ler contato:', e.message);
+            }
+          }
+          break;
+        }
           
         case 'webhook':
           if (node.data.webhookUrl) {
@@ -636,13 +709,25 @@ async function iniciarFluxo(client, chatId, fluxo) {
 async function processarMensagemFluxo(chatId, message) {
   const executor = sessoesFluxo.get(chatId);
   if (!executor) return false;
-  
+
+  // Se o fluxo foi desativado, encerra a sessão e não processa
+  const fluxoAtual = await fluxoService.getFluxoPorId(executor.fluxo.id);
+  if (!fluxoAtual || !fluxoAtual.ativo) {
+    sessoesFluxo.delete(chatId);
+    return false;
+  }
+
   return await executor.processMessage(message);
 }
 
 async function processarContatosFluxo(chatId, msg) {
   const executor = sessoesFluxo.get(chatId);
   if (!executor) return false;
+  const fluxoAtual = await fluxoService.getFluxoPorId(executor.fluxo.id);
+  if (!fluxoAtual || !fluxoAtual.ativo) {
+    sessoesFluxo.delete(chatId);
+    return false;
+  }
   return await executor.processarContatos(msg);
 }
 
@@ -659,8 +744,25 @@ function encerrarFluxo(chatId) {
   sessoesFluxo.delete(chatId);
 }
 
+function encerrarSessoesPorFluxoId(fluxoId) {
+  const alvo = Number(fluxoId);
+  let total = 0;
+  for (const [chatId, executor] of sessoesFluxo.entries()) {
+    if (Number(executor?.fluxo?.id) === alvo) {
+      sessoesFluxo.delete(chatId);
+      total++;
+    }
+  }
+  return total;
+}
+
 function getSessaoFluxo(chatId) {
   return sessoesFluxo.get(chatId);
+}
+
+/** Retorna lista de chatIds que estão com sessão de fluxo ativa (para exibir "em fluxo" na dashboard). */
+function getChatIdsEmFluxo() {
+  return Array.from(sessoesFluxo.keys());
 }
 
 module.exports = {
@@ -671,6 +773,8 @@ module.exports = {
   estaAguardandoContatos,
   temFluxoAtivo,
   encerrarFluxo,
+  encerrarSessoesPorFluxoId,
   getSessaoFluxo,
+  getChatIdsEmFluxo,
   setOnCampanhaFlowEnd
 };

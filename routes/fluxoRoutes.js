@@ -19,6 +19,33 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Exportar fluxo como JSON (download) — rota literal antes de GET /:id
+router.get('/export/:id', async (req, res) => {
+  try {
+    const payload = await fluxoService.exportarFluxoJson(req.params.id);
+    if (!payload) {
+      return res.status(404).json({ success: false, error: 'Fluxo não encontrado' });
+    }
+    const slug = String(payload.nome || 'fluxo').replace(/[^\w\-]+/g, '_').slice(0, 48);
+    const nomeArquivo = `fluxo-${slug}-${req.params.id}.json`;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Importar fluxo a partir de JSON exportado — antes de POST /
+router.post('/import', async (req, res) => {
+  try {
+    const fluxo = await fluxoService.importarFluxoDeExport(req.body);
+    res.json({ success: true, data: fluxo });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // Obter fluxo por ID
 router.get('/:id', async (req, res) => {
   try {

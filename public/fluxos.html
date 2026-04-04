@@ -494,6 +494,13 @@
       <button class="btn btn-sm btn-outline-info" onclick="criarFluxoExemplo()" title="Criar fluxo de exemplo">
         <i class="bi bi-magic"></i> Exemplo
       </button>
+      <button class="btn btn-sm btn-outline-light" onclick="exportarFluxoArquivo()" title="Baixar JSON do fluxo (editor)">
+        <i class="bi bi-download"></i> Exportar
+      </button>
+      <button class="btn btn-sm btn-outline-light" onclick="document.getElementById('importFluxoFile').click()" title="Criar fluxo a partir de .json">
+        <i class="bi bi-upload"></i> Importar
+      </button>
+      <input type="file" id="importFluxoFile" accept=".json,application/json" style="display:none" />
       <button class="btn btn-sm btn-outline-primary" onclick="salvarFluxo()">
         <i class="bi bi-save"></i> Salvar
       </button>
@@ -510,7 +517,7 @@
   <div class="sidebar">
     <div class="info-executavel mb-3 p-2 rounded" style="background: rgba(230, 57, 70, 0.12); border: 1px solid rgba(230, 57, 70, 0.3); font-size: 0.75rem;">
       <strong class="d-block mb-1"><i class="bi bi-info-circle"></i> O que é executável</strong>
-      <span>Toda lógica que você montar aqui é executada pelo bot: <strong>Gatilho → Mensagem → Aguardar → Condição → IA → Ação → Fim</strong>. Conecte os nós, salve e ative o fluxo. Fluxos com nome contendo &quot;Campanha&quot; (ou tipo Campanha), ao chegarem no Fim, passam o usuário para a campanha legada (ex.: Missão 2 – 10 contatos).</span>
+      <span>Toda lógica que você montar aqui é executada pelo bot: <strong>Gatilho → Mensagem → Aguardar → Condição → IA → Ação → Fim</strong>. Conecte os nós, salve e ative o fluxo. Fluxos com nome contendo &quot;Campanha&quot; (ou tipo Campanha), ao chegarem no Fim, passam o usuário para a campanha legada (ex.: Missão 2 – 10 contatos). Use <strong>Exportar / Importar</strong> para copiar o fluxo entre instâncias (.json).</span>
     </div>
     <h6>Componentes</h6>
     <div class="node-palette">
@@ -1570,6 +1577,64 @@
       carregarFluxos();
     }
 
+    function montarPayloadExportEditor() {
+      const nome = document.getElementById('flowName').value.trim() || 'Novo Fluxo';
+      const triggerNode = nodes.find(n => n.type === 'trigger');
+      const gatilho = triggerNode ? triggerNode.data : null;
+      return {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        nome,
+        tipo: 'campanha',
+        descricao: null,
+        gatilho,
+        nodes: JSON.parse(JSON.stringify(nodes)),
+        edges: JSON.parse(JSON.stringify(edges)),
+        viewport: { ...viewport }
+      };
+    }
+
+    function exportarFluxoArquivo() {
+      if (!nodes.length) {
+        showToast('Nada para exportar — adicione nós ao fluxo.', 'warning');
+        return;
+      }
+      const payload = montarPayloadExportEditor();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `fluxo-${payload.nome.replace(/[^\w\-]+/g, '_').slice(0, 50)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('Arquivo .json baixado. Use Importar em outra instância.');
+    }
+
+    async function importarFluxoArquivo(ev) {
+      const file = ev.target.files?.[0];
+      ev.target.value = '';
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.tipo === 'automacao') {
+          showToast('Este JSON é de automação. Abra Automações e use Importar lá.', 'warning');
+          return;
+        }
+        const nomeOpt = prompt('Nome do fluxo importado (vazio = usar o do arquivo):', data.nome || '');
+        if (nomeOpt === null) return;
+        const body = { ...data };
+        if (nomeOpt.trim()) body.novoNome = nomeOpt.trim();
+        const res = await api('/import', { method: 'POST', body: JSON.stringify(body) });
+        if (!res.success) {
+          showToast(res.error || 'Erro ao importar', 'danger');
+          return;
+        }
+        showToast('Fluxo importado. Revise o gatilho e salve/ative.');
+        await carregarFluxo(res.data.id);
+      } catch (e) {
+        showToast('JSON inválido ou arquivo corrompido', 'danger');
+      }
+    }
+
     async function salvarFluxo() {
       const nome = document.getElementById('flowName').value.trim() || 'Novo Fluxo';
       
@@ -1787,6 +1852,7 @@ Depois de entrar, me avise aqui que eu confirmo! 😉`,
     document.addEventListener('DOMContentLoaded', () => {
       carregarFluxos();
       resetView();
+      document.getElementById('importFluxoFile')?.addEventListener('change', importarFluxoArquivo);
     });
   </script>
 </body>

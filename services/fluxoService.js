@@ -151,6 +151,63 @@ function invalidarCache() {
   cacheFluxos = {};
 }
 
+const EXPORT_SCHEMA_VERSION = 1;
+const TIPOS_FLUXO = ['atendimento', 'campanha', 'automacao', 'suporte'];
+
+function montarPayloadExport(fluxo) {
+  if (!fluxo) return null;
+  return {
+    schemaVersion: EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    nome: fluxo.nome,
+    tipo: fluxo.tipo || 'campanha',
+    descricao: fluxo.descricao || null,
+    gatilho: fluxo.gatilho || null,
+    nodes: fluxo.nodes || [],
+    edges: fluxo.edges || [],
+    viewport: fluxo.viewport || { x: 100, y: 100, zoom: 1 }
+  };
+}
+
+async function exportarFluxoJson(id) {
+  const fluxo = await getFluxoPorId(id);
+  if (!fluxo) return null;
+  return montarPayloadExport(fluxo);
+}
+
+function normalizarImportPayload(body) {
+  if (!body || typeof body !== 'object') throw new Error('JSON inválido');
+  if (body.schemaVersion !== undefined && body.schemaVersion !== EXPORT_SCHEMA_VERSION) {
+    throw new Error(`Versão do export não suportada (esperado ${EXPORT_SCHEMA_VERSION})`);
+  }
+  if (!Array.isArray(body.nodes)) throw new Error('JSON inválido: "nodes" deve ser um array');
+  const edges = Array.isArray(body.edges) ? body.edges : [];
+  let tipo = body.tipo || 'campanha';
+  if (!TIPOS_FLUXO.includes(tipo)) tipo = 'campanha';
+  const viewport =
+    body.viewport && typeof body.viewport === 'object'
+      ? body.viewport
+      : { x: 100, y: 100, zoom: 1 };
+  return {
+    nome: body.nome || 'Fluxo importado',
+    descricao: body.descricao,
+    tipo,
+    gatilho: body.gatilho != null ? body.gatilho : null,
+    nodes: body.nodes,
+    edges,
+    viewport
+  };
+}
+
+async function importarFluxoDeExport(body) {
+  const raw = { ...(body || {}) };
+  const novoNome = raw.novoNome;
+  delete raw.novoNome;
+  const dados = normalizarImportPayload(raw);
+  if (novoNome && String(novoNome).trim()) dados.nome = String(novoNome).trim();
+  return criarFluxo(dados);
+}
+
 module.exports = {
   carregarFluxos,
   buscarFluxoPorGatilho,
@@ -162,5 +219,9 @@ module.exports = {
   duplicarFluxo,
   ativarFluxo,
   desativarFluxo,
-  invalidarCache
+  invalidarCache,
+  exportarFluxoJson,
+  importarFluxoDeExport,
+  montarPayloadExport,
+  EXPORT_SCHEMA_VERSION
 };

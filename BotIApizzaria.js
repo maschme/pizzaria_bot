@@ -263,7 +263,7 @@ const debounceState = new Map();
 
 
 // Middleware para JSON
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' }));
 
 // Servir arquivos estáticos (Dashboard)
 app.use(express.static(path.join(__dirname, 'public')));

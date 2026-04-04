@@ -80,6 +80,9 @@
     <input type="text" class="flow-name" id="flowName" placeholder="Nome da automação">
     <div class="actions">
       <button class="btn btn-sm btn-outline-warning" onclick="criarExemploWebhook()" title="Criar fluxo de exemplo acionado por POST"><i class="bi bi-file-earmark-plus"></i> Criar exemplo</button>
+      <button class="btn btn-sm btn-outline-light" onclick="exportarAutomacaoArquivo()" title="Baixar JSON da automação"><i class="bi bi-download"></i> Exportar</button>
+      <button class="btn btn-sm btn-outline-light" onclick="document.getElementById('importAutomacaoFile').click()" title="Importar .json"><i class="bi bi-upload"></i> Importar</button>
+      <input type="file" id="importAutomacaoFile" accept=".json,application/json" style="display:none" />
       <button class="btn btn-sm btn-primary" onclick="salvarAutomacao()"><i class="bi bi-check-lg"></i> Salvar</button>
       <button class="btn btn-sm btn-outline-info" onclick="executarAgora()" id="btnExecutar" title="Executar uma vez"><i class="bi bi-play-fill"></i> Executar</button>
       <button class="btn btn-sm btn-outline-success" onclick="toggleAtivar()" id="btnAtivar"><i class="bi bi-play"></i> Ativar</button>
@@ -310,6 +313,62 @@
       try { const r = await fetch('/api/fluxos' + endpoint, { headers: { 'Content-Type': 'application/json' }, ...opts }); return await r.json(); }
       catch (e) { console.error(e); return { success: false, error: e.message }; }
     }
+    function toastAuto(msg, cls) {
+      const c = document.getElementById('toastContainer');
+      const div = document.createElement('div');
+      div.className = 'toast show ' + (cls || 'bg-success') + ' text-white mb-2';
+      div.innerHTML = '<div class="toast-body">' + msg + '</div>';
+      c.appendChild(div);
+      setTimeout(function() { div.remove(); }, 3500);
+    }
+    function montarPayloadExportAutomacao() {
+      const nome = document.getElementById('flowName').value.trim() || 'Nova Automação';
+      return {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        nome,
+        tipo: 'automacao',
+        descricao: null,
+        gatilho: null,
+        nodes: JSON.parse(JSON.stringify(nodes)),
+        edges: JSON.parse(JSON.stringify(edges)),
+        viewport: { ...viewport }
+      };
+    }
+    function exportarAutomacaoArquivo() {
+      if (!nodes.length) { toastAuto('Nada para exportar.', 'bg-warning text-dark'); return; }
+      var payload = montarPayloadExportAutomacao();
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'automacao-' + payload.nome.replace(/[^\w\-]+/g, '_').slice(0, 50) + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toastAuto('JSON exportado.');
+    }
+    async function importarAutomacaoArquivo(ev) {
+      var file = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!file) return;
+      try {
+        var data = JSON.parse(await file.text());
+        if (data.tipo && data.tipo !== 'automacao') {
+          toastAuto('Este JSON é de fluxo de conversa. Use Importar em Fluxos.', 'bg-warning text-dark');
+          return;
+        }
+        var nomeOpt = prompt('Nome da automação importada (vazio = usar o do arquivo):', data.nome || '');
+        if (nomeOpt === null) return;
+        var body = Object.assign({}, data);
+        body.tipo = 'automacao';
+        if (nomeOpt.trim()) body.novoNome = nomeOpt.trim();
+        var res = await api('/import', { method: 'POST', body: JSON.stringify(body) });
+        if (!res.success) { toastAuto(res.error || 'Erro ao importar', 'bg-danger'); return; }
+        toastAuto('Automação importada. Salve/ative se precisar.');
+        await carregarFluxo(res.data.id);
+      } catch (e) {
+        toastAuto('JSON inválido', 'bg-danger');
+      }
+    }
     async function carregarLista() {
       const data = await api('/?tipo=automacao');
       if (!data.success) return;
@@ -403,7 +462,12 @@
       setTimeout(() => document.querySelector('#toastContainer .toast')?.remove(), 5000);
     }
 
-    document.addEventListener('DOMContentLoaded', () => { carregarLista(); resetView(); });
+    document.addEventListener('DOMContentLoaded', function() {
+      carregarLista();
+      resetView();
+      var f = document.getElementById('importAutomacaoFile');
+      if (f) f.addEventListener('change', importarAutomacaoArquivo);
+    });
   </script>
 </body>
 </html>

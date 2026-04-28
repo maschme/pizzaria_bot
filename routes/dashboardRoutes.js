@@ -311,7 +311,10 @@ router.delete('/gatilhos/:id', async (req, res) => {
 
 router.get('/contatos', async (req, res) => {
   try {
-    const contatos = await contatoService.listarContatos();
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(500, Number(req.query.limit) || 100));
+    const contatosPage = await contatoService.listarContatos({ page, limit });
+    const contatos = contatosPage.rows || [];
     const chatIdsEmFluxo = fluxoExecutor.getChatIdsEmFluxo ? fluxoExecutor.getChatIdsEmFluxo() : [];
     const normalizar = (id) => String(id).replace(/\D/g, '');
     const setEmFluxo = chatIdsEmFluxo.reduce((acc, c) => { acc[normalizar(c)] = true; return acc; }, {});
@@ -319,7 +322,14 @@ router.get('/contatos', async (req, res) => {
       ...c,
       em_fluxo: setEmFluxo[normalizar(c.whatsapp_id)] || false
     }));
-    res.json({ success: true, total: data.length, data });
+    res.json({
+      success: true,
+      total: contatosPage.total,
+      page: contatosPage.page,
+      limit: contatosPage.limit,
+      totalPages: contatosPage.totalPages,
+      data
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

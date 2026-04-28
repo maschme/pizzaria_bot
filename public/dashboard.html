@@ -525,6 +525,13 @@
                 </tbody>
               </table>
             </div>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <small class="text-secondary" id="contatosPaginacaoInfo">-</small>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-light" id="btnContatosPrev"><i class="bi bi-chevron-left"></i> Anterior</button>
+                <button class="btn btn-sm btn-outline-light" id="btnContatosNext">Próxima <i class="bi bi-chevron-right"></i></button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -576,6 +583,10 @@
   <script>
     const API_BASE = '/api/dashboard';
     let chartGrupos = null;
+    let contatosPage = 1;
+    const contatosLimit = 100;
+    let contatosTotalPages = 1;
+    let contatosTotal = 0;
 
     function showToast(message, type = 'success') {
       const el = document.createElement('div');
@@ -786,18 +797,26 @@
       if (data.success) { showToast('Configuração salva'); carregarStatus(); carregarDashboard(); }
     }
 
-    async function carregarContatos() {
+    async function carregarContatos(page = contatosPage) {
+      contatosPage = Math.max(1, Number(page) || 1);
       const tbody = document.getElementById('tabelaContatos');
+      const info = document.getElementById('contatosPaginacaoInfo');
       if (!tbody) return;
       tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
-      const data = await api('/contatos');
+      const data = await api('/contatos?page=' + contatosPage + '&limit=' + contatosLimit);
       if (!data.success) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">' + (data.error || 'Erro ao carregar') + '</td></tr>';
+        if (info) info.textContent = 'Erro ao carregar paginação';
         return;
       }
+      contatosTotalPages = Math.max(1, Number(data.totalPages) || 1);
+      contatosTotal = Number(data.total) || 0;
+      contatosPage = Math.min(contatosPage, contatosTotalPages);
       const list = data.data || [];
       if (!list.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">Nenhum contato.</td></tr>';
+        if (info) info.textContent = 'Sem contatos';
+        atualizarPaginacaoContatos();
         return;
       }
       tbody.innerHTML = list.map(c => {
@@ -823,6 +842,15 @@
       tbody.querySelectorAll('.btn-deletar-contato').forEach(btn => {
         btn.addEventListener('click', function() { deletarContato(this.getAttribute('data-whatsapp-id')); });
       });
+      if (info) info.textContent = `Página ${contatosPage} de ${contatosTotalPages} - Total ${contatosTotal} contatos`;
+      atualizarPaginacaoContatos();
+    }
+
+    function atualizarPaginacaoContatos() {
+      const btnPrev = document.getElementById('btnContatosPrev');
+      const btnNext = document.getElementById('btnContatosNext');
+      if (btnPrev) btnPrev.disabled = contatosPage <= 1;
+      if (btnNext) btnNext.disabled = contatosPage >= contatosTotalPages;
     }
 
     async function abrirLogsContato(whatsappId) {
@@ -894,6 +922,8 @@
       const data = await api('/gatilhos', { method: 'POST', body: JSON.stringify({ nome: fd.get('nome'), tipo: fd.get('tipo'), palavrasChave, mensagemExata: fd.get('mensagemExata') || null, prioridade: parseInt(fd.get('prioridade')) || 0, ativo: true }) });
       if (data.success) { showToast('Gatilho criado'); bootstrap.Modal.getInstance(document.getElementById('modalGatilho')).hide(); form.reset(); carregarGatilhos(); carregarDashboard(); }
     });
+    document.getElementById('btnContatosPrev').addEventListener('click', () => carregarContatos(contatosPage - 1));
+    document.getElementById('btnContatosNext').addEventListener('click', () => carregarContatos(contatosPage + 1));
 
     async function init() {
       await carregarWhatsappStatus();

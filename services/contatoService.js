@@ -17,18 +17,33 @@ function normalizarWhatsappId(id) {
 }
 
 /**
- * Lista todos os contatos da tabela contatos.
+ * Lista contatos da tabela contatos com paginação.
  */
-async function listarContatos() {
+async function listarContatos(opts = {}) {
+  const page = Math.max(1, Number(opts.page) || 1);
+  const limit = Math.max(1, Math.min(500, Number(opts.limit) || 100));
+  const offset = (page - 1) * limit;
   const conn = await mysql.createConnection(config);
   try {
+    const [[countRow]] = await conn.execute('SELECT COUNT(*) AS total FROM contatos');
     const [rows] = await conn.execute(
       `SELECT id, whatsapp_id, nome, cam_grupo, id_negociacao, qt_indicados, cam_indicacoes, created_at, updated_at
-       FROM contatos ORDER BY updated_at DESC, created_at DESC`
+       FROM contatos ORDER BY updated_at DESC, created_at DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
     );
-    return rows;
+    const total = Number(countRow?.total || 0);
+    return {
+      rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit))
+    };
   } catch (e) {
-    if (e.code === 'ER_NO_SUCH_TABLE') return [];
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return { rows: [], total: 0, page, limit, totalPages: 1 };
+    }
     throw e;
   } finally {
     await conn.end();

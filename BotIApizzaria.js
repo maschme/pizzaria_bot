@@ -29,6 +29,13 @@ const indicacaoService = require('./services/indicacaoService');
 const metaService = require('./services/metaService');
 const { setupDatabase } = require('./database/setup');
 const { dbConfig } = require('./database/connection');
+const mysql2Config = {
+  host: dbConfig.host,
+  port: dbConfig.port || 3306,
+  user: dbConfig.username,
+  password: dbConfig.password,
+  database: dbConfig.database
+};
 
 // Handoff: quando o fluxo visual de campanha termina (ex.: após entrada no grupo), passa o usuário para a campanha legada na Missão 2
 fluxoExecutor.setOnCampanhaFlowEnd(async (client, chatId, fluxo) => {
@@ -1404,7 +1411,7 @@ client.on('group_join', async (notification) => {
   console.log(`✅ Grupo válido da campanha! Bairro: ${verificacaoGrupo.bairro}`);
 
   try {
-    const connection = await mysql.createConnection(dbConfig);
+    const connection = await mysql.createConnection(mysql2Config);
 
     for (const oderId of novosMembros) {
       console.log(`👤 Processando membro: ${oderId}`);

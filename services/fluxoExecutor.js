@@ -143,6 +143,28 @@ class FluxoExecutor {
 
     console.log(`🔀 Iniciando fluxo "${this.fluxo.nome}" para ${this.chatId}`);
     await this.logExec('fluxo_start', `Iniciando fluxo "${this.fluxo.nome}"`);
+    // Garante registro mínimo do contato para testes e leituras posteriores no fluxo.
+    try {
+      const wid = metaService.normalizarWhatsappId(this.chatId);
+      if (wid) {
+        const conn = await mysql.createConnection({
+          host: dbConfig.host,
+          port: dbConfig.port || 3306,
+          user: dbConfig.username,
+          password: dbConfig.password,
+          database: dbConfig.database
+        });
+        await conn.execute(
+          'INSERT INTO contatos (whatsapp_id) VALUES (?) ON DUPLICATE KEY UPDATE updated_at = NOW()',
+          [wid]
+        );
+        await conn.end();
+      }
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') {
+        console.warn('⚠️ Falha ao garantir contato no início do fluxo:', e.message);
+      }
+    }
     
     // Pula o trigger e vai para o próximo nó
     const nextNode = this.findNextNode(startNode.id);

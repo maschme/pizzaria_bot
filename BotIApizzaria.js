@@ -608,7 +608,6 @@ iniciarServidor();
 // Evento principal de mensagem
 client.on('message', async (msg) => {
   console.log("Mensagem recebida", msg.body);
-  const chat = await msg.getChat();
 
   // ❌ Ignorar mensagens de grupos
   if (msg.author !== undefined) return;
@@ -667,14 +666,6 @@ client.on('message', async (msg) => {
 
   if (!debounceState.has(numero)) {
     debounceState.set(numero, { buffer: [], timerId: null, mode: 'atendimento', lastMsg: null });
-    const labels = await client.getLabels();
-    console.log(labels.map(l => ({ id: l.id, name: l.name, color: l })));
-    const chatLabels = await chat.getLabels();
-    console.log(chatLabels);
-    removeLabelFromChat(msg.from, msg.body);
-    const label = await client.getLabelById('1');
-    const associatedChats = await label.getChats();
-    console.log(associatedChats.map(a => ({ id: a.id, name: a })));
   }
 
   const state = debounceState.get(numero);

@@ -8,6 +8,7 @@ const indicacaoService = require('./indicacaoService');
 const arquivoService = require('./arquivoService');
 const metaService = require('./metaService');
 const fluxoLogService = require('./fluxoLogService');
+const whatsappIdentityService = require('./whatsappIdentityService');
 
 const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
@@ -78,6 +79,22 @@ function selecionarCupomPorCriterio(listaCupons, instrucao) {
 // Sessões ativas de fluxos
 const sessoesFluxo = new Map();
 
+function removerSessaoFluxoPorExecutor(executor) {
+  if (!executor) return;
+  const keys = executor._sessionKeys && executor._sessionKeys.length
+    ? executor._sessionKeys
+    : [executor.chatId];
+  for (const k of keys) sessoesFluxo.delete(k);
+}
+
+function registrarSessaoFluxo(executor) {
+  const keys = [executor.chatId];
+  const canon = executor.resolvedIdentity && executor.resolvedIdentity.chatIdCanonicoCUs;
+  if (canon && canon !== executor.chatId) keys.push(canon);
+  executor._sessionKeys = keys;
+  for (const k of keys) sessoesFluxo.set(k, executor);
+}
+
 // Callback opcional: quando um fluxo de campanha termina (ex.: após entrada no grupo), o bot pode passar o usuário para a campanha legada (Missão 2)
 let onCampanhaFlowEnd = null;
 function setOnCampanhaFlowEnd(fn) {
@@ -98,12 +115,21 @@ class FluxoExecutor {
     this.aguardandoContatos = false;
     this.waitContactsMeta = 10;
     this.fluxoCompletouCampanha = false;
+    this.resolvedIdentity = null;
+  }
+
+  /** Telefone só dígitos para CRM / contatos / metas (não usar LID como número). */
+  getIdWhatsappParaDb() {
+    if (this.resolvedIdentity && this.resolvedIdentity.widDigitosTelefone) {
+      return this.resolvedIdentity.widDigitosTelefone;
+    }
+    return metaService.normalizarWhatsappId(this.chatId);
   }
 
   async logExec(evento, mensagem, node = null, detalhes = null) {
     try {
       await fluxoLogService.registrarLog({
-        whatsappId: this.chatId,
+        whatsappId: this.getIdWhatsappParaDb(),
         chatId: this.chatId,
         fluxoId: this.fluxo?.id,
         fluxoNome: this.fluxo?.nome,
@@ -145,8 +171,11 @@ class FluxoExecutor {
     await this.logExec('fluxo_start', `Iniciando fluxo "${this.fluxo.nome}"`);
     // Garante registro mínimo do contato para testes e leituras posteriores no fluxo.
     try {
-      const wid = metaService.normalizarWhatsappId(this.chatId);
-      if (wid) {
+      const wid = this.getIdWhatsappParaDb();
+      const lid = this.resolvedIdentity && this.resolvedIdentity.whatsappLid
+        ? String(this.resolvedIdentity.whatsappLid).trim()
+        : null;
+      if (wid && wid.length >= 10) {
         const conn = await mysql.createConnection({
           host: dbConfig.host,
           port: dbConfig.port || 3306,
@@ -155,10 +184,18 @@ class FluxoExecutor {
           database: dbConfig.database
         });
         await conn.execute(
-          'INSERT INTO contatos (whatsapp_id) VALUES (?) ON DUPLICATE KEY UPDATE updated_at = NOW()',
-          [wid]
+          `INSERT INTO contatos (whatsapp_id, whatsapp_lid)
+           VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE
+             whatsapp_lid = COALESCE(VALUES(whatsapp_lid), whatsapp_lid),
+             updated_at = NOW()`,
+          [wid, lid]
         );
         await conn.end();
+      } else if (this.chatId) {
+        console.warn(
+          '⚠️ Não foi possível obter o telefone (PN) do WhatsApp para gravar em contatos; conversa em @lid sem resolução. Aguarde nova versão do cliente ou atualize whatsapp-web.js.'
+        );
       }
     } catch (e) {
       if (e.code !== 'ER_NO_SUCH_TABLE') {
@@ -180,7 +217,7 @@ class FluxoExecutor {
     if (!node) {
       console.log(`✅ Fluxo "${this.fluxo.nome}" finalizado para ${this.chatId}`);
       await this.logExec('fluxo_end', `Fluxo "${this.fluxo.nome}" finalizado`);
-      sessoesFluxo.delete(this.chatId);
+      removerSessaoFluxoPorExecutor(this);
       return;
     }
 
@@ -478,7 +515,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
         case 'marcar_meta': {
           const metaNome = (node.data.metaNome || '').trim();
           if (metaNome) {
-            const res = await metaService.marcarConcluido(this.chatId, metaNome);
+            const res = await metaService.marcarConcluido(this.getIdWhatsappParaDb(), metaNome);
             this.variaveis['meta_' + metaNome] = 'concluido';
             if (res.ok) console.log(`✅ Meta "${metaNome}" marcada como concluída para ${this.chatId}`);
             else console.warn(`⚠️ Marcar meta "${metaNome}":`, res.erro);
@@ -490,7 +527,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
           const metaNome = (node.data.metaNome || '').trim();
           const variavelSaida = (node.data.variavelSaidaMeta || 'meta_' + metaNome).trim();
           if (metaNome) {
-            const concluido = await metaService.verificarConcluido(this.chatId, metaNome);
+            const concluido = await metaService.verificarConcluido(this.getIdWhatsappParaDb(), metaNome);
             this.variaveis[variavelSaida] = concluido ? 'concluido' : 'pendente';
             console.log(`🔍 Meta "${metaNome}" para ${this.chatId}: ${concluido ? 'concluído' : 'pendente'} → {{${variavelSaida}}}`);
           }
@@ -504,8 +541,11 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
             console.warn(`⚠️ Ler contato: campo "${campo}" não permitido. Use: ${CAMPOS_CONTATO_PERMITIDOS.join(', ')}`);
             break;
           }
-          const wid = metaService.normalizarWhatsappId(this.chatId);
-          if (!wid) {
+          const wid = this.getIdWhatsappParaDb();
+          const lid = this.resolvedIdentity && this.resolvedIdentity.whatsappLid
+            ? String(this.resolvedIdentity.whatsappLid).trim()
+            : null;
+          if (!wid && !lid) {
             this.variaveis[variavelSaida] = '';
             console.log(`📋 Ler contato {{${variavelSaida}}}: chatId inválido`);
             break;
@@ -519,23 +559,26 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
               database: dbConfig.database
             });
             let rows = [];
-            const [rows1] = await conn.execute(
-              `SELECT \`${campo}\` FROM contatos WHERE whatsapp_id = ? LIMIT 1`,
-              [wid]
-            );
-            rows = rows1;
-            if (rows.length === 0 && this.chatId && String(this.chatId) !== wid) {
-              const [rows2] = await conn.execute(
+            if (wid && wid.length >= 10) {
+              const [rows1] = await conn.execute(
                 `SELECT \`${campo}\` FROM contatos WHERE whatsapp_id = ? LIMIT 1`,
-                [String(this.chatId).trim()]
+                [wid]
               );
-              rows = rows2;
+              rows = rows1;
             }
-            if (rows.length === 0) {
+            if (rows.length === 0 && lid) {
+              const [rowsL] = await conn.execute(
+                `SELECT \`${campo}\` FROM contatos WHERE whatsapp_lid = ? LIMIT 1`,
+                [lid]
+              );
+              rows = rowsL;
+            }
+            if (rows.length === 0 && wid && wid.length >= 10) {
               try {
                 await conn.execute(
-                  'INSERT INTO contatos (whatsapp_id) VALUES (?) ON DUPLICATE KEY UPDATE updated_at = NOW()',
-                  [wid]
+                  `INSERT INTO contatos (whatsapp_id, whatsapp_lid) VALUES (?, ?)
+                   ON DUPLICATE KEY UPDATE whatsapp_lid = COALESCE(VALUES(whatsapp_lid), whatsapp_lid), updated_at = NOW()`,
+                  [wid, lid]
                 );
                 const [rowsNovo] = await conn.execute(
                   `SELECT \`${campo}\` FROM contatos WHERE whatsapp_id = ? LIMIT 1`,
@@ -661,7 +704,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     
     console.log(`✅ Fluxo "${this.fluxo.nome}" finalizado para ${this.chatId}`);
     await this.logExec('fluxo_end', `Fluxo "${this.fluxo.nome}" finalizado`, node);
-    sessoesFluxo.delete(this.chatId);
+    removerSessaoFluxoPorExecutor(this);
   }
 
   // Processa contatos (vCard) quando o nó atual é wait_contacts
@@ -680,7 +723,11 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     }
 
     try {
-      const { qtInseridos, qtTotal, completouMissao } = await indicacaoService.registrarIndicacoes(this.chatId, indicados);
+      const { qtInseridos, qtTotal, completouMissao } = await indicacaoService.registrarIndicacoes(
+        this.chatId,
+        indicados,
+        this.getIdWhatsappParaDb()
+      );
       this.variaveis.qtIndicados = qtTotal;
       this.variaveis.metaIndicados = this.waitContactsMeta;
 
@@ -769,7 +816,8 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
 // Funções exportadas
 async function iniciarFluxo(client, chatId, fluxo) {
   const executor = new FluxoExecutor(client, chatId, fluxo);
-  sessoesFluxo.set(chatId, executor);
+  executor.resolvedIdentity = await whatsappIdentityService.resolverIdentidadeCliente(client, chatId);
+  registrarSessaoFluxo(executor);
   await executor.start();
   return executor;
 }
@@ -781,7 +829,7 @@ async function processarMensagemFluxo(chatId, message) {
   // Se o fluxo foi desativado, encerra a sessão e não processa
   const fluxoAtual = await fluxoService.getFluxoPorId(executor.fluxo.id);
   if (!fluxoAtual || !fluxoAtual.ativo) {
-    sessoesFluxo.delete(chatId);
+    removerSessaoFluxoPorExecutor(executor);
     return false;
   }
 
@@ -793,7 +841,7 @@ async function processarContatosFluxo(chatId, msg) {
   if (!executor) return false;
   const fluxoAtual = await fluxoService.getFluxoPorId(executor.fluxo.id);
   if (!fluxoAtual || !fluxoAtual.ativo) {
-    sessoesFluxo.delete(chatId);
+    removerSessaoFluxoPorExecutor(executor);
     return false;
   }
   return await executor.processarContatos(msg);
@@ -809,17 +857,20 @@ function temFluxoAtivo(chatId) {
 }
 
 function encerrarFluxo(chatId) {
-  sessoesFluxo.delete(chatId);
+  const ex = sessoesFluxo.get(chatId);
+  if (ex) removerSessaoFluxoPorExecutor(ex);
 }
 
 function encerrarSessoesPorFluxoId(fluxoId) {
   const alvo = Number(fluxoId);
   let total = 0;
-  for (const [chatId, executor] of sessoesFluxo.entries()) {
-    if (Number(executor?.fluxo?.id) === alvo) {
-      sessoesFluxo.delete(chatId);
-      total++;
-    }
+  const ja = new Set();
+  for (const executor of sessoesFluxo.values()) {
+    if (Number(executor?.fluxo?.id) !== alvo) continue;
+    if (ja.has(executor)) continue;
+    ja.add(executor);
+    removerSessaoFluxoPorExecutor(executor);
+    total++;
   }
   return total;
 }
@@ -830,7 +881,17 @@ function getSessaoFluxo(chatId) {
 
 /** Retorna lista de chatIds que estão com sessão de fluxo ativa (para exibir "em fluxo" na dashboard). */
 function getChatIdsEmFluxo() {
-  return Array.from(sessoesFluxo.keys());
+  const ids = [];
+  const visto = new Set();
+  for (const ex of sessoesFluxo.values()) {
+    if (!ex || visto.has(ex)) continue;
+    visto.add(ex);
+    ids.push(ex.chatId);
+    const canon = ex.resolvedIdentity && ex.resolvedIdentity.chatIdCanonicoCUs;
+    if (canon && canon !== ex.chatId) ids.push(canon);
+    if (ex.resolvedIdentity && ex.resolvedIdentity.whatsappLid) ids.push(ex.resolvedIdentity.whatsappLid);
+  }
+  return ids;
 }
 
 module.exports = {

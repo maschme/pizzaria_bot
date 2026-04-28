@@ -22,11 +22,12 @@ function normalizarWhatsappId(id) {
  * Registra uma ou mais indicações (contatos enviados por um usuário).
  * Evita duplicatas (mesmo indicador + mesmo indicado).
  * Atualiza contatos.qt_indicados e contatos.cam_indicacoes.
- * @param {string} indicadorWhatsappId - Quem está indicando (ex: 5511999999999@c.us)
+ * @param {string} indicadorWhatsappId - Quem está indicando (ex: 5511999999999@c.us ou xxx@lid)
  * @param {Array<{ numero: string, nome?: string|null }>} indicados - Lista de { numero, nome }
+ * @param {string|null} [telefoneIndicadorDigits] – Se já resolvido (PN só dígitos), evita usar LID como “número” no CRM
  * @returns {Promise<{ qtInseridos: number, qtTotal: number, completouMissao: boolean }>}
  */
-async function registrarIndicacoes(indicadorWhatsappId, indicados) {
+async function registrarIndicacoes(indicadorWhatsappId, indicados, telefoneIndicadorDigits = null) {
   if (!indicados || indicados.length === 0) {
     const qt = await obterQtIndicados(indicadorWhatsappId);
     return { qtInseridos: 0, qtTotal: qt, completouMissao: qt >= 10 };
@@ -35,7 +36,12 @@ async function registrarIndicacoes(indicadorWhatsappId, indicados) {
   const conn = await mysql.createConnection(mysql2Config);
   try {
     let qtInseridos = 0;
-    const indicadorNorm = indicadorWhatsappId || '';
+    const indicadorNorm =
+      (telefoneIndicadorDigits && String(telefoneIndicadorDigits).replace(/\D/g, '').length >= 10
+        ? String(telefoneIndicadorDigits).replace(/\D/g, '')
+        : null) ||
+      normalizarWhatsappId(indicadorWhatsappId) ||
+      String(indicadorWhatsappId || '').trim();
 
     for (const { numero, nome } of indicados) {
       if (!numero || !numero.replace(/\D/g, '')) continue;
@@ -59,7 +65,11 @@ async function registrarIndicacoes(indicadorWhatsappId, indicados) {
     );
     const qtTotal = (rows[0] && rows[0].total) ? Number(rows[0].total) : 0;
 
-    const whatsappIdParaContato = normalizarWhatsappId(indicadorWhatsappId);
+    const whatsappIdParaContato =
+      (telefoneIndicadorDigits && String(telefoneIndicadorDigits).replace(/\D/g, '').length >= 10
+        ? String(telefoneIndicadorDigits).replace(/\D/g, '')
+        : null) ||
+      normalizarWhatsappId(indicadorWhatsappId);
     try {
       await conn.execute(
         `UPDATE contatos SET qt_indicados = ?, cam_indicacoes = ? WHERE whatsapp_id = ?`,

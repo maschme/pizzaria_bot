@@ -511,7 +511,8 @@
               <table class="table table-modern">
                 <thead>
                   <tr>
-                    <th>WhatsApp</th>
+                    <th>Telefone (whatsapp_id)</th>
+                    <th>@lid</th>
                     <th>Nome</th>
                     <th>cam_grupo</th>
                     <th>qt_indicados</th>
@@ -521,7 +522,7 @@
                   </tr>
                 </thead>
                 <tbody id="tabelaContatos">
-                  <tr><td colspan="7" class="text-center py-4 text-secondary">Carregando...</td></tr>
+                  <tr><td colspan="8" class="text-center py-4 text-secondary">Carregando...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -802,10 +803,10 @@
       const tbody = document.getElementById('tabelaContatos');
       const info = document.getElementById('contatosPaginacaoInfo');
       if (!tbody) return;
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
       const data = await api('/contatos?page=' + contatosPage + '&limit=' + contatosLimit);
       if (!data.success) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">' + (data.error || 'Erro ao carregar') + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-danger">' + (data.error || 'Erro ao carregar') + '</td></tr>';
         if (info) info.textContent = 'Erro ao carregar paginação';
         return;
       }
@@ -814,33 +815,40 @@
       contatosPage = Math.min(contatosPage, contatosTotalPages);
       const list = data.data || [];
       if (!list.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">Nenhum contato.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-secondary">Nenhum contato.</td></tr>';
         if (info) info.textContent = 'Sem contatos';
         atualizarPaginacaoContatos();
         return;
       }
       tbody.innerHTML = list.map(c => {
         const wid = (c.whatsapp_id || '').toString();
+        const lid = (c.whatsapp_lid || '').toString();
+        const esc = (s) => String(s).replace(/"/g, '&quot;');
         return `
         <tr>
           <td><code>${wid}</code></td>
+          <td><small class="text-secondary">${lid ? '<code>' + lid.replace(/</g, '&lt;') + '</code>' : '—'}</small></td>
           <td>${(c.nome || '-')}</td>
           <td>${(c.cam_grupo ?? '-')}</td>
           <td>${(c.qt_indicados ?? '-')}</td>
           <td>${(c.cam_indicacoes ?? '-')}</td>
           <td><span class="badge-modern ${c.em_fluxo ? 'badge-ativo' : 'badge-inativo'}">${c.em_fluxo ? 'Sim' : 'Não'}</span></td>
           <td class="d-flex gap-1">
-            <button class="btn btn-sm btn-outline-info btn-logs-contato" data-whatsapp-id="${wid.replace(/"/g, '&quot;')}" title="Ver logs"><i class="bi bi-journal-text"></i></button>
-            <button class="btn btn-sm btn-outline-danger btn-deletar-contato" data-whatsapp-id="${wid.replace(/"/g, '&quot;')}" title="Deletar contato"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-info btn-logs-contato" data-whatsapp-id="${esc(wid)}" data-whatsapp-lid="${esc(lid)}" title="Ver logs"><i class="bi bi-journal-text"></i></button>
+            <button class="btn btn-sm btn-outline-danger btn-deletar-contato" data-whatsapp-id="${esc(wid)}" data-whatsapp-lid="${esc(lid)}" title="Deletar contato"><i class="bi bi-trash"></i></button>
           </td>
         </tr>
       `;
       }).join('');
       tbody.querySelectorAll('.btn-logs-contato').forEach(btn => {
-        btn.addEventListener('click', function() { abrirLogsContato(this.getAttribute('data-whatsapp-id')); });
+        btn.addEventListener('click', function() {
+          abrirLogsContato(this.getAttribute('data-whatsapp-id'), this.getAttribute('data-whatsapp-lid') || '');
+        });
       });
       tbody.querySelectorAll('.btn-deletar-contato').forEach(btn => {
-        btn.addEventListener('click', function() { deletarContato(this.getAttribute('data-whatsapp-id')); });
+        btn.addEventListener('click', function() {
+          deletarContato(this.getAttribute('data-whatsapp-id'), this.getAttribute('data-whatsapp-lid') || '');
+        });
       });
       if (info) info.textContent = `Página ${contatosPage} de ${contatosTotalPages} - Total ${contatosTotal} contatos`;
       atualizarPaginacaoContatos();
@@ -853,16 +861,18 @@
       if (btnNext) btnNext.disabled = contatosPage >= contatosTotalPages;
     }
 
-    async function abrirLogsContato(whatsappId) {
+    async function abrirLogsContato(whatsappId, whatsappLid = '') {
       const modalEl = document.getElementById('modalLogsContato');
       const titulo = document.getElementById('tituloLogsContato');
       const conteudo = document.getElementById('conteudoLogsContato');
-      titulo.textContent = 'Logs do contato ' + whatsappId;
+      titulo.textContent = 'Logs do contato ' + whatsappId + (whatsappLid ? ' (' + whatsappLid + ')' : '');
       conteudo.innerHTML = '<div class="loading"></div> Carregando logs...';
       const modal = new bootstrap.Modal(modalEl);
       modal.show();
 
-      const data = await api('/contatos/' + encodeURIComponent(whatsappId) + '/logs?limit=300');
+      let path = '/contatos/' + encodeURIComponent(whatsappId) + '/logs?limit=300';
+      if (whatsappLid) path += '&whatsapp_lid=' + encodeURIComponent(whatsappLid);
+      const data = await api(path);
       if (!data.success) {
         conteudo.innerHTML = '<div class="text-danger">Erro ao carregar logs: ' + (data.error || 'desconhecido') + '</div>';
         return;
@@ -900,9 +910,11 @@
       `;
     }
 
-    async function deletarContato(whatsappId) {
+    async function deletarContato(whatsappId, whatsappLid = '') {
       if (!confirm('Deletar este contato? O fluxo ativo será encerrado e os dados removidos.')) return;
-      const data = await api('/contatos/' + encodeURIComponent(whatsappId), { method: 'DELETE' });
+      let delPath = '/contatos/' + encodeURIComponent(whatsappId);
+      if (whatsappLid) delPath += '?whatsapp_lid=' + encodeURIComponent(whatsappLid);
+      const data = await api(delPath, { method: 'DELETE' });
       if (data.success) { showToast(data.mensagem || 'Contato removido'); carregarContatos(); }
       else showToast(data.error || 'Erro ao deletar', 'danger');
     }

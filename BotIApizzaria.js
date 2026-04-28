@@ -27,6 +27,7 @@ const fluxoService = require('./services/fluxoService');
 const fluxoExecutor = require('./services/fluxoExecutor');
 const indicacaoService = require('./services/indicacaoService');
 const metaService = require('./services/metaService');
+const whatsappIdentityService = require('./services/whatsappIdentityService');
 const { setupDatabase } = require('./database/setup');
 const { dbConfig } = require('./database/connection');
 const mysql2Config = {
@@ -1121,7 +1122,12 @@ async function processarContatosIndicados(numero, msg, sessao) {
   }
 
   try {
-    const { qtInseridos, qtTotal, completouMissao } = await indicacaoService.registrarIndicacoes(numero, indicados);
+    const id = await whatsappIdentityService.resolverIdentidadeCliente(client, numero);
+    const { qtInseridos, qtTotal, completouMissao } = await indicacaoService.registrarIndicacoes(
+      numero,
+      indicados,
+      id.widDigitosTelefone || null
+    );
 
     if (qtInseridos > 0) {
       const textoProgresso = completouMissao

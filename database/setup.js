@@ -41,6 +41,23 @@ async function setupDatabase() {
     `);
     console.log('✅ Tabela fluxo_exec_logs pronta');
 
+    try {
+      const [colContatoLid] = await sequelize.query(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contatos' AND COLUMN_NAME = 'whatsapp_lid'
+      `);
+      const temWhatsappLid = Array.isArray(colContatoLid) && colContatoLid.length > 0;
+      if (!temWhatsappLid) {
+        await sequelize.query(`
+          ALTER TABLE contatos ADD COLUMN whatsapp_lid VARCHAR(80) NULL DEFAULT NULL
+          COMMENT 'Identificador WhatsApp @lid quando o PN aparece só depois ou na privacidade' AFTER whatsapp_id
+        `);
+        console.log('✅ Coluna contatos.whatsapp_lid adicionada');
+      }
+    } catch (e) {
+      console.warn('⚠️ Alter contatos (whatsapp_lid):', e.message);
+    }
+
     // Insere configurações padrão se não existirem
     const configsPadrao = [
       {

@@ -316,11 +316,14 @@ router.get('/contatos', async (req, res) => {
     const contatosPage = await contatoService.listarContatos({ page, limit });
     const contatos = contatosPage.rows || [];
     const chatIdsEmFluxo = fluxoExecutor.getChatIdsEmFluxo ? fluxoExecutor.getChatIdsEmFluxo() : [];
-    const normalizar = (id) => String(id).replace(/\D/g, '');
-    const setEmFluxo = chatIdsEmFluxo.reduce((acc, c) => { acc[normalizar(c)] = true; return acc; }, {});
+    const normalizar = (id) => String(id || '').replace(/\D/g, '');
     const data = contatos.map((c) => ({
       ...c,
-      em_fluxo: setEmFluxo[normalizar(c.whatsapp_id)] || false
+      em_fluxo: chatIdsEmFluxo.some((ch) => {
+        if (normalizar(ch) === normalizar(c.whatsapp_id)) return true;
+        if (c.whatsapp_lid && String(ch).trim() === String(c.whatsapp_lid).trim()) return true;
+        return false;
+      })
     }));
     res.json({
       success: true,
@@ -338,11 +341,15 @@ router.get('/contatos', async (req, res) => {
 router.delete('/contatos/:whatsappId', async (req, res) => {
   try {
     const whatsappId = decodeURIComponent(req.params.whatsappId);
+    const lidOpcional = req.query.whatsapp_lid ? decodeURIComponent(String(req.query.whatsapp_lid).trim()) : '';
     const wid = contatoService.normalizarWhatsappId(whatsappId);
-    if (!wid) return res.status(400).json({ success: false, error: 'whatsapp_id inválido' });
-    fluxoExecutor.encerrarFluxo(wid);
-    fluxoExecutor.encerrarFluxo(wid + '@c.us');
-    const result = await contatoService.deletarContato(wid);
+    if (!wid && !lidOpcional) return res.status(400).json({ success: false, error: 'whatsapp_id inválido' });
+    if (wid) {
+      fluxoExecutor.encerrarFluxo(wid);
+      fluxoExecutor.encerrarFluxo(`${wid}@c.us`);
+    }
+    if (lidOpcional) fluxoExecutor.encerrarFluxo(lidOpcional);
+    const result = await contatoService.deletarContato(whatsappId, { whatsappLid: lidOpcional || undefined });
     res.json({ success: true, ...result, mensagem: result.deleted ? 'Contato removido' : 'Contato não encontrado' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -352,9 +359,12 @@ router.delete('/contatos/:whatsappId', async (req, res) => {
 router.get('/contatos/:whatsappId/logs', async (req, res) => {
   try {
     const whatsappId = decodeURIComponent(req.params.whatsappId);
+    const lidOpcional = req.query.whatsapp_lid ? decodeURIComponent(String(req.query.whatsapp_lid).trim()) : '';
     const wid = contatoService.normalizarWhatsappId(whatsappId);
-    if (!wid) return res.status(400).json({ success: false, error: 'whatsapp_id inválido' });
-    const logs = await fluxoLogService.listarLogsPorContato(wid, req.query.limit || 200);
+    if (!wid && !lidOpcional) return res.status(400).json({ success: false, error: 'whatsapp_id inválido' });
+    const logs = await fluxoLogService.listarLogsPorContato(whatsappId, req.query.limit || 200, {
+      whatsappLid: lidOpcional || undefined
+    });
     res.json({ success: true, total: logs.length, data: logs });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

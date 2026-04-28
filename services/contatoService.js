@@ -27,7 +27,7 @@ async function listarContatos(opts = {}) {
   try {
     const [[countRow]] = await conn.execute('SELECT COUNT(*) AS total FROM contatos');
     const [rows] = await conn.execute(
-      `SELECT id, whatsapp_id, nome, cam_grupo, id_negociacao, qt_indicados, cam_indicacoes, created_at, updated_at
+      `SELECT id, whatsapp_id, whatsapp_lid, nome, cam_grupo, id_negociacao, qt_indicados, cam_indicacoes, created_at, updated_at
        FROM contatos ORDER BY updated_at DESC, created_at DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]
@@ -54,16 +54,36 @@ async function listarContatos(opts = {}) {
  * Deleta um contato (e suas metas). Útil para resetar e testar fluxo de novo.
  * Também remove indicações onde ele é o indicador.
  */
-async function deletarContato(whatsappId) {
+async function deletarContato(whatsappId, opts = {}) {
   const wid = normalizarWhatsappId(whatsappId);
-  if (!wid) throw new Error('whatsapp_id inválido');
+  const lid = (opts.whatsappLid && String(opts.whatsappLid).trim()) || '';
+  if (!wid && !lid) throw new Error('whatsapp_id inválido');
 
   const conn = await mysql.createConnection(config);
   try {
-    await conn.execute('DELETE FROM contato_metas WHERE whatsapp_id = ?', [wid]);
-    await conn.execute('DELETE FROM indicacoes WHERE indicador_whatsapp_id = ? OR indicador_whatsapp_id = ?', [wid, wid + '@c.us']);
-    const [result] = await conn.execute('DELETE FROM contatos WHERE whatsapp_id = ?', [wid]);
-    return { deleted: result.affectedRows > 0, whatsapp_id: wid };
+    const widParaMetas = wid || normalizarWhatsappId(lid);
+    if (widParaMetas) {
+      await conn.execute('DELETE FROM contato_metas WHERE whatsapp_id = ?', [widParaMetas]);
+      await conn.execute(
+        'DELETE FROM indicacoes WHERE indicador_whatsapp_id = ? OR indicador_whatsapp_id = ?',
+        [widParaMetas, widParaMetas + '@c.us']
+      );
+    }
+    let affected = 0;
+    if (wid && lid) {
+      const [r] = await conn.execute(
+        'DELETE FROM contatos WHERE whatsapp_id = ? OR whatsapp_lid = ?',
+        [wid, lid]
+      );
+      affected = r.affectedRows;
+    } else if (wid) {
+      const [r] = await conn.execute('DELETE FROM contatos WHERE whatsapp_id = ?', [wid]);
+      affected = r.affectedRows;
+    } else {
+      const [r] = await conn.execute('DELETE FROM contatos WHERE whatsapp_lid = ?', [lid]);
+      affected = r.affectedRows;
+    }
+    return { deleted: affected > 0, whatsapp_id: wid || null };
   } finally {
     await conn.end();
   }

@@ -7,6 +7,7 @@ const requisicaoService = require('./requisicaoExternaService');
 const indicacaoService = require('./indicacaoService');
 const arquivoService = require('./arquivoService');
 const metaService = require('./metaService');
+const fluxoLogService = require('./fluxoLogService');
 
 const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
@@ -99,6 +100,22 @@ class FluxoExecutor {
     this.fluxoCompletouCampanha = false;
   }
 
+  async logExec(evento, mensagem, node = null, detalhes = null) {
+    try {
+      await fluxoLogService.registrarLog({
+        whatsappId: this.chatId,
+        chatId: this.chatId,
+        fluxoId: this.fluxo?.id,
+        fluxoNome: this.fluxo?.nome,
+        nodeId: node?.id || null,
+        nodeType: node?.type || null,
+        evento,
+        mensagem,
+        detalhes
+      });
+    } catch (_) {}
+  }
+
   // Encontra o nó inicial (trigger)
   findStartNode() {
     return this.nodes.find(n => n.type === 'trigger');
@@ -125,6 +142,7 @@ class FluxoExecutor {
     }
 
     console.log(`🔀 Iniciando fluxo "${this.fluxo.nome}" para ${this.chatId}`);
+    await this.logExec('fluxo_start', `Iniciando fluxo "${this.fluxo.nome}"`);
     
     // Pula o trigger e vai para o próximo nó
     const nextNode = this.findNextNode(startNode.id);
@@ -139,6 +157,7 @@ class FluxoExecutor {
   async executeNode(node) {
     if (!node) {
       console.log(`✅ Fluxo "${this.fluxo.nome}" finalizado para ${this.chatId}`);
+      await this.logExec('fluxo_end', `Fluxo "${this.fluxo.nome}" finalizado`);
       sessoesFluxo.delete(this.chatId);
       return;
     }
@@ -147,6 +166,7 @@ class FluxoExecutor {
     this.historico.push({ nodeId: node.id, timestamp: Date.now() });
 
     console.log(`▶️ Executando nó ${node.type}: ${node.id}`);
+    await this.logExec('node_execute', `Executando nó ${node.type}`, node);
 
     switch (node.type) {
       case 'message':
@@ -207,6 +227,7 @@ class FluxoExecutor {
     this.aguardandoResposta = true;
     this.currentNodeId = node.id;
     this.waitVariableName = node.data.variavelResposta || 'resposta';
+    await this.logExec('wait_start', `Aguardando resposta em {{${this.waitVariableName}}}`, node);
   }
 
   // Executa nó de aguardar contatos (indicações) – texto editável no nó
@@ -225,6 +246,7 @@ class FluxoExecutor {
       await this.client.sendMessage(this.chatId, texto);
     }
     console.log(`📇 Aguardando ${meta} contatos (indicações) para ${this.chatId}`);
+    await this.logExec('wait_contacts_start', `Aguardando ${meta} contatos`, node, { meta });
   }
 
   // Executa nó de verificação por variável (sem IA): segue dois caminhos conforme comparação
@@ -263,6 +285,13 @@ class FluxoExecutor {
         resultado = valorAtual === valorComparacao;
     }
     console.log(`🔀 [Variável] {{${nomeVar}}} (${operador}) "${valorComparacao}" → ${resultado ? 'SIM' : 'NÃO'}`);
+    await this.logExec('condition_var_result', `Condição variável: ${resultado ? 'SIM' : 'NÃO'}`, node, {
+      variavel: nomeVar,
+      operador,
+      valorComparacao,
+      valorAtual,
+      resultado
+    });
     const handleType = resultado ? 'output-true' : 'output-false';
     const nextNode = this.findNextNode(node.id, handleType);
     await this.executeNode(nextNode);
@@ -292,6 +321,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       
       const resultado = resposta.toLowerCase().trim().startsWith('sim');
       console.log(`🔀 Resultado: ${resultado ? 'SIM ✅' : 'NÃO ❌'}`);
+      await this.logExec('condition_result', `Condição IA: ${resultado ? 'SIM' : 'NÃO'}`, node, { pergunta, mensagem });
       
       // Salva resultado
       this.variaveis[`${node.id}_resultado`] = resultado;
@@ -304,6 +334,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       await this.executeNode(nextNode);
     } catch (error) {
       console.error('Erro ao avaliar condição:', error);
+      await this.logExec('node_error', `Erro ao avaliar condição: ${error.message}`, node);
       const nextNode = this.findNextNode(node.id, 'output-false');
       await this.executeNode(nextNode);
     }
@@ -343,12 +374,14 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       this.variaveis.ultimaRespostaIA = resposta.trim();
       
       console.log(`📝 IA respondeu, salvo em {{${varName}}}: "${resposta.trim().substring(0, 50)}..."`);
+      await this.logExec('ia_result', `IA respondeu e salvou em {{${varName}}}`, node, { variavelSaida: varName });
       
       this.aguardandoResposta = false;
       const nextNode = this.findNextNode(node.id);
       await this.executeNode(nextNode);
     } catch (error) {
       console.error('Erro ao executar IA:', error);
+      await this.logExec('node_error', `Erro ao executar IA: ${error.message}`, node);
       this.aguardandoResposta = false;
       const nextNode = this.findNextNode(node.id);
       await this.executeNode(nextNode);
@@ -579,6 +612,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       }
     } catch (error) {
       console.error('Erro ao executar ação:', error);
+      await this.logExec('node_error', `Erro ao executar ação: ${error.message}`, node);
     }
     
     const nextNode = this.findNextNode(node.id);
@@ -604,6 +638,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     }
     
     console.log(`✅ Fluxo "${this.fluxo.nome}" finalizado para ${this.chatId}`);
+    await this.logExec('fluxo_end', `Fluxo "${this.fluxo.nome}" finalizado`, node);
     sessoesFluxo.delete(this.chatId);
   }
 
@@ -631,6 +666,9 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       const mensagemProgresso = (node.data.mensagemProgresso || '').trim();
 
       if (completouMissao) {
+        await this.logExec('wait_contacts_complete', `Meta de contatos concluída (${qtTotal}/${this.waitContactsMeta})`, node, {
+          qtInseridos, qtTotal
+        });
         this.aguardandoContatos = false;
         if (mensagemProgresso) {
           const texto = this.substituirVariaveis(mensagemProgresso);
@@ -639,6 +677,9 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
         const nextNode = this.findNextNode(node.id);
         await this.executeNode(nextNode);
       } else {
+        await this.logExec('wait_contacts_progress', `Progresso contatos (${qtTotal}/${this.waitContactsMeta})`, node, {
+          qtInseridos, qtTotal
+        });
         if (qtInseridos > 0 && mensagemProgresso) {
           const texto = this.substituirVariaveis(mensagemProgresso);
           await this.client.sendMessage(this.chatId, texto);
@@ -651,6 +692,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       return true;
     } catch (err) {
       console.error('❌ Erro ao processar indicações no fluxo:', err);
+      await this.logExec('node_error', `Erro ao processar contatos: ${err.message}`, currentNode);
       if (msg.reply) await msg.reply('Ocorreu um erro ao salvar os contatos. Tente de novo.');
       return true;
     }
@@ -671,6 +713,10 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
         const varName = this.waitVariableName || 'resposta';
         this.variaveis[varName] = message;
         console.log(`📝 Resposta salva em {{${varName}}}: "${message}"`);
+        await this.logExec('wait_response', `Resposta recebida e salva em {{${varName}}}`, currentNode, {
+          variavel: varName,
+          mensagem: String(message).slice(0, 500)
+        });
         
         this.aguardandoResposta = false;
         const nextNode = this.findNextNode(currentNode.id);

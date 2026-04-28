@@ -21,6 +21,26 @@ async function setupDatabase() {
     await sequelize.sync({ alter: true });
     console.log('✅ Tabelas sincronizadas');
 
+    // Logs de execução de fluxos por contato (auditoria/debug)
+    await sequelize.query(`
+      CREATE TABLE IF NOT EXISTS fluxo_exec_logs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        whatsapp_id VARCHAR(50) NULL,
+        chat_id VARCHAR(80) NULL,
+        fluxo_id INT NULL,
+        fluxo_nome VARCHAR(150) NULL,
+        node_id VARCHAR(80) NULL,
+        node_type VARCHAR(50) NULL,
+        evento VARCHAR(50) NOT NULL DEFAULT 'info',
+        mensagem TEXT NULL,
+        detalhes_json JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_fluxo_logs_whatsapp_created (whatsapp_id, created_at),
+        INDEX idx_fluxo_logs_fluxo_created (fluxo_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('✅ Tabela fluxo_exec_logs pronta');
+
     // Insere configurações padrão se não existirem
     const configsPadrao = [
       {

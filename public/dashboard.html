@@ -531,6 +531,20 @@
     </main>
   </div>
 
+  <div class="modal fade" id="modalLogsContato" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title" id="tituloLogsContato">Logs do contato</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="conteudoLogsContato" class="text-secondary">Carregando...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Gatilho -->
   <div class="modal fade" id="modalGatilho" tabindex="-1">
     <div class="modal-dialog">
@@ -796,13 +810,66 @@
           <td>${(c.qt_indicados ?? '-')}</td>
           <td>${(c.cam_indicacoes ?? '-')}</td>
           <td><span class="badge-modern ${c.em_fluxo ? 'badge-ativo' : 'badge-inativo'}">${c.em_fluxo ? 'Sim' : 'Não'}</span></td>
-          <td><button class="btn btn-sm btn-outline-danger btn-deletar-contato" data-whatsapp-id="${wid.replace(/"/g, '&quot;')}" title="Deletar contato"><i class="bi bi-trash"></i></button></td>
+          <td class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-info btn-logs-contato" data-whatsapp-id="${wid.replace(/"/g, '&quot;')}" title="Ver logs"><i class="bi bi-journal-text"></i></button>
+            <button class="btn btn-sm btn-outline-danger btn-deletar-contato" data-whatsapp-id="${wid.replace(/"/g, '&quot;')}" title="Deletar contato"><i class="bi bi-trash"></i></button>
+          </td>
         </tr>
       `;
       }).join('');
+      tbody.querySelectorAll('.btn-logs-contato').forEach(btn => {
+        btn.addEventListener('click', function() { abrirLogsContato(this.getAttribute('data-whatsapp-id')); });
+      });
       tbody.querySelectorAll('.btn-deletar-contato').forEach(btn => {
         btn.addEventListener('click', function() { deletarContato(this.getAttribute('data-whatsapp-id')); });
       });
+    }
+
+    async function abrirLogsContato(whatsappId) {
+      const modalEl = document.getElementById('modalLogsContato');
+      const titulo = document.getElementById('tituloLogsContato');
+      const conteudo = document.getElementById('conteudoLogsContato');
+      titulo.textContent = 'Logs do contato ' + whatsappId;
+      conteudo.innerHTML = '<div class="loading"></div> Carregando logs...';
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+
+      const data = await api('/contatos/' + encodeURIComponent(whatsappId) + '/logs?limit=300');
+      if (!data.success) {
+        conteudo.innerHTML = '<div class="text-danger">Erro ao carregar logs: ' + (data.error || 'desconhecido') + '</div>';
+        return;
+      }
+      const logs = data.data || [];
+      if (!logs.length) {
+        conteudo.innerHTML = '<div class="text-secondary">Sem logs para este contato ainda.</div>';
+        return;
+      }
+      conteudo.innerHTML = `
+        <div class="table-responsive">
+          <table class="table table-modern">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Fluxo</th>
+                <th>Nó</th>
+                <th>Evento</th>
+                <th>Mensagem</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${logs.map(l => `
+                <tr>
+                  <td><small>${new Date(l.created_at).toLocaleString('pt-BR')}</small></td>
+                  <td><small>${l.fluxo_nome || '-'}${l.fluxo_id ? ' (#' + l.fluxo_id + ')' : ''}</small></td>
+                  <td><small>${l.node_type || '-'}${l.node_id ? ' (' + l.node_id + ')' : ''}</small></td>
+                  <td><span class="badge-modern badge-inativo">${l.evento || '-'}</span></td>
+                  <td><small>${(l.mensagem || '-')}</small></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
 
     async function deletarContato(whatsappId) {

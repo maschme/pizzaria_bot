@@ -6,6 +6,7 @@ const grupoService = require('../services/grupoWhatsappService');
 const gatilhoService = require('../services/gatilhoService');
 const contatoService = require('../services/contatoService');
 const fluxoExecutor = require('../services/fluxoExecutor');
+const fluxoLogService = require('../services/fluxoLogService');
 
 // Referência ao client do WhatsApp (será injetada)
 let whatsappClient = null;
@@ -333,6 +334,18 @@ router.delete('/contatos/:whatsappId', async (req, res) => {
     fluxoExecutor.encerrarFluxo(wid + '@c.us');
     const result = await contatoService.deletarContato(wid);
     res.json({ success: true, ...result, mensagem: result.deleted ? 'Contato removido' : 'Contato não encontrado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/contatos/:whatsappId/logs', async (req, res) => {
+  try {
+    const whatsappId = decodeURIComponent(req.params.whatsappId);
+    const wid = contatoService.normalizarWhatsappId(whatsappId);
+    if (!wid) return res.status(400).json({ success: false, error: 'whatsapp_id inválido' });
+    const logs = await fluxoLogService.listarLogsPorContato(wid, req.query.limit || 200);
+    res.json({ success: true, total: logs.length, data: logs });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

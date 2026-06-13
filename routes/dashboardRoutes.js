@@ -400,7 +400,8 @@ router.get('/chats', async (req, res) => {
     }
     const result = await chatService.listarConversas(whatsappClient, {
       limit: req.query.limit,
-      search: req.query.search
+      search: req.query.search,
+      somenteNaoLidas: req.query.somenteNaoLidas
     });
     res.json({ success: true, ...result });
   } catch (error) {
@@ -414,7 +415,10 @@ router.get('/chats/:chatId/mensagens', async (req, res) => {
       return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
     }
     const chatId = decodeChatIdParam(req.params.chatId);
-    const data = await chatService.obterMensagens(whatsappClient, chatId, { limit: req.query.limit });
+    const data = await chatService.obterMensagens(whatsappClient, chatId, {
+      limit: req.query.limit,
+      marcarLida: req.query.marcarLida !== 'false'
+    });
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

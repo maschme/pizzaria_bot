@@ -313,7 +313,14 @@
     }
     .chat-list-item:hover { background: rgba(255,255,255,0.03); }
     .chat-list-item.active { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+    .chat-list-item.unread { background: rgba(34, 197, 94, 0.04); }
+    .chat-list-item.unread .chat-name { font-weight: 700; color: var(--text-primary); }
+    .chat-list-item.unread .chat-preview { color: var(--text-primary); font-weight: 500; }
+    .chat-list-item.unread .chat-time { color: #4ade80; font-weight: 600; }
     .chat-list-item .chat-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+    .chat-filter-tabs { display: flex; gap: 6px; padding: 0 16px 10px; border-bottom: 1px solid var(--border-subtle); }
+    .chat-filter-tabs .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .chats-list-summary { padding: 8px 16px 0; font-size: 0.72rem; color: var(--text-secondary); }
     .chat-list-item .chat-preview { font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chat-list-item .chat-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 6px; }
     .chat-list-item .chat-time { font-size: 0.7rem; color: var(--text-secondary); }
@@ -630,6 +637,11 @@
               <input type="search" class="form-control form-control-modern form-control-sm" id="chatSearchInput" placeholder="Buscar conversa...">
               <button class="btn btn-sm btn-outline-light" id="btnRefreshChats" title="Atualizar"><i class="bi bi-arrow-clockwise"></i></button>
             </div>
+            <div class="chat-filter-tabs">
+              <button type="button" class="btn btn-sm btn-outline-light active" id="btnChatsTodas">Todas</button>
+              <button type="button" class="btn btn-sm btn-outline-light" id="btnChatsNaoLidas">Não lidas <span id="badgeNaoLidas" class="chat-badge-unread ms-1" style="display:none">0</span></button>
+            </div>
+            <div class="chats-list-summary" id="chatsListSummary"></div>
             <div class="chats-list-scroll" id="chatsList">
               <div class="chats-empty"><div><div class="loading mb-2"></div>Carregando conversas...</div></div>
             </div>
@@ -750,6 +762,7 @@
     let chatsListaCache = [];
     let chatPollTimer = null;
     let fluxosChatCache = [];
+    let chatFiltroNaoLidas = false;
 
     function showToast(message, type = 'success') {
       const el = document.createElement('div');
@@ -811,8 +824,10 @@
     async function carregarListaChats() {
       const listEl = document.getElementById('chatsList');
       const search = (document.getElementById('chatSearchInput')?.value || '').trim();
-      const qs = search ? '?search=' + encodeURIComponent(search) + '&limit=100' : '?limit=100';
-      const data = await api('/chats' + qs);
+      const params = new URLSearchParams({ limit: '100' });
+      if (search) params.set('search', search);
+      if (chatFiltroNaoLidas) params.set('somenteNaoLidas', 'true');
+      const data = await api('/chats?' + params.toString());
       if (!data.success) {
         listEl.innerHTML = '<div class="chats-empty text-danger">' + escHtml(data.error || 'Erro ao carregar') + '</div>';
         return;
@@ -821,18 +836,37 @@
         listEl.innerHTML = '<div class="chats-empty"><i class="bi bi-whatsapp" style="font-size:2rem;opacity:0.3"></i><p class="mt-2 mb-0">WhatsApp desconectado.<br>Conecte na aba Whats.</p></div>';
         return;
       }
+
+      const summaryEl = document.getElementById('chatsListSummary');
+      const badgeNaoLidas = document.getElementById('badgeNaoLidas');
+      const totalNaoLidas = Number(data.totalNaoLidas) || 0;
+      if (summaryEl) {
+        summaryEl.textContent = chatFiltroNaoLidas
+          ? `${data.total} conversa(s) não lida(s)`
+          : `${data.total} conversas · ${totalNaoLidas} não lida(s)`;
+      }
+      if (badgeNaoLidas) {
+        if (totalNaoLidas > 0) {
+          badgeNaoLidas.style.display = 'inline-block';
+          badgeNaoLidas.textContent = totalNaoLidas > 99 ? '99+' : String(totalNaoLidas);
+        } else {
+          badgeNaoLidas.style.display = 'none';
+        }
+      }
+
       chatsListaCache = data.data || [];
       if (!chatsListaCache.length) {
-        listEl.innerHTML = '<div class="chats-empty">Nenhuma conversa encontrada.</div>';
+        listEl.innerHTML = '<div class="chats-empty">' + (chatFiltroNaoLidas ? 'Nenhuma conversa não lida.' : 'Nenhuma conversa encontrada.') + '</div>';
         return;
       }
       listEl.innerHTML = chatsListaCache.map(c => {
         const active = chatSelecionado && chatSelecionado.chatId === c.chatId ? ' active' : '';
+        const unreadCls = c.temNaoLidas ? ' unread' : '';
         let badges = '';
         if (c.em_fluxo) badges += '<span class="chat-badge chat-badge-fluxo">Fluxo</span>';
         if (c.em_campanha) badges += '<span class="chat-badge chat-badge-campanha">Campanha</span>';
-        const unread = c.naoLidas > 0 ? '<span class="chat-badge chat-badge-unread">' + c.naoLidas + '</span>' : '';
-        return `<div class="chat-list-item${active}" data-chat-id="${escHtml(c.chatId)}">
+        const unread = c.naoLidas > 0 ? '<span class="chat-badge chat-badge-unread">' + (c.naoLidas > 99 ? '99+' : c.naoLidas) + '</span>' : '';
+        return `<div class="chat-list-item${active}${unreadCls}" data-chat-id="${escHtml(c.chatId)}">
           <div class="chat-name">${escHtml(c.nome)}</div>
           <div class="chat-preview">${escHtml(c.ultimaMensagem || '—')}</div>
           <div class="chat-meta">
@@ -866,6 +900,13 @@
       }, 5000);
     }
 
+    function setFiltroChatsNaoLidas(ativo) {
+      chatFiltroNaoLidas = !!ativo;
+      document.getElementById('btnChatsTodas')?.classList.toggle('active', !chatFiltroNaoLidas);
+      document.getElementById('btnChatsNaoLidas')?.classList.toggle('active', chatFiltroNaoLidas);
+      carregarListaChats();
+    }
+
     async function carregarMensagensChat(silent) {
       if (!chatSelecionado) return;
       const header = document.getElementById('chatThreadHeader');
@@ -874,10 +915,11 @@
         header.innerHTML = '<strong>' + escHtml(chatSelecionado.nome || chatSelecionado.chatId) + '</strong><br><small class="text-secondary">' + escHtml(chatSelecionado.chatId) + '</small>';
         box.innerHTML = '<div class="chats-empty"><div class="loading"></div></div>';
       }
-      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/mensagens?limit=60';
+      const marcarLida = silent ? 'false' : 'true';
+      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/mensagens?limit=60&marcarLida=' + marcarLida;
       const data = await api(path);
       if (!data.success) {
-        if (!silent) box.innerHTML = '<div class="chats-empty text-danger">' + escHtml(data.error || 'Erro') + '</div>';
+        if (!silent) box.innerHTML = '<div class="chats-empty text-danger">' + escHtml(data.error || 'Erro ao carregar mensagens') + '</div>';
         return;
       }
       const info = data.data;
@@ -895,6 +937,11 @@
         return `<div class="chat-msg ${cls}">${texto}<div class="chat-msg-time">${formatarHoraChat(m.timestamp)}</div></div>`;
       }).join('');
       box.scrollTop = box.scrollHeight;
+      if (!silent && chatSelecionado.temNaoLidas) {
+        chatSelecionado.temNaoLidas = false;
+        chatSelecionado.naoLidas = 0;
+        carregarListaChats();
+      }
     }
 
     async function carregarEstadoChat(silent) {
@@ -1321,6 +1368,8 @@
     document.getElementById('btnContatosNext').addEventListener('click', () => carregarContatos(contatosPage + 1));
 
     document.getElementById('btnRefreshChats')?.addEventListener('click', () => carregarListaChats());
+    document.getElementById('btnChatsTodas')?.addEventListener('click', () => setFiltroChatsNaoLidas(false));
+    document.getElementById('btnChatsNaoLidas')?.addEventListener('click', () => setFiltroChatsNaoLidas(true));
     let chatSearchTimer;
     document.getElementById('chatSearchInput')?.addEventListener('input', () => {
       clearTimeout(chatSearchTimer);

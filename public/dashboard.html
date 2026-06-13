@@ -267,6 +267,123 @@
     .grupo-row.geral { background: rgba(245, 158, 11, 0.06); }
     .input-bairro { max-width: 140px; }
     .sync-btn.syncing i { animation: spin 0.8s linear infinite; }
+
+    /* Chats manager */
+    .chats-layout {
+      display: grid;
+      grid-template-columns: 300px 1fr 280px;
+      gap: 16px;
+      height: calc(100vh - var(--header-height) - 48px);
+      min-height: 520px;
+    }
+    @media (max-width: 1200px) {
+      .chats-layout { grid-template-columns: 260px 1fr; }
+      .chats-actions-panel { display: none; }
+    }
+    @media (max-width: 768px) {
+      .chats-layout { grid-template-columns: 1fr; height: auto; }
+      .chats-list-panel { max-height: 280px; }
+    }
+    .chats-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .chats-panel-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .chats-list-scroll {
+      overflow-y: auto;
+      flex: 1;
+    }
+    .chat-list-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .chat-list-item:hover { background: rgba(255,255,255,0.03); }
+    .chat-list-item.active { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+    .chat-list-item .chat-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+    .chat-list-item .chat-preview { font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-list-item .chat-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 6px; }
+    .chat-list-item .chat-time { font-size: 0.7rem; color: var(--text-secondary); }
+    .chat-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chat-badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 6px; font-weight: 600; }
+    .chat-badge-fluxo { background: rgba(59,130,246,0.2); color: #60a5fa; }
+    .chat-badge-campanha { background: rgba(245,158,11,0.2); color: #fbbf24; }
+    .chat-badge-unread { background: var(--accent); color: #fff; border-radius: 999px; min-width: 18px; text-align: center; }
+    .chat-thread-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-subtle);
+      flex-shrink: 0;
+    }
+    .chat-thread-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 200px;
+    }
+    .chat-msg {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .chat-msg-in {
+      align-self: flex-start;
+      background: rgba(255,255,255,0.06);
+      border-bottom-left-radius: 4px;
+    }
+    .chat-msg-out {
+      align-self: flex-end;
+      background: rgba(34,197,94,0.18);
+      border-bottom-right-radius: 4px;
+    }
+    .chat-msg-time { font-size: 0.68rem; color: var(--text-secondary); margin-top: 4px; }
+    .chat-thread-input {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .chat-thread-input textarea {
+      flex: 1;
+      resize: none;
+      min-height: 42px;
+      max-height: 120px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 10px 12px;
+      font-size: 0.88rem;
+    }
+    .chats-actions-body { padding: 16px; overflow-y: auto; flex: 1; font-size: 0.85rem; }
+    .chats-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      padding: 40px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -284,6 +401,10 @@
       <a href="#" data-view="whats">
         <i class="bi bi-whatsapp"></i>
         <span>Whats</span>
+      </a>
+      <a href="#" data-view="chats">
+        <i class="bi bi-chat-dots-fill"></i>
+        <span>Chats</span>
       </a>
       <a href="#" data-view="contatos">
         <i class="bi bi-person-lines-fill"></i>
@@ -501,6 +622,43 @@
         </div>
       </div>
 
+      <!-- View: Chats (gerenciador de conversas) -->
+      <div id="viewChats" class="view">
+        <div class="chats-layout">
+          <div class="chats-panel chats-list-panel">
+            <div class="chats-panel-header">
+              <input type="search" class="form-control form-control-modern form-control-sm" id="chatSearchInput" placeholder="Buscar conversa...">
+              <button class="btn btn-sm btn-outline-light" id="btnRefreshChats" title="Atualizar"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div class="chats-list-scroll" id="chatsList">
+              <div class="chats-empty"><div><div class="loading mb-2"></div>Carregando conversas...</div></div>
+            </div>
+          </div>
+
+          <div class="chats-panel chats-thread-panel">
+            <div class="chat-thread-header" id="chatThreadHeader">
+              <span class="text-secondary">Selecione uma conversa</span>
+            </div>
+            <div class="chat-thread-messages" id="chatThreadMessages">
+              <div class="chats-empty"><i class="bi bi-chat-left-text" style="font-size:2.5rem;opacity:0.3"></i><p class="mt-2 mb-0">Escolha um chat na lista</p></div>
+            </div>
+            <div class="chat-thread-input">
+              <textarea id="chatMsgInput" placeholder="Digite uma mensagem..." rows="1" disabled></textarea>
+              <button class="btn btn-danger btn-modern" id="btnEnviarChatMsg" disabled><i class="bi bi-send-fill"></i></button>
+            </div>
+          </div>
+
+          <div class="chats-panel chats-actions-panel">
+            <div class="chats-panel-header">
+              <strong class="small">Ações</strong>
+            </div>
+            <div class="chats-actions-body" id="chatActionsBody">
+              <p class="text-secondary small">Selecione um chat para ver estado e iniciar fluxos.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- View: Contatos (listar e deletar para testes de fluxo) -->
       <div id="viewContatos" class="view">
         <div class="card-modern">
@@ -588,6 +746,10 @@
     const contatosLimit = 100;
     let contatosTotalPages = 1;
     let contatosTotal = 0;
+    let chatSelecionado = null;
+    let chatsListaCache = [];
+    let chatPollTimer = null;
+    let fluxosChatCache = [];
 
     function showToast(message, type = 'success') {
       const el = document.createElement('div');
@@ -614,9 +776,230 @@
       const link = document.querySelector(`.sidebar-nav a[data-view="${name}"]`);
       if (view) view.classList.add('active');
       if (link) link.classList.add('active');
-      const titles = { dashboard: 'Dashboard', whats: 'Whats', contatos: 'Contatos' };
+      const titles = { dashboard: 'Dashboard', whats: 'Whats', chats: 'Chats', contatos: 'Contatos' };
       document.getElementById('pageTitle').textContent = titles[name] || name;
       if (name === 'contatos') carregarContatos();
+      if (name === 'chats') iniciarViewChats();
+      else pararPollChat();
+    }
+
+    function pararPollChat() {
+      if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+    }
+
+    function formatarHoraChat(isoOrTs) {
+      if (!isoOrTs) return '';
+      const d = typeof isoOrTs === 'number' ? new Date(isoOrTs * 1000) : new Date(isoOrTs);
+      if (Number.isNaN(d.getTime())) return '';
+      const hoje = new Date();
+      if (d.toDateString() === hoje.toDateString()) {
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      }
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    async function carregarFluxosChat() {
+      const data = await api('/chats/fluxos-disponiveis');
+      fluxosChatCache = data.success ? (data.data || []) : [];
+      return fluxosChatCache;
+    }
+
+    async function carregarListaChats() {
+      const listEl = document.getElementById('chatsList');
+      const search = (document.getElementById('chatSearchInput')?.value || '').trim();
+      const qs = search ? '?search=' + encodeURIComponent(search) + '&limit=100' : '?limit=100';
+      const data = await api('/chats' + qs);
+      if (!data.success) {
+        listEl.innerHTML = '<div class="chats-empty text-danger">' + escHtml(data.error || 'Erro ao carregar') + '</div>';
+        return;
+      }
+      if (!data.connected) {
+        listEl.innerHTML = '<div class="chats-empty"><i class="bi bi-whatsapp" style="font-size:2rem;opacity:0.3"></i><p class="mt-2 mb-0">WhatsApp desconectado.<br>Conecte na aba Whats.</p></div>';
+        return;
+      }
+      chatsListaCache = data.data || [];
+      if (!chatsListaCache.length) {
+        listEl.innerHTML = '<div class="chats-empty">Nenhuma conversa encontrada.</div>';
+        return;
+      }
+      listEl.innerHTML = chatsListaCache.map(c => {
+        const active = chatSelecionado && chatSelecionado.chatId === c.chatId ? ' active' : '';
+        let badges = '';
+        if (c.em_fluxo) badges += '<span class="chat-badge chat-badge-fluxo">Fluxo</span>';
+        if (c.em_campanha) badges += '<span class="chat-badge chat-badge-campanha">Campanha</span>';
+        const unread = c.naoLidas > 0 ? '<span class="chat-badge chat-badge-unread">' + c.naoLidas + '</span>' : '';
+        return `<div class="chat-list-item${active}" data-chat-id="${escHtml(c.chatId)}">
+          <div class="chat-name">${escHtml(c.nome)}</div>
+          <div class="chat-preview">${escHtml(c.ultimaMensagem || '—')}</div>
+          <div class="chat-meta">
+            <div class="chat-badges">${badges}</div>
+            <div class="d-flex align-items-center gap-2">
+              ${unread}
+              <span class="chat-time">${formatarHoraChat(c.ultimaMensagemEm || c.timestamp)}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      listEl.querySelectorAll('.chat-list-item').forEach(el => {
+        el.addEventListener('click', () => selecionarChat(el.getAttribute('data-chat-id')));
+      });
+    }
+
+    async function selecionarChat(chatId) {
+      chatSelecionado = chatsListaCache.find(c => c.chatId === chatId) || { chatId, nome: chatId };
+      document.querySelectorAll('.chat-list-item').forEach(el => {
+        el.classList.toggle('active', el.getAttribute('data-chat-id') === chatId);
+      });
+      document.getElementById('chatMsgInput').disabled = false;
+      document.getElementById('btnEnviarChatMsg').disabled = false;
+      await Promise.all([carregarMensagensChat(), carregarEstadoChat()]);
+      pararPollChat();
+      chatPollTimer = setInterval(() => {
+        if (document.getElementById('viewChats')?.classList.contains('active') && chatSelecionado) {
+          carregarMensagensChat(true);
+          carregarEstadoChat(true);
+        }
+      }, 5000);
+    }
+
+    async function carregarMensagensChat(silent) {
+      if (!chatSelecionado) return;
+      const header = document.getElementById('chatThreadHeader');
+      const box = document.getElementById('chatThreadMessages');
+      if (!silent) {
+        header.innerHTML = '<strong>' + escHtml(chatSelecionado.nome || chatSelecionado.chatId) + '</strong><br><small class="text-secondary">' + escHtml(chatSelecionado.chatId) + '</small>';
+        box.innerHTML = '<div class="chats-empty"><div class="loading"></div></div>';
+      }
+      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/mensagens?limit=60';
+      const data = await api(path);
+      if (!data.success) {
+        if (!silent) box.innerHTML = '<div class="chats-empty text-danger">' + escHtml(data.error || 'Erro') + '</div>';
+        return;
+      }
+      const info = data.data;
+      if (info.nome) {
+        header.innerHTML = '<strong>' + escHtml(info.nome) + '</strong><br><small class="text-secondary">' + escHtml(info.chatId) + '</small>';
+      }
+      const msgs = info.mensagens || [];
+      if (!msgs.length) {
+        box.innerHTML = '<div class="chats-empty">Sem mensagens recentes.</div>';
+        return;
+      }
+      box.innerHTML = msgs.map(m => {
+        const cls = m.fromMe ? 'chat-msg-out' : 'chat-msg-in';
+        const texto = m.type === 'chat' ? escHtml(m.body) : escHtml(m.preview || m.body || '[' + m.type + ']');
+        return `<div class="chat-msg ${cls}">${texto}<div class="chat-msg-time">${formatarHoraChat(m.timestamp)}</div></div>`;
+      }).join('');
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function carregarEstadoChat(silent) {
+      if (!chatSelecionado) return;
+      const el = document.getElementById('chatActionsBody');
+      if (!silent) el.innerHTML = '<div class="loading"></div>';
+      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/estado';
+      const data = await api(path);
+      if (!data.success) {
+        el.innerHTML = '<div class="text-danger small">' + escHtml(data.error || 'Erro') + '</div>';
+        return;
+      }
+      const st = data.data;
+      if (fluxosChatCache.length === 0) await carregarFluxosChat();
+      const optsFluxo = fluxosChatCache.map(f =>
+        `<option value="${f.id}">${escHtml(f.nome)} (${escHtml(f.tipo)})</option>`
+      ).join('');
+
+      let html = '<div class="mb-3">';
+      if (st.fluxo) {
+        html += `<div class="alert alert-info py-2 px-3 small mb-2"><strong>Em fluxo:</strong> ${escHtml(st.fluxo.nome)}<br><span class="text-secondary">Nó: ${escHtml(st.fluxo.node_atual || '—')}</span></div>`;
+      } else {
+        html += '<div class="text-secondary small mb-2">Nenhum fluxo ativo.</div>';
+      }
+      if (st.campanha) {
+        html += `<div class="alert alert-warning py-2 px-3 small mb-2"><strong>Campanha</strong> — Etapa ${st.campanha.etapa} (${escHtml(st.campanha.subEtapa || '')})<br>Desconto: ${st.campanha.descontoTotal || 0}%</div>`;
+      }
+      if (st.contato) {
+        html += `<div class="small text-secondary mb-2">CRM: grupo=${st.contato.cam_grupo ?? '—'}, indicados=${st.contato.qt_indicados ?? '—'}</div>`;
+      }
+      html += '</div>';
+
+      html += `<label class="form-label small fw-semibold">Iniciar fluxo</label>
+        <select class="form-select form-select-modern form-select-sm mb-2" id="selectFluxoIniciar"><option value="">— Escolha —</option>${optsFluxo}</select>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="chkLimparCampanha">
+          <label class="form-check-label small" for="chkLimparCampanha">Limpar sessão campanha</label>
+        </div>
+        <div class="d-grid gap-2 mb-3">
+          <button class="btn btn-sm btn-danger btn-modern" id="btnIniciarFluxoChat"><i class="bi bi-play-fill me-1"></i>Iniciar fluxo</button>
+          <button class="btn btn-sm btn-outline-warning" id="btnEncerrarFluxoChat"><i class="bi bi-stop-fill me-1"></i>Encerrar fluxo</button>
+        </div>`;
+
+      if (st.logs_recentes && st.logs_recentes.length) {
+        html += '<label class="form-label small fw-semibold">Logs recentes</label><ul class="list-unstyled small mb-0">';
+        st.logs_recentes.slice(0, 8).forEach(l => {
+          html += `<li class="text-secondary border-bottom border-secondary py-1"><span class="text-white-50">${formatarHoraChat(l.created_at)}</span> — ${escHtml(l.mensagem || l.evento || '')}</li>`;
+        });
+        html += '</ul>';
+      }
+
+      el.innerHTML = html;
+      document.getElementById('btnIniciarFluxoChat')?.addEventListener('click', iniciarFluxoNoChat);
+      document.getElementById('btnEncerrarFluxoChat')?.addEventListener('click', encerrarFluxoNoChat);
+    }
+
+    async function iniciarFluxoNoChat() {
+      if (!chatSelecionado) return;
+      const fluxoId = document.getElementById('selectFluxoIniciar')?.value;
+      if (!fluxoId) { showToast('Selecione um fluxo', 'warning'); return; }
+      const limparCampanha = document.getElementById('chkLimparCampanha')?.checked === true;
+      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/iniciar-fluxo';
+      const data = await api(path, {
+        method: 'POST',
+        body: JSON.stringify({ fluxoId: Number(fluxoId), encerrarAtual: true, limparCampanha })
+      });
+      if (data.success) {
+        showToast(data.mensagem || 'Fluxo iniciado');
+        await Promise.all([carregarListaChats(), carregarEstadoChat(), carregarMensagensChat(true)]);
+      } else {
+        showToast(data.error || 'Erro ao iniciar fluxo', 'danger');
+      }
+    }
+
+    async function encerrarFluxoNoChat() {
+      if (!chatSelecionado) return;
+      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/encerrar-fluxo';
+      const data = await api(path, { method: 'POST', body: JSON.stringify({}) });
+      if (data.success) {
+        showToast(data.mensagem || 'Fluxo encerrado');
+        await Promise.all([carregarListaChats(), carregarEstadoChat()]);
+      } else {
+        showToast(data.error || 'Erro', 'danger');
+      }
+    }
+
+    async function enviarMensagemChat() {
+      if (!chatSelecionado) return;
+      const input = document.getElementById('chatMsgInput');
+      const texto = (input.value || '').trim();
+      if (!texto) return;
+      const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/mensagens';
+      const data = await api(path, { method: 'POST', body: JSON.stringify({ mensagem: texto }) });
+      if (data.success) {
+        input.value = '';
+        showToast('Mensagem enviada');
+        await Promise.all([carregarMensagensChat(true), carregarListaChats()]);
+      } else {
+        showToast(data.error || 'Erro ao enviar', 'danger');
+      }
+    }
+
+    async function iniciarViewChats() {
+      await carregarFluxosChat();
+      await carregarListaChats();
     }
 
     document.querySelectorAll('.sidebar-nav a[data-view]').forEach(a => {
@@ -936,6 +1319,17 @@
     });
     document.getElementById('btnContatosPrev').addEventListener('click', () => carregarContatos(contatosPage - 1));
     document.getElementById('btnContatosNext').addEventListener('click', () => carregarContatos(contatosPage + 1));
+
+    document.getElementById('btnRefreshChats')?.addEventListener('click', () => carregarListaChats());
+    let chatSearchTimer;
+    document.getElementById('chatSearchInput')?.addEventListener('input', () => {
+      clearTimeout(chatSearchTimer);
+      chatSearchTimer = setTimeout(carregarListaChats, 350);
+    });
+    document.getElementById('btnEnviarChatMsg')?.addEventListener('click', enviarMensagemChat);
+    document.getElementById('chatMsgInput')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagemChat(); }
+    });
 
     async function init() {
       await carregarWhatsappStatus();

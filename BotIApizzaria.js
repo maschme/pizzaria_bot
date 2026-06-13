@@ -28,6 +28,7 @@ const fluxoExecutor = require('./services/fluxoExecutor');
 const indicacaoService = require('./services/indicacaoService');
 const metaService = require('./services/metaService');
 const whatsappIdentityService = require('./services/whatsappIdentityService');
+const sessaoCampanhaService = require('./services/sessaoCampanhaService');
 const { setupDatabase } = require('./database/setup');
 const { dbConfig } = require('./database/connection');
 const mysql2Config = {
@@ -103,28 +104,9 @@ async function enviarParaIADinamica(mensagens, provedorNome = null) {
 }
 
 // ============================================================
-// 🎁 SESSÕES DE CAMPANHA (em memória)
+// 🎁 SESSÕES DE CAMPANHA (em memória — services/sessaoCampanhaService.js)
 // ============================================================
-const sessoesCampanha = new Map(); // numero -> { etapa, missoes, historico }
-
-function getOuCriarSessaoCampanha(numero) {
-  if (!sessoesCampanha.has(numero)) {
-    sessoesCampanha.set(numero, {
-      etapa: 1,
-      subEtapa: 'aguardando_bairro', // aguardando_bairro, aguardando_confirmacao_grupo
-      missoes: {
-        1: { concluida: false, desconto: 10, descricao: 'Entrar no grupo WhatsApp' },
-        2: { concluida: false, desconto: 10, descricao: 'A definir' },
-        3: { concluida: false, desconto: 10, descricao: 'A definir' }
-      },
-      bairro: null,
-      descontoTotal: 0,
-      historico: [],
-      iniciadoEm: new Date()
-    });
-  }
-  return sessoesCampanha.get(numero);
-}
+const getOuCriarSessaoCampanha = sessaoCampanhaService.getOuCriarSessaoCampanha;
 
 function getProgressoCampanha(sessao) {
   const concluidas = Object.values(sessao.missoes).filter(m => m.concluida).length;
@@ -503,7 +485,7 @@ app.get('/config', (req, res) => {
 // GET /campanha/sessoes - Lista todas as sessões ativas
 app.get('/campanha/sessoes', (req, res) => {
   const sessoes = [];
-  sessoesCampanha.forEach((sessao, numero) => {
+  sessaoCampanhaService.forEach((sessao, numero) => {
     sessoes.push({
       numero,
       etapa: sessao.etapa,
@@ -522,7 +504,7 @@ app.get('/campanha/sessao/:numero', (req, res) => {
   let { numero } = req.params;
   if (!numero.includes('@c.us')) numero = numero + '@c.us';
   
-  const sessao = sessoesCampanha.get(numero);
+  const sessao = sessaoCampanhaService.get(numero);
   if (!sessao) {
     return res.status(404).json({ error: 'Sessão não encontrada' });
   }
@@ -534,8 +516,8 @@ app.delete('/campanha/sessao/:numero', (req, res) => {
   let { numero } = req.params;
   if (!numero.includes('@c.us')) numero = numero + '@c.us';
   
-  if (sessoesCampanha.has(numero)) {
-    sessoesCampanha.delete(numero);
+  if (sessaoCampanhaService.has(numero)) {
+    sessaoCampanhaService.delete(numero);
     res.json({ success: true, mensagem: `Sessão ${numero} removida` });
   } else {
     res.status(404).json({ error: 'Sessão não encontrada' });
@@ -544,8 +526,8 @@ app.delete('/campanha/sessao/:numero', (req, res) => {
 
 // DELETE /campanha/sessoes - Limpa todas as sessões (para testes)
 app.delete('/campanha/sessoes', (req, res) => {
-  const total = sessoesCampanha.size;
-  sessoesCampanha.clear();
+  const total = sessaoCampanhaService.size;
+  sessaoCampanhaService.clearAll();
   res.json({ success: true, mensagem: `${total} sessões removidas` });
 });
 
@@ -635,8 +617,8 @@ client.on('message', async (msg) => {
       const processado = await fluxoExecutor.processarContatosFluxo(numero, msg);
       if (processado) return;
     }
-    if (sessoesCampanha.has(numero)) {
-      const sessaoCamp = sessoesCampanha.get(numero);
+    if (sessaoCampanhaService.has(numero)) {
+      const sessaoCamp = sessaoCampanhaService.get(numero);
       if (sessaoCamp.etapa === 2 && (sessaoCamp.subEtapa === 'aguardando_contatos' || sessaoCamp.subEtapa === 'inicio')) {
         if (sessaoCamp.subEtapa === 'inicio') sessaoCamp.subEtapa = 'aguardando_contatos';
         await processarContatosIndicados(numero, msg, sessaoCamp);
@@ -659,7 +641,7 @@ client.on('message', async (msg) => {
   }
   let gatilhoDetectado = await verificarGatilhoDB(texto);
   if (!gatilhoDetectado && config.gatilhosLegadoAtivos) gatilhoDetectado = verificarGatilhoLocal(texto);
-  if (gatilhoDetectado && !sessoesCampanha.has(numero)) {
+  if (gatilhoDetectado && !sessaoCampanhaService.has(numero)) {
     console.log(`🎯 Gatilho detectado: ${gatilhoDetectado.tipo}`);
     await processarGatilho(gatilhoDetectado, numero, texto, msg);
     return;
@@ -670,7 +652,7 @@ client.on('message', async (msg) => {
   // ============================================================
   let mode = 'atendimento';
   if (fluxoExecutor.temFluxoAtivo(numero)) mode = 'fluxo';
-  else if (sessoesCampanha.has(numero)) mode = 'campanha';
+  else if (sessaoCampanhaService.has(numero)) mode = 'campanha';
 
   if (!debounceState.has(numero)) {
     debounceState.set(numero, { buffer: [], timerId: null, mode: 'atendimento', lastMsg: null });
@@ -1437,8 +1419,8 @@ client.on('group_join', async (notification) => {
       // ============================================================
       // 🎁 INTEGRAÇÃO COM CAMPANHA DE DESCONTO
       // ============================================================
-      if (sessoesCampanha.has(numeroFormatado)) {
-        const sessao = sessoesCampanha.get(numeroFormatado);
+      if (sessaoCampanhaService.has(numeroFormatado)) {
+        const sessao = sessaoCampanhaService.get(numeroFormatado);
         
         // Verifica se está na etapa de aguardar confirmação do grupo
         if (sessao.etapa === 1 && sessao.subEtapa === 'aguardando_confirmacao_grupo') {

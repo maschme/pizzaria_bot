@@ -5,8 +5,10 @@ const configService = require('../services/configuracaoService');
 const grupoService = require('../services/grupoWhatsappService');
 const gatilhoService = require('../services/gatilhoService');
 const contatoService = require('../services/contatoService');
+const chatService = require('../services/chatService');
 const fluxoExecutor = require('../services/fluxoExecutor');
 const fluxoLogService = require('../services/fluxoLogService');
+const fluxoService = require('../services/fluxoService');
 
 // Referência ao client do WhatsApp (será injetada)
 let whatsappClient = null;
@@ -368,6 +370,109 @@ router.get('/contatos/:whatsappId/logs', async (req, res) => {
     res.json({ success: true, total: logs.length, data: logs });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// 💬 CHATS (gerenciador de conversas)
+// ============================================================
+
+function decodeChatIdParam(raw) {
+  return decodeURIComponent(String(raw || '').trim());
+}
+
+router.get('/chats/fluxos-disponiveis', async (req, res) => {
+  try {
+    const fluxos = await fluxoService.listarFluxos({ ativo: true });
+    const data = fluxos
+      .filter((f) => f.tipo !== 'automacao')
+      .map((f) => ({ id: f.id, nome: f.nome, tipo: f.tipo, descricao: f.descricao }));
+    res.json({ success: true, total: data.length, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/chats', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.json({ success: true, connected: false, total: 0, data: [], mensagem: 'WhatsApp não conectado' });
+    }
+    const result = await chatService.listarConversas(whatsappClient, {
+      limit: req.query.limit,
+      search: req.query.search
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/chats/:chatId/mensagens', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
+    }
+    const chatId = decodeChatIdParam(req.params.chatId);
+    const data = await chatService.obterMensagens(whatsappClient, chatId, { limit: req.query.limit });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/chats/:chatId/mensagens', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
+    }
+    const chatId = decodeChatIdParam(req.params.chatId);
+    const { mensagem } = req.body;
+    const data = await chatService.enviarMensagem(whatsappClient, chatId, mensagem);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/chats/:chatId/estado', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
+    }
+    const chatId = decodeChatIdParam(req.params.chatId);
+    const data = await chatService.obterEstadoChat(whatsappClient, chatId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/chats/:chatId/iniciar-fluxo', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
+    }
+    const chatId = decodeChatIdParam(req.params.chatId);
+    const { fluxoId, encerrarAtual, limparCampanha } = req.body;
+    if (!fluxoId) return res.status(400).json({ success: false, error: 'fluxoId é obrigatório' });
+    const data = await chatService.iniciarFluxoNoChat(whatsappClient, chatId, fluxoId, {
+      encerrarAtual: encerrarAtual !== false,
+      limparCampanha: limparCampanha === true
+    });
+    res.json({ success: true, data, mensagem: `Fluxo "${data.fluxo.nome}" iniciado` });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/chats/:chatId/encerrar-fluxo', async (req, res) => {
+  try {
+    const chatId = decodeChatIdParam(req.params.chatId);
+    const data = await chatService.encerrarFluxoNoChat(whatsappClient, chatId);
+    res.json({ success: true, data, mensagem: data.encerrados ? 'Fluxo encerrado' : 'Nenhum fluxo ativo' });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 

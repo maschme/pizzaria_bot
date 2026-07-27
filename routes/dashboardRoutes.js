@@ -193,14 +193,16 @@ router.post('/grupos/:grupoId/link', async (req, res) => {
 
 router.post('/grupos/sincronizar', async (req, res) => {
   try {
-    if (!whatsappClient) {
+    if (!whatsappClient?.info) {
       return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
     }
 
     const resultado = await grupoService.sincronizarGrupos(whatsappClient);
     res.json({ success: true, data: resultado });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    const msg = error?.message || String(error);
+    console.error('❌ API sincronizar grupos:', msg);
+    res.status(500).json({ success: false, error: msg });
   }
 });
 

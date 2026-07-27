@@ -6,72 +6,147 @@ let cacheGrupos = null;
 let cacheTimestamp = null;
 const CACHE_TTL = 30000; // 30 segundos
 
+/**
+ * Lista grupos de forma resiliente.
+ * getChats() quebra em versões novas do WhatsApp Web (GroupMetadata.update undefined).
+ * Fallback lê Store.Chat direto, sem forçar update de metadata.
+ */
+async function listarGruposDoWhatsapp(client) {
+  // 1) Tenta API oficial
+  try {
+    const chats = await client.getChats();
+    return chats
+      .filter((c) => c?.isGroup && String(c.id?._serialized || '').endsWith('@g.us'))
+      .map((c) => ({
+        grupoId: c.id._serialized,
+        nome: c.name || c.formattedTitle || c.id._serialized,
+        participantes: c.participants?.length || 0,
+        chatObj: c
+      }));
+  } catch (e) {
+    console.warn('⚠️ client.getChats() falhou, usando fallback Store.Chat:', e.message || e);
+  }
+
+  // 2) Fallback via Puppeteer / Store interno
+  if (!client.pupPage) {
+    throw new Error('WhatsApp Web não disponível (pupPage ausente)');
+  }
+
+  const raw = await client.pupPage.evaluate(() => {
+    const out = [];
+    try {
+      const chats = window.Store?.Chat?.getModelsArray?.() || [];
+      for (const chat of chats) {
+        try {
+          const id = chat.id?._serialized || '';
+          if (!id.endsWith('@g.us')) continue;
+          // Ignora canais/newsletter se algum id estranho passar
+          if (id.includes('@newsletter') || id.includes('@broadcast')) continue;
+
+          let participantes = 0;
+          try {
+            const parts = chat.groupMetadata?.participants;
+            if (parts?.getModelsArray) participantes = parts.getModelsArray().length;
+            else if (parts?._models) participantes = parts._models.length;
+            else if (Array.isArray(parts)) participantes = parts.length;
+          } catch (_) { /* metadata não carregada */ }
+
+          out.push({
+            grupoId: id,
+            nome: chat.formattedTitle || chat.name || id,
+            participantes
+          });
+        } catch (_) { /* chat individual inválido */ }
+      }
+    } catch (err) {
+      return { __error: err?.message || String(err) };
+    }
+    return out;
+  });
+
+  if (raw && raw.__error) {
+    throw new Error('Fallback Store.Chat falhou: ' + raw.__error);
+  }
+
+  return (Array.isArray(raw) ? raw : []).map((g) => ({
+    grupoId: g.grupoId,
+    nome: g.nome,
+    participantes: g.participantes || 0,
+    chatObj: null
+  }));
+}
+
 async function sincronizarGrupos(client) {
   console.log('🔄 Iniciando sincronização de grupos do WhatsApp...');
 
   try {
-    const chats = await client.getChats();
-    const grupos = chats.filter(chat => chat.isGroup);
+    if (!client?.info) {
+      throw new Error('WhatsApp não conectado ainda');
+    }
 
+    const grupos = await listarGruposDoWhatsapp(client);
     console.log(`📋 Encontrados ${grupos.length} grupos`);
 
     let novos = 0;
     let atualizados = 0;
     let linksObtidos = 0;
     let linksManuais = 0;
+    let errosIndividuais = 0;
 
-    for (const grupo of grupos) {
-      const grupoId = grupo.id._serialized;
-      const nome = grupo.name;
-      const participantes = grupo.participants?.length || 0;
-
-      // Busca grupo existente no banco
-      const grupoExistente = await GrupoWhatsapp.findOne({ where: { grupoId } });
-      const linkExistente = grupoExistente?.linkConvite;
-
-      // Tenta obter link de convite automaticamente
-      let linkConvite = null;
+    for (const g of grupos) {
       try {
-        const inviteCode = await grupo.getInviteCode();
-        if (inviteCode) {
-          linkConvite = `https://chat.whatsapp.com/${inviteCode}`;
-          linksObtidos++;
-          console.log(`🔗 Link obtido automaticamente: ${nome}`);
+        const grupoId = g.grupoId;
+        const nome = g.nome;
+        let participantes = g.participantes || 0;
+
+        // Se temos o objeto Chat, tenta participantes e link
+        let linkConvite = null;
+        if (g.chatObj) {
+          try {
+            participantes = g.chatObj.participants?.length || participantes;
+          } catch (_) { /* ignore */ }
+          try {
+            const inviteCode = await g.chatObj.getInviteCode();
+            if (inviteCode) {
+              linkConvite = `https://chat.whatsapp.com/${inviteCode}`;
+              linksObtidos++;
+              console.log(`🔗 Link obtido automaticamente: ${nome}`);
+            }
+          } catch (_) {
+            // Sem permissão de admin
+          }
         }
-      } catch (e) {
-        // Não é admin do grupo, não consegue pegar o link automaticamente
-      }
 
-      // Se não conseguiu obter link automaticamente, mantém o existente (manual)
-      const linkFinal = linkConvite || linkExistente;
-      if (!linkConvite && linkExistente) {
-        linksManuais++;
-      }
+        const grupoExistente = await GrupoWhatsapp.findOne({ where: { grupoId } });
+        const linkExistente = grupoExistente?.linkConvite;
+        const linkFinal = linkConvite || linkExistente || null;
+        if (!linkConvite && linkExistente) linksManuais++;
 
-      if (!grupoExistente) {
-        // Criar novo grupo
-        await GrupoWhatsapp.create({
-          grupoId,
-          nome,
-          participantes,
-          linkConvite: linkFinal,
-          ultimaSincronizacao: new Date()
-        });
-        novos++;
-        console.log(`➕ Novo grupo: ${nome} ${linkFinal ? '✅' : '⚠️ sem link'}`);
-      } else {
-        // Atualizar grupo existente
-        await grupoExistente.update({
-          nome,
-          participantes,
-          linkConvite: linkFinal,
-          ultimaSincronizacao: new Date()
-        });
-        atualizados++;
+        if (!grupoExistente) {
+          await GrupoWhatsapp.create({
+            grupoId,
+            nome,
+            participantes,
+            linkConvite: linkFinal,
+            ultimaSincronizacao: new Date()
+          });
+          novos++;
+          console.log(`➕ Novo grupo: ${nome} ${linkFinal ? '✅' : '⚠️ sem link'}`);
+        } else {
+          await grupoExistente.update({
+            nome,
+            participantes,
+            linkConvite: linkFinal,
+            ultimaSincronizacao: new Date()
+          });
+          atualizados++;
+        }
+      } catch (eGrupo) {
+        errosIndividuais++;
+        console.warn(`⚠️ Falha ao sincronizar grupo ${g?.grupoId || '?'}:`, eGrupo.message || eGrupo);
       }
     }
 
-    // Invalida cache
     cacheTimestamp = null;
 
     console.log(`\n✅ Sincronização concluída:`);
@@ -80,18 +155,21 @@ async function sincronizarGrupos(client) {
     console.log(`   🔄 Atualizados: ${atualizados}`);
     console.log(`   🔗 Links automáticos: ${linksObtidos}`);
     console.log(`   ✋ Links manuais preservados: ${linksManuais}`);
+    if (errosIndividuais) console.log(`   ⚠️ Erros individuais: ${errosIndividuais}`);
 
     return {
       total: grupos.length,
       novos,
       atualizados,
       linksObtidos,
-      linksManuais
+      linksManuais,
+      errosIndividuais
     };
-
   } catch (error) {
-    console.error('❌ Erro na sincronização:', error.message);
-    throw error;
+    const msg = error?.message || String(error);
+    console.error('❌ Erro na sincronização:', msg);
+    if (error?.stack) console.error(error.stack);
+    throw new Error(msg);
   }
 }
 

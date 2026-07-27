@@ -605,6 +605,9 @@ client.on('message', async (msg) => {
   // ❌ Ignorar mensagens de status (broadcasts)
   if (msg.from === 'status@broadcast') return;
 
+  // ❌ Ignorar canais / newsletter do WhatsApp
+  if (String(msg.from || '').includes('@newsletter')) return;
+
   // ❌ Ignorar mensagens enviadas pelo próprio bot
   if (msg.fromMe) return;
 

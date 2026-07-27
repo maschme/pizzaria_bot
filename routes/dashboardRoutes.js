@@ -259,7 +259,9 @@ router.get('/grupos/:grupoId/participantes', async (req, res) => {
     );
     res.json({ success: true, ...resultado });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    const msg = error?.message || String(error) || 'Erro ao extrair participantes';
+    console.error('❌ API participantes JSON:', msg);
+    res.status(400).json({ success: false, error: msg });
   }
 });
 
@@ -273,6 +275,9 @@ router.get('/grupos/:grupoId/participantes/csv', async (req, res) => {
       whatsappClient,
       decodeURIComponent(req.params.grupoId)
     );
+    if (!participantes.length) {
+      console.warn(`⚠️ Grupo ${grupo.grupoId} sem participantes na metadata`);
+    }
     const csv = grupoService.participantesParaCsv(grupo, participantes);
     const slug = grupoService.slugArquivo(grupo.nome);
     const data = new Date().toISOString().slice(0, 10);
@@ -281,7 +286,10 @@ router.get('/grupos/:grupoId/participantes/csv', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    const msg = error?.message || String(error) || 'Erro ao exportar CSV';
+    console.error('❌ API participantes CSV:', msg);
+    if (error?.stack) console.error(error.stack);
+    res.status(400).json({ success: false, error: msg });
   }
 });
 

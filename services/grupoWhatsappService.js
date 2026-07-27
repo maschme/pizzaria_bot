@@ -366,6 +366,140 @@ function escaparCsv(valor) {
 }
 
 /**
+ * Extrai participantes via Store interno (evita getChatById / GroupMetadata.update).
+ */
+async function extrairParticipantesViaStore(client, grupoId) {
+  if (!client.pupPage) throw new Error('WhatsApp Web não disponível (pupPage ausente)');
+
+  const raw = await client.pupPage.evaluate(async (gid) => {
+    try {
+      const chats = window.Store?.Chat?.getModelsArray?.() || [];
+      let chatModel = chats.find((c) => c.id?._serialized === gid) || null;
+
+      if (!chatModel && window.Store?.WidFactory) {
+        try {
+          const wid = window.Store.WidFactory.createWid(gid);
+          chatModel = window.Store.Chat.get(wid) || null;
+        } catch (_) { /* ignore */ }
+      }
+
+      if (!chatModel) {
+        return { ok: false, error: 'Grupo não encontrado no WhatsApp (abra o grupo no celular e tente de novo)' };
+      }
+
+      // Tenta atualizar metadata com API nova (sem GroupMetadata.update quebrado)
+      try {
+        if (window.Store?.GroupMetadata?.compare && chatModel.id) {
+          // no-op: só garante módulo carregado
+        }
+        const queryFn =
+          window.Store?.GroupQueryAndUpdate ||
+          window.Store?.queryAndUpdateGroupMetadataById ||
+          (window.mR && window.mR.findModule && window.mR.findModule('queryAndUpdateGroupMetadataById')?.[0]?.queryAndUpdateGroupMetadataById);
+
+        if (typeof queryFn === 'function') {
+          await queryFn(gid);
+        } else if (typeof window.require === 'function') {
+          try {
+            const job = window.require('WAWebGroupQueryJob');
+            if (job?.queryAndUpdateGroupMetadataById) {
+              await job.queryAndUpdateGroupMetadataById(gid);
+            }
+          } catch (_) { /* ignore */ }
+        }
+      } catch (_) {
+        // segue com metadata já carregada em memória
+      }
+
+      // Recarrega chat após possível update
+      const chats2 = window.Store?.Chat?.getModelsArray?.() || [];
+      chatModel = chats2.find((c) => c.id?._serialized === gid) || chatModel;
+
+      const nomeGrupo = chatModel.formattedTitle || chatModel.name || gid;
+      const meta = chatModel.groupMetadata;
+      if (!meta || !meta.participants) {
+        return {
+          ok: false,
+          error: 'Metadados do grupo não carregados. Abra o grupo no WhatsApp do celular e tente novamente.'
+        };
+      }
+
+      let list = [];
+      try {
+        if (meta.participants.getModelsArray) list = meta.participants.getModelsArray();
+        else if (meta.participants._models) list = meta.participants._models;
+        else if (Array.isArray(meta.participants)) list = meta.participants;
+      } catch (e) {
+        return { ok: false, error: 'Falha ao ler participantes: ' + (e?.message || String(e)) };
+      }
+
+      const apenasDigitos = (s) => String(s || '').replace(/\D/g, '');
+      const participantes = list.map((p) => {
+        const id = p.id?._serialized || '';
+        const contact = p.contact;
+        let numero = '';
+        let nome = '';
+        let pushname = '';
+
+        if (contact) {
+          nome = contact.name || contact.pushname || contact.shortName || '';
+          pushname = contact.pushname || '';
+          if (contact.phoneNumber) {
+            const pn = contact.phoneNumber._serialized || contact.phoneNumber.user || contact.phoneNumber;
+            numero = apenasDigitos(pn);
+          } else if (contact.number) {
+            numero = apenasDigitos(contact.number);
+          }
+        }
+
+        if (!numero && id.endsWith('@c.us')) numero = apenasDigitos(id);
+
+        // Em contas @lid, às vezes o PN está em contact.phoneNumber
+        if (!numero && p.id?.user && String(id).includes('@lid') && contact?.phoneNumber) {
+          numero = apenasDigitos(contact.phoneNumber.user || contact.phoneNumber);
+        }
+
+        return {
+          whatsapp_id: id,
+          numero,
+          nome,
+          pushname,
+          whatsapp_lid: id.includes('@lid') ? id : '',
+          is_admin: !!(p.isAdmin || p.isSuperAdmin),
+          is_super_admin: !!p.isSuperAdmin
+        };
+      });
+
+      return {
+        ok: true,
+        grupo: { grupoId: gid, nome: nomeGrupo, total: participantes.length },
+        participantes
+      };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  }, grupoId);
+
+  if (!raw || !raw.ok) {
+    throw new Error(raw?.error || 'Falha ao extrair participantes via Store');
+  }
+  return raw;
+}
+
+function formatarErroWhatsapp(error) {
+  if (!error) return 'Erro desconhecido';
+  if (typeof error === 'string') return error;
+  let msg = error.message || error.msg || '';
+  if (!msg && error.name) msg = error.name;
+  if (!msg) msg = String(error);
+  // Erros do Puppeteer costumam ser longos; mantém o essencial
+  if (msg.includes("reading 'update'")) {
+    return 'Falha interna do WhatsApp Web (getChatById/GroupMetadata). Usando método alternativo ou abra o grupo no celular.';
+  }
+  return msg.length > 400 ? msg.slice(0, 400) + '...' : msg;
+}
+
+/**
  * Extrai participantes de um grupo WhatsApp (ao vivo via client).
  * @param {import('whatsapp-web.js').Client} client
  * @param {string} grupoId - ex.: 120363...@g.us
@@ -378,41 +512,46 @@ async function extrairParticipantesGrupo(client, grupoId) {
     throw new Error('grupoId inválido (esperado ...@g.us)');
   }
 
-  const chat = await client.getChatById(id);
-  if (!chat || !chat.isGroup) {
-    throw new Error('Chat não encontrado ou não é um grupo');
+  console.log(`📇 Extraindo participantes do grupo: ${id}`);
+
+  // Método principal: Store (resiliente às mudanças do WhatsApp Web)
+  try {
+    const viaStore = await extrairParticipantesViaStore(client, id);
+    const participantes = viaStore.participantes || [];
+    participantes.sort((a, b) => {
+      if (a.is_super_admin !== b.is_super_admin) return a.is_super_admin ? -1 : 1;
+      if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
+      return (a.nome || a.numero || '').localeCompare(b.nome || b.numero || '', 'pt-BR');
+    });
+    console.log(`✅ Extraídos ${participantes.length} participantes de "${viaStore.grupo.nome}"`);
+    return {
+      grupo: { ...viaStore.grupo, total: participantes.length },
+      participantes
+    };
+  } catch (eStore) {
+    console.warn('⚠️ Extração via Store falhou:', formatarErroWhatsapp(eStore));
   }
 
-  const participantesRaw = chat.participants || [];
-  const participantes = [];
+  // Fallback legado (pode falhar no WhatsApp Web atual)
+  try {
+    const chat = await client.getChatById(id);
+    if (!chat || !chat.isGroup) {
+      throw new Error('Chat não encontrado ou não é um grupo');
+    }
 
-  // Resolve contatos em lotes para não sobrecarregar o WhatsApp Web
-  const BATCH = 15;
-  for (let i = 0; i < participantesRaw.length; i += BATCH) {
-    const lote = participantesRaw.slice(i, i + BATCH);
-    const resolvidos = await Promise.all(lote.map(async (p) => {
+    const participantesRaw = chat.participants || [];
+    const participantes = [];
+    for (const p of participantesRaw) {
       const contactId = p.id?._serialized || (typeof p.id === 'string' ? p.id : null);
       let nome = '';
       let pushname = '';
       let numero = '';
       let whatsappLid = '';
-
       if (contactId) {
         if (String(contactId).includes('@lid')) whatsappLid = contactId;
-        try {
-          const contact = await client.getContactById(contactId);
-          nome = contact?.name || contact?.pushname || contact?.shortName || '';
-          pushname = contact?.pushname || '';
-          if (contact?.number) numero = apenasDigitos(contact.number);
-        } catch (_) {
-          // contato sem resolução (privacidade / @lid)
-        }
-        if (!numero && String(contactId).endsWith('@c.us')) {
-          numero = apenasDigitos(contactId);
-        }
+        if (String(contactId).endsWith('@c.us')) numero = apenasDigitos(contactId);
       }
-
-      return {
+      participantes.push({
         whatsapp_id: contactId || '',
         numero,
         nome,
@@ -420,25 +559,24 @@ async function extrairParticipantesGrupo(client, grupoId) {
         whatsapp_lid: whatsappLid,
         is_admin: !!p.isAdmin,
         is_super_admin: !!p.isSuperAdmin
-      };
-    }));
-    participantes.push(...resolvidos);
+      });
+    }
+
+    console.log(`✅ Extraídos ${participantes.length} participantes (fallback getChatById)`);
+    return {
+      grupo: {
+        grupoId: chat.id._serialized,
+        nome: chat.name || chat.formattedTitle || id,
+        total: participantes.length
+      },
+      participantes
+    };
+  } catch (eLegacy) {
+    const msg = formatarErroWhatsapp(eLegacy);
+    console.error('❌ Extração de participantes falhou:', msg);
+    if (eLegacy?.stack) console.error(eLegacy.stack);
+    throw new Error(msg);
   }
-
-  participantes.sort((a, b) => {
-    if (a.is_super_admin !== b.is_super_admin) return a.is_super_admin ? -1 : 1;
-    if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
-    return (a.nome || a.numero || '').localeCompare(b.nome || b.numero || '', 'pt-BR');
-  });
-
-  return {
-    grupo: {
-      grupoId: chat.id._serialized,
-      nome: chat.name || chat.formattedTitle || id,
-      total: participantes.length
-    },
-    participantes
-  };
 }
 
 /**

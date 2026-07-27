@@ -1219,10 +1219,12 @@
       showToast('Extraindo participantes... pode demorar em grupos grandes', 'info');
       try {
         const res = await fetch(`${API_BASE}/grupos/${encodeURIComponent(grupoId)}/participantes/csv`);
-        const contentType = res.headers.get('content-type') || '';
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
         if (!res.ok || contentType.includes('application/json')) {
-          const err = await res.json().catch(() => ({ error: 'Erro ao exportar' }));
-          showToast(err.error || 'Erro ao exportar CSV', 'danger');
+          const err = await res.json().catch(() => ({}));
+          const msg = err.error || err.message || (`HTTP ${res.status}`) || 'Erro ao exportar CSV';
+          console.error('Export CSV falhou:', msg, err);
+          showToast(String(msg), 'danger');
           return;
         }
         const blob = await res.blob();
@@ -1240,7 +1242,8 @@
         URL.revokeObjectURL(url);
         showToast('CSV baixado com sucesso');
       } catch (e) {
-        showToast('Erro de conexão ao exportar', 'danger');
+        console.error('Export CSV conexão:', e);
+        showToast('Erro de conexão ao exportar: ' + (e.message || e), 'danger');
       }
     }
     async function toggleGatilho(id, ativo) {

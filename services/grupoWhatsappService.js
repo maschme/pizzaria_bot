@@ -276,6 +276,134 @@ function invalidarCache() {
   cacheGrupos = null;
 }
 
+function apenasDigitos(s) {
+  if (s == null) return '';
+  return String(s).replace(/\D/g, '');
+}
+
+function escaparCsv(valor) {
+  const s = valor == null ? '' : String(valor);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+/**
+ * Extrai participantes de um grupo WhatsApp (ao vivo via client).
+ * @param {import('whatsapp-web.js').Client} client
+ * @param {string} grupoId - ex.: 120363...@g.us
+ * @returns {Promise<{ grupo: Object, participantes: Array }>}
+ */
+async function extrairParticipantesGrupo(client, grupoId) {
+  if (!client?.info) throw new Error('WhatsApp não conectado');
+  const id = decodeURIComponent(String(grupoId || '').trim());
+  if (!id || !id.includes('@g.us')) {
+    throw new Error('grupoId inválido (esperado ...@g.us)');
+  }
+
+  const chat = await client.getChatById(id);
+  if (!chat || !chat.isGroup) {
+    throw new Error('Chat não encontrado ou não é um grupo');
+  }
+
+  const participantesRaw = chat.participants || [];
+  const participantes = [];
+
+  // Resolve contatos em lotes para não sobrecarregar o WhatsApp Web
+  const BATCH = 15;
+  for (let i = 0; i < participantesRaw.length; i += BATCH) {
+    const lote = participantesRaw.slice(i, i + BATCH);
+    const resolvidos = await Promise.all(lote.map(async (p) => {
+      const contactId = p.id?._serialized || (typeof p.id === 'string' ? p.id : null);
+      let nome = '';
+      let pushname = '';
+      let numero = '';
+      let whatsappLid = '';
+
+      if (contactId) {
+        if (String(contactId).includes('@lid')) whatsappLid = contactId;
+        try {
+          const contact = await client.getContactById(contactId);
+          nome = contact?.name || contact?.pushname || contact?.shortName || '';
+          pushname = contact?.pushname || '';
+          if (contact?.number) numero = apenasDigitos(contact.number);
+        } catch (_) {
+          // contato sem resolução (privacidade / @lid)
+        }
+        if (!numero && String(contactId).endsWith('@c.us')) {
+          numero = apenasDigitos(contactId);
+        }
+      }
+
+      return {
+        whatsapp_id: contactId || '',
+        numero,
+        nome,
+        pushname,
+        whatsapp_lid: whatsappLid,
+        is_admin: !!p.isAdmin,
+        is_super_admin: !!p.isSuperAdmin
+      };
+    }));
+    participantes.push(...resolvidos);
+  }
+
+  participantes.sort((a, b) => {
+    if (a.is_super_admin !== b.is_super_admin) return a.is_super_admin ? -1 : 1;
+    if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
+    return (a.nome || a.numero || '').localeCompare(b.nome || b.numero || '', 'pt-BR');
+  });
+
+  return {
+    grupo: {
+      grupoId: chat.id._serialized,
+      nome: chat.name || chat.formattedTitle || id,
+      total: participantes.length
+    },
+    participantes
+  };
+}
+
+/**
+ * Converte lista de participantes em CSV (UTF-8 com BOM para Excel).
+ */
+function participantesParaCsv(grupo, participantes) {
+  const header = [
+    'grupo_id',
+    'grupo_nome',
+    'numero',
+    'whatsapp_id',
+    'whatsapp_lid',
+    'nome',
+    'pushname',
+    'is_admin',
+    'is_super_admin'
+  ];
+  const linhas = [header.join(',')];
+  for (const p of participantes) {
+    linhas.push([
+      escaparCsv(grupo.grupoId),
+      escaparCsv(grupo.nome),
+      escaparCsv(p.numero),
+      escaparCsv(p.whatsapp_id),
+      escaparCsv(p.whatsapp_lid),
+      escaparCsv(p.nome),
+      escaparCsv(p.pushname),
+      escaparCsv(p.is_admin ? '1' : '0'),
+      escaparCsv(p.is_super_admin ? '1' : '0')
+    ].join(','));
+  }
+  return `\uFEFF${linhas.join('\r\n')}`;
+}
+
+function slugArquivo(nome) {
+  return String(nome || 'grupo')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\-]+/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 48) || 'grupo';
+}
+
 module.exports = {
   sincronizarGrupos,
   listarGrupos,
@@ -287,5 +415,8 @@ module.exports = {
   definirGrupoGeral,
   isGrupoCampanha,
   getEstatisticas,
-  invalidarCache
+  invalidarCache,
+  extrairParticipantesGrupo,
+  participantesParaCsv,
+  slugArquivo
 };

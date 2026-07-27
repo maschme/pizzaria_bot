@@ -1148,7 +1148,7 @@
           <td><div class="d-flex align-items-center gap-1"><input type="text" class="form-control form-control-modern form-control-sm" value="${g.linkConvite || ''}" placeholder="Link" id="link-${g.grupoId.replace(/[@.]/g, '_')}" style="min-width:180px"><button class="btn btn-sm btn-outline-primary" onclick="salvarLink('${g.grupoId}')"><i class="bi bi-save"></i></button>${g.linkConvite ? '<span class="badge bg-success"><i class="bi bi-check"></i></span>' : '<span class="badge bg-danger pulse"><i class="bi bi-exclamation-triangle"></i></span>'}</div></td>
           <td>${g.participantes || 0}</td>
           <td><span class="badge bg-secondary">${g.tipo || '-'}</span></td>
-          <td><div class="btn-group">${g.ativo ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleGrupo('${g.grupoId}', false)"><i class="bi bi-x"></i></button>` : `<button class="btn btn-sm btn-outline-success" onclick="toggleGrupo('${g.grupoId}', true)"><i class="bi bi-check"></i></button>`}${!g.isGrupoGeral ? ` <button class="btn btn-sm btn-outline-warning" onclick="definirGeral('${g.grupoId}')" title="Geral"><i class="bi bi-star"></i></button>` : ''}</div></td>
+          <td><div class="btn-group">${g.ativo ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleGrupo('${g.grupoId}', false)" title="Desativar"><i class="bi bi-x"></i></button>` : `<button class="btn btn-sm btn-outline-success" onclick="toggleGrupo('${g.grupoId}', true)" title="Ativar"><i class="bi bi-check"></i></button>`}${!g.isGrupoGeral ? ` <button class="btn btn-sm btn-outline-warning" onclick="definirGeral('${g.grupoId}')" title="Definir como geral"><i class="bi bi-star"></i></button>` : ''} <button class="btn btn-sm btn-outline-info" onclick="exportarParticipantesCsv('${g.grupoId}')" title="Exportar participantes CSV"><i class="bi bi-filetype-csv"></i></button></div></td>
         </tr>
       `).join('');
     }
@@ -1213,6 +1213,35 @@
       if (!input?.value.trim()) { showToast('Digite o link', 'warning'); return; }
       const data = await api(`/grupos/${encodeURIComponent(grupoId)}/link`, { method: 'POST', body: JSON.stringify({ linkConvite: input.value.trim() }) });
       if (data.success) { showToast('Link salvo'); carregarGrupos(); }
+    }
+
+    async function exportarParticipantesCsv(grupoId) {
+      showToast('Extraindo participantes... pode demorar em grupos grandes', 'info');
+      try {
+        const res = await fetch(`${API_BASE}/grupos/${encodeURIComponent(grupoId)}/participantes/csv`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok || contentType.includes('application/json')) {
+          const err = await res.json().catch(() => ({ error: 'Erro ao exportar' }));
+          showToast(err.error || 'Erro ao exportar CSV', 'danger');
+          return;
+        }
+        const blob = await res.blob();
+        let filename = 'participantes.csv';
+        const disp = res.headers.get('content-disposition') || '';
+        const match = disp.match(/filename="?([^"]+)"?/i);
+        if (match) filename = match[1];
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('CSV baixado com sucesso');
+      } catch (e) {
+        showToast('Erro de conexão ao exportar', 'danger');
+      }
     }
     async function toggleGatilho(id, ativo) {
       const data = await api(`/gatilhos/${id}/${ativo ? 'ativar' : 'desativar'}`, { method: 'POST' });

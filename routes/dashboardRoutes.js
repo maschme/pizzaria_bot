@@ -245,6 +245,44 @@ router.post('/grupos/:grupoId/definir-geral', async (req, res) => {
   }
 });
 
+// Extrair participantes do grupo (JSON)
+router.get('/grupos/:grupoId/participantes', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
+    }
+    const resultado = await grupoService.extrairParticipantesGrupo(
+      whatsappClient,
+      decodeURIComponent(req.params.grupoId)
+    );
+    res.json({ success: true, ...resultado });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Extrair participantes do grupo (CSV para download)
+router.get('/grupos/:grupoId/participantes/csv', async (req, res) => {
+  try {
+    if (!whatsappClient?.info) {
+      return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
+    }
+    const { grupo, participantes } = await grupoService.extrairParticipantesGrupo(
+      whatsappClient,
+      decodeURIComponent(req.params.grupoId)
+    );
+    const csv = grupoService.participantesParaCsv(grupo, participantes);
+    const slug = grupoService.slugArquivo(grupo.nome);
+    const data = new Date().toISOString().slice(0, 10);
+    const filename = `participantes-${slug}-${data}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================
 // 🎯 GATILHOS
 // ============================================================

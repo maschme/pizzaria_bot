@@ -175,18 +175,25 @@ class EvolutionClient extends EventEmitter {
       estado = 'erro';
     }
 
-    if (estado === 'open' && this._estadoAtual !== 'open') {
-      await this._carregarInfo();
-      this._estadoAtual = 'open';
-      this.emit('ready');
-    } else if (estado !== 'open' && (this._estadoAtual === 'open' || primeiraVez)) {
-      this._estadoAtual = estado;
-      this.info = null;
-      if (!primeiraVez) this.emit('disconnected', estado);
-      await this._solicitarQr();
-    } else {
-      this._estadoAtual = estado;
+    if (estado === 'open') {
+      if (this._estadoAtual !== 'open') {
+        await this._carregarInfo();
+        this._estadoAtual = 'open';
+        this.emit('ready');
+      }
+      return;
     }
+
+    // Desconectado: emite 'disconnected' na transição e RENOVA o QR a cada
+    // checagem (o QR do WhatsApp expira em ~40s; sem renovação o dashboard
+    // exibiria um QR morto e o scan falharia).
+    const estavaConectado = this._estadoAtual === 'open';
+    this._estadoAtual = estado;
+    if (estavaConectado) {
+      this.info = null;
+      this.emit('disconnected', estado);
+    }
+    await this._solicitarQr();
   }
 
   async _carregarInfo() {
@@ -207,7 +214,24 @@ class EvolutionClient extends EventEmitter {
     try {
       const { data } = await this.http.get(this._instPath('/instance/connect'));
       const code = data?.code || data?.qrcode?.code;
-      if (code) this.emit('qr', code);
+      if (code) {
+        this._qrVazios = 0;
+        this.emit('qr', code);
+        return;
+      }
+      // Sem QR e sem conexão: instância pode ter travado após um scan falho.
+      this._qrVazios = (this._qrVazios || 0) + 1;
+      if (this._qrVazios >= 3) {
+        this._qrVazios = 0;
+        console.warn('🔁 [Evolution] Instância sem QR e sem conexão — reiniciando instância...');
+        try {
+          await this.http.put(this._instPath('/instance/restart'));
+        } catch (ePut) {
+          await this.http.post(this._instPath('/instance/restart')).catch((ePost) => {
+            console.warn('⚠️ [Evolution] restart da instância falhou:', ePost.response?.status || ePost.message);
+          });
+        }
+      }
     } catch (e) {
       console.warn('⚠️ [Evolution] connect/QR:', e.response?.data?.response?.message || e.message);
     }

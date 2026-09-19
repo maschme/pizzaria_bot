@@ -59,7 +59,7 @@ Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado a uma
 | ✅ Remover API keys dos seeds | `QWEN_API_KEY`/`OPENROUTER_API_KEY` no `.env` (setup.js e ias.js) — feito 19/09/2026. **Pendente: rotacionar as chaves antigas expostas no histórico do git** |
 | ✅ Unificar conexão Sequelize | 5 models legados migrados para `database/connection.js` — feito 19/09/2026 |
 | ✅ Remover código morto | `BotIcopia.js` e `roteadorMensagens.js` removidos; funções mortas de `ias.js` limpas — 19/09/2026. Pendente: consolidar `ias.js` no `provedorIAService` |
-| Persistir sessões de campanha | Tabela `sessoes_campanha` em MySQL (hoje `Map` em memória) |
+| ✅ Persistir sessões de campanha | Tabela `sessoes_campanha` (JSON) com write-through + flush periódico; restauração no boot; retenção 30 dias — feito 19/09/2026. Restart não perde mais o progresso da campanha |
 
 ### Fase 1 — Instância provisionável e monitorada (2–4 semanas)
 

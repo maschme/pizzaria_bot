@@ -606,7 +606,10 @@ async function iniciarServidor() {
     
     // Carrega fluxos visuais do banco
     await fluxoService.carregarFluxos();
-    
+
+    // Restaura sessões da campanha persistidas (cria a tabela se necessário)
+    await sessaoCampanhaService.carregarDoBanco();
+
     // Inicia o servidor HTTP
     app.listen(port, () => {
       console.log(`\n🚀 Servidor rodando em http://localhost:${port}`);
@@ -729,6 +732,7 @@ client.on('message', async (msg) => {
         await fluxoExecutor.processarMensagemFluxo(numero, mensagemFinal);
       } else if (modoAtual === 'campanha') {
         await processarCampanhaDesconto(numero, mensagemFinal, lastMsg, false);
+        sessaoCampanhaService.salvar(numero);
       } else {
         const atendimentoAtivo = await configService.getConfiguracao('atendimento_automatico');
         if (!atendimentoAtivo) {
@@ -756,7 +760,7 @@ client.on('message', async (msg) => {
           try {
             const modo = stateAgain?.mode || 'atendimento';
             if (modo === 'fluxo') await fluxoExecutor.processarMensagemFluxo(numero, txtPendente);
-            else if (modo === 'campanha') await processarCampanhaDesconto(numero, txtPendente, stateAgain?.lastMsg || lastMsg, false);
+            else if (modo === 'campanha') { await processarCampanhaDesconto(numero, txtPendente, stateAgain?.lastMsg || lastMsg, false); sessaoCampanhaService.salvar(numero); }
             else await processarMensagem(numero, txtPendente, stateAgain?.lastMsg || lastMsg);
           } catch (e) {
             console.error('❌ Erro no reprocessamento:', e);
@@ -818,6 +822,7 @@ async function processarGatilho(gatilhoDetectado, numero, texto, msg) {
   switch (tipo) {
     case 'campanha_desconto':
       await processarCampanhaDesconto(numero, texto, msg, true);
+      sessaoCampanhaService.salvar(numero);
       break;
 
     default:
@@ -1170,6 +1175,7 @@ async function processarContatosIndicados(numero, msg, sessao) {
     console.error('❌ Erro ao registrar indicações:', err);
     if (msg.reply) await msg.reply('Ocorreu um erro ao salvar os contatos. Tente de novo.');
   }
+  sessaoCampanhaService.salvar(numero);
 }
 
 //#########################################################################
@@ -1474,6 +1480,8 @@ client.on('group_join', async (notification) => {
 🔥 *Quer chegar a 30%?* Envie *10 contatos* da sua agenda! Cada indicado ganha *10% de desconto* na 1ª compra.
 
 *Como:* contato → ⋮ → Compartilhar contato → envie aqui. Pode enviar um por um ou vários. Meta: *10 indicações* 📇`;
+
+          sessaoCampanhaService.salvar(numeroFormatado);
 
           try {
             await client.sendMessage(numeroFormatado, msgSucesso);

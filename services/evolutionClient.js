@@ -102,6 +102,8 @@ class EvolutionClient extends EventEmitter {
     this._lidParaPn = new Map();    // cache LID -> telefone (aprendido dos webhooks)
     this._chatsCache = null;
     this._chatsCacheEm = 0;
+    this._gruposCache = null;
+    this._gruposCacheEm = 0;
     this._pollTimer = null;
     this._estadoAtual = 'desconhecido';
 
@@ -262,6 +264,10 @@ class EvolutionClient extends EventEmitter {
     const vCards = extrairVcards(message);
     const body = extrairTexto(message) || (vCards.length ? vCards.join('\n') : '');
     const self = this;
+
+    if (!key.fromMe) {
+      console.log(`📩 [Evolution] msg recebida de ${from} (${tipo})`);
+    }
 
     const msg = {
       id: { _serialized: key.id || '' },
@@ -444,46 +450,60 @@ class EvolutionClient extends EventEmitter {
     }
   }
 
-  async getChats() {
-    // cache curto para evitar marteladas (chatService chama com frequência)
-    if (this._chatsCache && Date.now() - this._chatsCacheEm < 30000) return this._chatsCache;
-
-    const chats = [];
-
-    // Grupos (com participantes — necessário para sincronização/CSV)
+  async _buscarGrupos() {
+    // Grupos mudam pouco: cache de 5 min. Participantes NÃO são buscados aqui
+    // (em conta grande isso levava minutos) — `participants` vira placeholder com
+    // o tamanho certo (Array(size)), suficiente para contagens; a lista real vem
+    // por getChatById(grupo) quando algum fluxo precisar (ex.: exportar CSV).
+    if (this._gruposCache && Date.now() - this._gruposCacheEm < 300000) return this._gruposCache;
     try {
-      const { data } = await this.http.get(this._instPath('/group/fetchAllGroups') + '?getParticipants=false', { timeout: 60000 });
-      const grupos = Array.isArray(data) ? data : [];
-      for (const g of grupos) {
-        const participants = await this._participantesGrupo(g.id);
-        chats.push(this._criarChatObj({
-          chatId: g.id,
-          nome: g.subject || g.id,
-          participants,
-          timestamp: g.creation || 0
-        }));
-      }
+      const { data } = await this.http.get(
+        this._instPath('/group/fetchAllGroups') + '?getParticipants=false',
+        { timeout: 45000 }
+      );
+      const grupos = (Array.isArray(data) ? data : []).map((g) => this._criarChatObj({
+        chatId: g.id,
+        nome: g.subject || g.id,
+        participants: new Array(Number(g.size) || 0),
+        timestamp: g.creation || 0
+      }));
+      this._gruposCache = grupos;
+      this._gruposCacheEm = Date.now();
+      return grupos;
     } catch (e) {
       console.warn('⚠️ [Evolution] fetchAllGroups:', e.response?.data?.response?.message || e.message);
+      return this._gruposCache || [];
     }
+  }
 
-    // Conversas individuais
+  async _buscarConversas() {
     try {
-      const { data } = await this.http.post(this._instPath('/chat/findChats'), {});
+      const { data } = await this.http.post(this._instPath('/chat/findChats'), {}, { timeout: 45000 });
       const lista = Array.isArray(data) ? data : (data?.records || []);
+      const out = [];
       for (const c of lista) {
         const jid = c.remoteJid || c.id;
         if (!jid || String(jid).endsWith('@g.us')) continue;
-        chats.push(this._criarChatObj({
+        out.push(this._criarChatObj({
           chatId: paraCUs(jid),
           nome: c.pushName || c.name || paraCUs(jid),
-          naoLidas: c.unreadCount || 0,
+          naoLidas: c.unreadCount || c.unreadMessages || 0,
           timestamp: c.updatedAt ? Math.floor(new Date(c.updatedAt).getTime() / 1000) : 0
         }));
       }
+      return out;
     } catch (e) {
       console.warn('⚠️ [Evolution] findChats:', e.response?.data?.response?.message || e.message);
+      return [];
     }
+  }
+
+  async getChats() {
+    // cache curto para evitar marteladas (chatService chama com frequência)
+    if (this._chatsCache && Date.now() - this._chatsCacheEm < 45000) return this._chatsCache;
+
+    const [grupos, conversas] = await Promise.all([this._buscarGrupos(), this._buscarConversas()]);
+    const chats = [...grupos, ...conversas];
 
     this._chatsCache = chats;
     this._chatsCacheEm = Date.now();

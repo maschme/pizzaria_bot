@@ -65,10 +65,10 @@ Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado a uma
 
 | Item | Detalhe |
 |------|---------|
-| Script `provisionar-empresa` | Um comando cria: banco, `.env`, pasta de sessão, processo PM2 e registra no inventário |
+| ✅ Script `provisionar-empresa` | `scripts/provisionar-empresa.sh <slug> <porta>`: clona código, gera `.env` (com ADMIN_TOKEN aleatório e sessão própria), cria banco `pizzaria_<slug>`, roda migrações e sobe no PM2 — feito 19/09/2026, **pendente validação com a 1ª empresa piloto** |
 | `ecosystem.config.js` | Todas as instâncias declaradas num arquivo PM2 versionado (fora do repo do bot ou gerado) |
-| Endpoint `/health` | Status de WhatsApp, banco e uptime em JSON, para monitoramento externo |
-| Alerta de desconexão | Watcher (cron/uptime-kuma/n8n) chama `/health` e avisa no WhatsApp/Telegram do operador com link do QR |
+| ✅ Endpoint `/health` | `GET /health` público: WhatsApp (estado + QR pendente), banco, uptime, instância; HTTP 503 quando degradado — feito 19/09/2026 |
+| ✅ Alerta de desconexão | `scripts/monitor-health.js` (processo PM2 separado): checa `/health`, alerta na queda com re-alerta periódico e aviso de recuperação; canais: webhook genérico e **WhatsApp via Evolution API** — feito 19/09/2026 |
 | Backup automatizado | Dump diário por banco + backup da pasta de sessões |
 | Migrações versionadas | Padronizar `database/migrations/` com controle de versão aplicada (tabela `schema_migrations`) para atualizar N bancos com segurança |
 

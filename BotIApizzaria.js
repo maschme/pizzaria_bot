@@ -282,6 +282,34 @@ function exigirAdmin(req, res, next) {
 // Rotas administrativas raiz (send-message, config, campanha, whatsapp/QR)
 app.use(['/send-message', '/config', '/campanha', '/whatsapp'], exigirAdmin);
 
+// ============================================================
+// 🩺 HEALTH CHECK (público, para monitoramento externo)
+// ============================================================
+app.get('/health', async (req, res) => {
+  let dbOk = false;
+  try {
+    const { sequelize } = require('./database/connection');
+    await sequelize.query('SELECT 1');
+    dbOk = true;
+  } catch (_) { /* db fora */ }
+
+  const whatsappConectado = whatsappState.status === 'connected';
+  const saudavel = dbOk && whatsappConectado;
+
+  res.status(saudavel ? 200 : 503).json({
+    status: saudavel ? 'ok' : 'degraded',
+    whatsapp: {
+      conectado: whatsappConectado,
+      estado: whatsappState.status,          // disconnected | qr_ready | connected
+      qrPendente: whatsappState.status === 'qr_ready'
+    },
+    db: dbOk,
+    uptimeSegundos: Math.floor(process.uptime()),
+    instancia: process.env.PM2_APP_NAME || 'pizzaria-bot',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Rotas do Dashboard
 app.use('/api/dashboard', exigirAdmin, dashboardRoutes);
 

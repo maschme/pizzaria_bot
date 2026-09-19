@@ -130,10 +130,131 @@ async function completouMissaoIndicacoes(whatsappId) {
   }
 }
 
+/**
+ * Lista indicações com paginação e busca (nome/número do indicado ou indicador).
+ * Traz o nome do indicador quando existir em contatos.
+ * @param {{ page?: number, limit?: number, busca?: string }} opts
+ */
+async function listarIndicacoes(opts = {}) {
+  const page = Math.max(1, Number(opts.page) || 1);
+  const limit = Math.max(1, Math.min(200, Number(opts.limit) || 50));
+  const offset = (page - 1) * limit;
+  const busca = String(opts.busca || '').trim();
+
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    let where = '';
+    const params = [];
+    if (busca) {
+      where = `WHERE i.indicado_nome LIKE ? OR i.indicado_numero LIKE ? OR i.indicador_whatsapp_id LIKE ? OR c.nome LIKE ?`;
+      const like = `%${busca}%`;
+      params.push(like, like, like, like);
+    }
+
+    const [countRows] = await conn.execute(
+      `SELECT COUNT(*) AS total
+         FROM indicacoes i
+         LEFT JOIN contatos c ON c.whatsapp_id = SUBSTRING_INDEX(i.indicador_whatsapp_id, '@', 1)
+        ${where}`,
+      params
+    );
+    const total = Number(countRows[0]?.total || 0);
+
+    const [rows] = await conn.execute(
+      `SELECT i.id, i.indicador_whatsapp_id, i.indicado_numero, i.indicado_nome, i.created_at,
+              c.nome AS indicador_nome
+         FROM indicacoes i
+         LEFT JOIN contatos c ON c.whatsapp_id = SUBSTRING_INDEX(i.indicador_whatsapp_id, '@', 1)
+        ${where}
+        ORDER BY i.created_at DESC, i.id DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    return {
+      rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit))
+    };
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Busca uma indicação pelo id.
+ * @param {number} id
+ */
+async function obterIndicacaoPorId(id) {
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    const [rows] = await conn.execute(
+      `SELECT id, indicador_whatsapp_id, indicado_numero, indicado_nome, created_at
+         FROM indicacoes WHERE id = ? LIMIT 1`,
+      [Number(id)]
+    );
+    return rows[0] || null;
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Exclui indicações por id e recalcula qt_indicados/cam_indicacoes dos indicadores afetados.
+ * @param {number[]} ids
+ * @returns {Promise<{ qtExcluidas: number }>}
+ */
+async function excluirIndicacoes(ids) {
+  const lista = (Array.isArray(ids) ? ids : [ids])
+    .map((n) => Number(n))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (!lista.length) return { qtExcluidas: 0 };
+
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    const placeholders = lista.map(() => '?').join(',');
+    const [afetados] = await conn.execute(
+      `SELECT DISTINCT indicador_whatsapp_id FROM indicacoes WHERE id IN (${placeholders})`,
+      lista
+    );
+
+    const [result] = await conn.execute(
+      `DELETE FROM indicacoes WHERE id IN (${placeholders})`,
+      lista
+    );
+
+    for (const { indicador_whatsapp_id: indicador } of afetados) {
+      const [rows] = await conn.execute(
+        'SELECT COUNT(*) AS total FROM indicacoes WHERE indicador_whatsapp_id = ?',
+        [indicador]
+      );
+      const qtTotal = Number(rows[0]?.total || 0);
+      const widContato = String(indicador || '').split('@')[0].replace(/\D/g, '') || indicador;
+      try {
+        await conn.execute(
+          `UPDATE contatos SET qt_indicados = ?, cam_indicacoes = ? WHERE whatsapp_id = ?`,
+          [qtTotal, qtTotal >= 10 ? 1 : 0, widContato]
+        );
+      } catch (e) {
+        if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+      }
+    }
+
+    return { qtExcluidas: result.affectedRows || 0 };
+  } finally {
+    await conn.end();
+  }
+}
+
 module.exports = {
   registrarIndicacoes,
   obterQtIndicados,
   completouMissaoIndicacoes,
+  listarIndicacoes,
+  obterIndicacaoPorId,
+  excluirIndicacoes,
   normalizarWhatsappId,
   parseVcards
 };

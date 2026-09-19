@@ -417,6 +417,10 @@
         <i class="bi bi-person-lines-fill"></i>
         <span>Contatos</span>
       </a>
+      <a href="#" data-view="indicados">
+        <i class="bi bi-people"></i>
+        <span>Indicados</span>
+      </a>
       <a href="fluxos.html">
         <i class="bi bi-diagram-3"></i>
         <span>Fluxos</span>
@@ -706,7 +710,66 @@
           </div>
         </div>
       </div>
+      <!-- View: Indicados (controle das indicações da campanha) -->
+      <div id="viewIndicados" class="view">
+        <div class="card-modern">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <h5 class="mb-0 fw-bold">Indicados</h5>
+              <div class="d-flex gap-2 align-items-center">
+                <input type="text" class="form-control form-control-modern form-control-sm" id="indicadosBusca" placeholder="Buscar nome ou número..." style="min-width: 220px;">
+                <button class="btn btn-sm btn-outline-danger" id="btnExcluirIndicadosSel" disabled><i class="bi bi-trash"></i> Excluir selecionados</button>
+              </div>
+            </div>
+            <p class="text-secondary small mb-4">Contatos indicados na campanha. Envie mensagem para um indicado ou exclua registros de teste — os contadores de indicações do indicador são recalculados automaticamente.</p>
+            <div class="table-responsive">
+              <table class="table table-modern">
+                <thead>
+                  <tr>
+                    <th style="width: 36px;"><input type="checkbox" class="form-check-input" id="chkIndicadosTodos"></th>
+                    <th>Indicado</th>
+                    <th>Número</th>
+                    <th>Indicado por</th>
+                    <th>Data</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaIndicados">
+                  <tr><td colspan="6" class="text-center py-4 text-secondary">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <small class="text-secondary" id="indicadosPaginacaoInfo">-</small>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-light" id="btnIndicadosPrev"><i class="bi bi-chevron-left"></i> Anterior</button>
+                <button class="btn btn-sm btn-outline-light" id="btnIndicadosNext">Próxima <i class="bi bi-chevron-right"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
+  </div>
+
+  <!-- Modal Mensagem para Indicado -->
+  <div class="modal fade" id="modalMsgIndicado" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title" id="tituloMsgIndicado">Enviar mensagem</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2 text-secondary small" id="destinoMsgIndicado"></div>
+          <textarea class="form-control form-control-modern" id="textoMsgIndicado" rows="4" placeholder="Digite a mensagem..."></textarea>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger btn-modern" id="btnEnviarMsgIndicado"><i class="bi bi-send"></i> Enviar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal fade" id="modalLogsContato" tabindex="-1">
@@ -789,9 +852,10 @@
       const link = document.querySelector(`.sidebar-nav a[data-view="${name}"]`);
       if (view) view.classList.add('active');
       if (link) link.classList.add('active');
-      const titles = { dashboard: 'Dashboard', whats: 'Whats', chats: 'Chats', contatos: 'Contatos' };
+      const titles = { dashboard: 'Dashboard', whats: 'Whats', chats: 'Chats', contatos: 'Contatos', indicados: 'Indicados' };
       document.getElementById('pageTitle').textContent = titles[name] || name;
       if (name === 'contatos') carregarContatos();
+      if (name === 'indicados') carregarIndicados();
       if (name === 'chats') iniciarViewChats();
       else pararPollChat();
     }
@@ -1380,6 +1444,134 @@
       if (data.success) { showToast(data.mensagem || 'Contato removido'); carregarContatos(); }
       else showToast(data.error || 'Erro ao deletar', 'danger');
     }
+
+    // ===== Indicados =====
+    let indicadosPage = 1;
+    const indicadosLimit = 50;
+    let indicadosTotalPages = 1;
+    let indicadosTotal = 0;
+    let indicadosBuscaAtual = '';
+    let msgIndicadoAlvo = null;
+
+    async function carregarIndicados(page = indicadosPage) {
+      indicadosPage = Math.max(1, Number(page) || 1);
+      const tbody = document.getElementById('tabelaIndicados');
+      const info = document.getElementById('indicadosPaginacaoInfo');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
+      let path = '/indicacoes?page=' + indicadosPage + '&limit=' + indicadosLimit;
+      if (indicadosBuscaAtual) path += '&busca=' + encodeURIComponent(indicadosBuscaAtual);
+      const data = await api(path);
+      if (!data.success) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">' + (data.error || 'Erro ao carregar') + '</td></tr>';
+        if (info) info.textContent = 'Erro ao carregar paginação';
+        return;
+      }
+      indicadosTotalPages = Math.max(1, Number(data.totalPages) || 1);
+      indicadosTotal = Number(data.total) || 0;
+      indicadosPage = Math.min(indicadosPage, indicadosTotalPages);
+      const list = data.data || [];
+      const chkTodos = document.getElementById('chkIndicadosTodos');
+      if (chkTodos) chkTodos.checked = false;
+      atualizarBtnExcluirIndicados();
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-secondary">Nenhum indicado.</td></tr>';
+        if (info) info.textContent = 'Sem indicados';
+        atualizarPaginacaoIndicados();
+        return;
+      }
+      const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      tbody.innerHTML = list.map(i => {
+        const indicadorLabel = i.indicador_nome
+          ? escHtml(i.indicador_nome) + ' <small class="text-secondary"><code>' + escHtml(i.indicador_whatsapp_id) + '</code></small>'
+          : '<code>' + escHtml(i.indicador_whatsapp_id) + '</code>';
+        return `
+        <tr>
+          <td><input type="checkbox" class="form-check-input chk-indicado" data-id="${i.id}"></td>
+          <td>${escHtml(i.indicado_nome) || '-'}</td>
+          <td><code>${escHtml(i.indicado_numero)}</code></td>
+          <td>${indicadorLabel}</td>
+          <td><small>${i.created_at ? new Date(i.created_at).toLocaleString('pt-BR') : '-'}</small></td>
+          <td class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-success btn-msg-indicado" data-id="${i.id}" data-nome="${escHtml(i.indicado_nome || '')}" data-numero="${escHtml(i.indicado_numero)}" title="Enviar mensagem"><i class="bi bi-whatsapp"></i></button>
+            <button class="btn btn-sm btn-outline-danger btn-excluir-indicado" data-id="${i.id}" title="Excluir indicação"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>`;
+      }).join('');
+      tbody.querySelectorAll('.chk-indicado').forEach(chk => chk.addEventListener('change', atualizarBtnExcluirIndicados));
+      tbody.querySelectorAll('.btn-msg-indicado').forEach(btn => {
+        btn.addEventListener('click', function() {
+          abrirModalMsgIndicado(this.getAttribute('data-id'), this.getAttribute('data-nome'), this.getAttribute('data-numero'));
+        });
+      });
+      tbody.querySelectorAll('.btn-excluir-indicado').forEach(btn => {
+        btn.addEventListener('click', function() { excluirIndicados([this.getAttribute('data-id')]); });
+      });
+      if (info) info.textContent = `Página ${indicadosPage} de ${indicadosTotalPages} - Total ${indicadosTotal} indicados`;
+      atualizarPaginacaoIndicados();
+    }
+
+    function atualizarPaginacaoIndicados() {
+      const btnPrev = document.getElementById('btnIndicadosPrev');
+      const btnNext = document.getElementById('btnIndicadosNext');
+      if (btnPrev) btnPrev.disabled = indicadosPage <= 1;
+      if (btnNext) btnNext.disabled = indicadosPage >= indicadosTotalPages;
+    }
+
+    function idsIndicadosSelecionados() {
+      return Array.from(document.querySelectorAll('#tabelaIndicados .chk-indicado:checked')).map(c => Number(c.getAttribute('data-id')));
+    }
+
+    function atualizarBtnExcluirIndicados() {
+      const btn = document.getElementById('btnExcluirIndicadosSel');
+      if (btn) btn.disabled = idsIndicadosSelecionados().length === 0;
+    }
+
+    async function excluirIndicados(ids) {
+      const lista = (ids || []).map(Number).filter(Boolean);
+      if (!lista.length) return;
+      const msg = lista.length === 1 ? 'Excluir esta indicação?' : `Excluir ${lista.length} indicações?`;
+      if (!confirm(msg + ' Os contadores do indicador serão recalculados.')) return;
+      const data = await api('/indicacoes', { method: 'DELETE', body: JSON.stringify({ ids: lista }) });
+      if (data.success) { showToast(data.mensagem || 'Excluído'); carregarIndicados(); }
+      else showToast(data.error || 'Erro ao excluir', 'danger');
+    }
+
+    function abrirModalMsgIndicado(id, nome, numero) {
+      msgIndicadoAlvo = { id, nome, numero };
+      document.getElementById('destinoMsgIndicado').textContent = 'Para: ' + (nome ? nome + ' — ' : '') + numero;
+      document.getElementById('textoMsgIndicado').value = '';
+      new bootstrap.Modal(document.getElementById('modalMsgIndicado')).show();
+    }
+
+    document.getElementById('btnEnviarMsgIndicado').addEventListener('click', async function() {
+      if (!msgIndicadoAlvo) return;
+      const texto = document.getElementById('textoMsgIndicado').value.trim();
+      if (!texto) { showToast('Digite a mensagem', 'warning'); return; }
+      this.disabled = true;
+      const data = await api('/indicacoes/' + msgIndicadoAlvo.id + '/mensagem', { method: 'POST', body: JSON.stringify({ mensagem: texto }) });
+      this.disabled = false;
+      if (data.success) {
+        showToast('Mensagem enviada');
+        bootstrap.Modal.getInstance(document.getElementById('modalMsgIndicado')).hide();
+      } else showToast(data.error || 'Erro ao enviar', 'danger');
+    });
+
+    document.getElementById('chkIndicadosTodos').addEventListener('change', function() {
+      document.querySelectorAll('#tabelaIndicados .chk-indicado').forEach(c => { c.checked = this.checked; });
+      atualizarBtnExcluirIndicados();
+    });
+    document.getElementById('btnExcluirIndicadosSel').addEventListener('click', () => excluirIndicados(idsIndicadosSelecionados()));
+    document.getElementById('btnIndicadosPrev').addEventListener('click', () => carregarIndicados(indicadosPage - 1));
+    document.getElementById('btnIndicadosNext').addEventListener('click', () => carregarIndicados(indicadosPage + 1));
+    let indicadosBuscaTimer;
+    document.getElementById('indicadosBusca').addEventListener('input', function() {
+      clearTimeout(indicadosBuscaTimer);
+      indicadosBuscaTimer = setTimeout(() => {
+        indicadosBuscaAtual = this.value.trim();
+        carregarIndicados(1);
+      }, 400);
+    });
 
     document.getElementById('switchAtendimento').addEventListener('change', function() { atualizarConfig('atendimento_automatico', this.checked); });
     document.getElementById('switchCampanha').addEventListener('change', function() { atualizarConfig('campanha_ativa', this.checked); });

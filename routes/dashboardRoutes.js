@@ -5,6 +5,7 @@ const configService = require('../services/configuracaoService');
 const grupoService = require('../services/grupoWhatsappService');
 const gatilhoService = require('../services/gatilhoService');
 const contatoService = require('../services/contatoService');
+const indicacaoService = require('../services/indicacaoService');
 const chatService = require('../services/chatService');
 const fluxoExecutor = require('../services/fluxoExecutor');
 const fluxoLogService = require('../services/fluxoLogService');
@@ -416,6 +417,68 @@ router.get('/contatos/:whatsappId/logs', async (req, res) => {
       whatsappLid: lidOpcional || undefined
     });
     res.json({ success: true, total: logs.length, data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// 🤝 INDICADOS (indicações da campanha)
+// ============================================================
+
+router.get('/indicacoes', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 50));
+    const busca = String(req.query.busca || '').trim();
+    const result = await indicacaoService.listarIndicacoes({ page, limit, busca });
+    res.json({
+      success: true,
+      data: result.rows,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/indicacoes', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length) return res.status(400).json({ success: false, error: 'Informe ids para excluir' });
+    const result = await indicacaoService.excluirIndicacoes(ids);
+    res.json({ success: true, ...result, mensagem: `${result.qtExcluidas} indicação(ões) excluída(s)` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/indicacoes/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success: false, error: 'id inválido' });
+    const result = await indicacaoService.excluirIndicacoes([id]);
+    res.json({ success: true, ...result, mensagem: result.qtExcluidas ? 'Indicação excluída' : 'Indicação não encontrada' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/indicacoes/:id/mensagem', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success: false, error: 'id inválido' });
+    const mensagem = String(req.body?.mensagem || '').trim();
+    if (!mensagem) return res.status(400).json({ success: false, error: 'Mensagem vazia' });
+
+    const indicacao = await indicacaoService.obterIndicacaoPorId(id);
+    if (!indicacao) return res.status(404).json({ success: false, error: 'Indicação não encontrada' });
+
+    const data = await chatService.enviarMensagemParaNumero(whatsappClient, indicacao.indicado_numero, mensagem);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

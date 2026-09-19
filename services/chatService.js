@@ -466,10 +466,47 @@ async function encerrarFluxoNoChat(client, chatIdRaw) {
   return { chatId, encerrados: encerrados > 0 };
 }
 
+/**
+ * Envia mensagem para um número mesmo sem conversa existente (ex.: indicados).
+ * Resolve o WID via getNumberId, tentando variações com/sem DDI 55 e 9º dígito.
+ */
+async function enviarMensagemParaNumero(client, numeroRaw, texto) {
+  if (!client?.info) throw new Error('WhatsApp não conectado');
+  const mensagem = String(texto || '').trim();
+  if (!mensagem) throw new Error('Mensagem vazia');
+
+  const digitos = normalizarDigitos(numeroRaw);
+  if (digitos.length < 8) throw new Error('Número inválido');
+
+  const candidatos = [digitos];
+  if (!digitos.startsWith('55') && digitos.length <= 11) candidatos.push('55' + digitos);
+  if (digitos.startsWith('55') && digitos.length === 12) {
+    // BR sem 9º dígito: 55 + DDD (2) + 8 dígitos → tenta com 9
+    candidatos.push(digitos.slice(0, 4) + '9' + digitos.slice(4));
+  }
+
+  let wid = null;
+  for (const cand of candidatos) {
+    try {
+      wid = await client.getNumberId(cand);
+      if (wid) break;
+    } catch (_) {
+      // tenta próximo candidato
+    }
+  }
+  if (!wid) throw new Error('Número não encontrado no WhatsApp: ' + digitos);
+
+  const chatId = wid._serialized;
+  await client.sendMessage(chatId, mensagem);
+  invalidarCacheConversas();
+  return { chatId, enviado: true };
+}
+
 module.exports = {
   listarConversas,
   obterMensagens,
   enviarMensagem,
+  enviarMensagemParaNumero,
   obterEstadoChat,
   iniciarFluxoNoChat,
   encerrarFluxoNoChat,

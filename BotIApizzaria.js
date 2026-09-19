@@ -324,9 +324,31 @@ app.use('/api/fluxos', (req, res, next) => {
 
 
 
-// Sessão WhatsApp por instância: WA_SESSION_ID define a pasta .wwebjs_auth/session-<id>.
-// O default mantém o id histórico para não invalidar sessões já autenticadas.
-const client = new Client({
+// ============================================================
+// 🚂 MOTOR WHATSAPP: WA_ENGINE=wwebjs (default) | evolution
+// ============================================================
+// wwebjs: whatsapp-web.js + Puppeteer (sessão local em .wwebjs_auth)
+// evolution: adaptador REST/webhook para Evolution API (services/evolutionClient.js)
+const WA_ENGINE = (process.env.WA_ENGINE || 'wwebjs').trim().toLowerCase();
+
+let client;
+if (WA_ENGINE === 'evolution') {
+  const { EvolutionClient } = require('./services/evolutionClient');
+  client = new EvolutionClient();
+  console.log('🚂 Motor WhatsApp: EVOLUTION API');
+
+  // Webhook da Evolution (público, autenticado pelo segredo na URL)
+  app.post('/webhook/evolution/:secret', (req, res) => {
+    if (req.params.secret !== (process.env.EVOLUTION_WEBHOOK_SECRET || '')) {
+      return res.status(401).json({ ok: false });
+    }
+    client.handleWebhook(req.body);
+    res.json({ ok: true });
+  });
+} else {
+  // Sessão WhatsApp por instância: WA_SESSION_ID define a pasta .wwebjs_auth/session-<id>.
+  // O default mantém o id histórico para não invalidar sessões já autenticadas.
+  client = new Client({
     authStrategy: new LocalAuth({
         clientId: process.env.WA_SESSION_ID || 'bot-ia-pizzaria3',
         dataPath: process.env.WA_AUTH_DIR || undefined
@@ -336,7 +358,9 @@ const client = new Client({
         headless: true, // Modo headless
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
     }
-});
+  });
+  console.log('🚂 Motor WhatsApp: whatsapp-web.js');
+}
 
 // ============================================================
 // 📱 ESTADO DO WHATSAPP (QR Code, Status, etc)
@@ -377,6 +401,12 @@ client.on('ready', async () => {
     await grupoService.sincronizarGrupos(client);
   } catch (err) {
     console.error('⚠️ Erro ao sincronizar grupos:', err.message);
+  }
+
+  // Injeção de listener de etiquetas: só existe no motor wwebjs (Puppeteer)
+  if (!client.pupPage) {
+    console.log('🤖 Cliente WhatsApp está pronto! (motor evolution — sem injeção de labels)');
+    return;
   }
 
   // 1. acessa o objeto Store já definido pelo whatsapp-web.js
@@ -421,8 +451,17 @@ client.on('ready', async () => {
     console.log('🤖 Cliente WhatsApp está pronto!');
 });
 
+// Estado de desconexão (ambos os motores emitem 'disconnected')
+client.on('disconnected', (motivo) => {
+  console.warn('🔌 WhatsApp desconectado:', motivo);
+  whatsappState.status = 'disconnected';
+  whatsappState.info = null;
+});
+
 // Inicializa o cliente
-client.initialize();
+Promise.resolve(client.initialize()).catch((e) => {
+  console.error('❌ Falha ao inicializar cliente WhatsApp:', e.message);
+});
 
 // Endpoint para enviar mensagens
 app.post('/send-message', async (req, res) => {

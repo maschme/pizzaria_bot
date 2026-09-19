@@ -126,6 +126,14 @@ Piloto no ar desde 19/09/2026 — Evolution API v2.3.7 (Docker, porta 8033) + we
 
 Nota: o piloto está rodando com um número real por decisão do operador (19/09); testes de envio (botões/enquetes/número frio) devem preferencialmente ser repetidos em chip de teste.
 
+## 3.2 Migração de motor (19/09/2026)
+
+Decisão do operador: migrar a produção para Evolution **sem esperar o período de observação**, porque o pareamento do wwebjs quebrou em produção (QR escaneado não conectava) — o teste de estabilidade passa a acontecer na própria produção.
+
+Implementação: `services/evolutionClient.js` — adaptador que expõe a interface do whatsapp-web.js (eventos `message`/`group_join`/`qr`/`ready`, `sendMessage`, `msg.reply`, `getChats`, participantes, invite code, cache LID↔telefone) sobre REST + webhook da Evolution. Seleção por `.env`: `WA_ENGINE=evolution` liga o novo motor; `WA_ENGINE=wwebjs` é o **rollback imediato** (basta trocar e reiniciar).
+
+Limitações conhecidas do motor evolution: etiquetas (getLabels/changeLabels) viram no-op; `sendSeen` não limpa não-lidas; gerenciador de chats do dashboard em modo best-effort (endpoints findChats/findMessages). Validado por teste estrutural com os payloads reais capturados no piloto (texto, vCard, multi-vCard, group_join, LID).
+
 ## 4. Próximo passo proposto: piloto de validação
 
 Antes de qualquer decisão de migração:

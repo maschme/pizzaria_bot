@@ -68,6 +68,9 @@ Legenda: ✅ suporta | ⚠️ parcial/com ressalvas | ❌ não suporta | ❓ val
 | Histórico (`fetchMessages`) | ✅ | ❌ (só webhooks do momento) | ⚠️ (store próprio, precisa persistir) | ✅ (persiste em banco próprio) |
 | Presença/typing | ✅ | ⚠️ limitado | ✅ | ✅ |
 | **Enviar msg para número frio (indicados)** | ✅ | ❌ fora da janela de 24h só template pago aprovado | ✅ | ✅ |
+| **Botões interativos** | ❌ deprecado (Meta removeu do protocolo Web) | ✅ garantido | ⚠️ ❓ contorno "native flow": funciona em muitos aparelhos, instável entre versões/iOS | ⚠️ ❓ (`sendButtons`, mesma base Baileys) |
+| **Listas (menu de opções)** | ❌ deprecado | ✅ garantido | ⚠️ ❓ idem botões | ⚠️ ❓ (`sendList`) |
+| **Enquetes (Poll)** — alternativa estável a botões | ✅ (não usamos ainda) | ❌ | ✅ | ✅ (`sendPoll` + evento de voto) |
 | Custo por mensagem | R$ 0 | 💰 por conversa iniciada | R$ 0 | R$ 0 |
 | Sem QR / sem sessão | ❌ QR + sessão | ✅ token permanente | ❌ QR + sessão | ❌ QR + sessão (gerenciada pela API) |
 | Estabilidade de conexão | ❌ **problema atual** | ✅ | ⚠️ melhor (WebSocket direto, sem Chromium) ❓ | ⚠️ reconexão automática embutida ❓ |
@@ -112,6 +115,8 @@ Antes de qualquer decisão de migração:
    - Etiquetas Business (ler e aplicar)
    - Resolução LID ↔ telefone
    - Envio para número frio e validação de número
+   - **Botões (`sendButtons`) e listas (`sendList`)**: testar em Android E iOS — hoje não temos isso no wwebjs (deprecado pela Meta no protocolo Web); no Baileys é contorno instável, validar aparelho a aparelho
+   - **Enquetes (`sendPoll` + evento de voto)**: alternativa estável a botões/listas para menus (sabores, tamanhos, confirmação)
 3. Medir **estabilidade por 2–4 semanas**: quedas de sessão, reconexões automáticas bem-sucedidas, RAM.
 4. Só então decidir: migrar, manter, ou usar híbrido (Evolution para novos clientes do SaaS, wwebjs onde já roda).
 

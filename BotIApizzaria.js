@@ -269,12 +269,15 @@ app.use('/api/fluxos', fluxoRoutes);
 
 
 
+// Sessão WhatsApp por instância: WA_SESSION_ID define a pasta .wwebjs_auth/session-<id>.
+// O default mantém o id histórico para não invalidar sessões já autenticadas.
 const client = new Client({
     authStrategy: new LocalAuth({
-        clientId: "bot-ia-pizzaria3" // Identificador único para a sessão deste cliente
+        clientId: process.env.WA_SESSION_ID || 'bot-ia-pizzaria3',
+        dataPath: process.env.WA_AUTH_DIR || undefined
     }),
     puppeteer: {
-        //executablePath: '/usr/bin/google-chrome', // Caminho para o Chromium
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
         headless: true, // Modo headless
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
     }

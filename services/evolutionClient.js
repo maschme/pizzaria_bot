@@ -104,6 +104,7 @@ class EvolutionClient extends EventEmitter {
     this._chatsCacheEm = 0;
     this._gruposCache = null;
     this._gruposCacheEm = 0;
+    this._participantesCache = new Map(); // groupJid -> { em, lista }
     this._pollTimer = null;
     this._estadoAtual = 'desconhecido';
 
@@ -269,6 +270,9 @@ class EvolutionClient extends EventEmitter {
       console.log(`📩 [Evolution] msg recebida de ${from} (${tipo})`);
     }
 
+    // Mantém o cache de chats vivo: a conversa sobe na lista e ganha não-lida
+    this._tocarChatNoCache(from, data.pushName, !key.fromMe);
+
     const msg = {
       id: { _serialized: key.id || '' },
       from,
@@ -400,6 +404,23 @@ class EvolutionClient extends EventEmitter {
   // Chats (chatService / grupoWhatsappService)
   // ============================================================
 
+  /** Atualiza (ou cria) a entrada da conversa no cache quando chega mensagem via webhook. */
+  _tocarChatNoCache(chatId, pushName, incrementarNaoLida) {
+    if (!this._chatsCache) return;
+    const agora = Math.floor(Date.now() / 1000);
+    let chat = this._chatsCache.find((c) => c.id._serialized === chatId);
+    if (!chat) {
+      chat = this._criarChatObj({ chatId, nome: pushName || chatId, timestamp: agora });
+      this._chatsCache.push(chat);
+    }
+    chat.timestamp = agora;
+    if (incrementarNaoLida) chat.unreadCount = (Number(chat.unreadCount) || 0) + 1;
+    if (pushName && (!chat.name || chat.name === chatId)) {
+      chat.name = pushName;
+      chat.formattedTitle = pushName;
+    }
+  }
+
   _criarChatObj(base) {
     const self = this;
     const chatId = base.chatId;
@@ -420,7 +441,10 @@ class EvolutionClient extends EventEmitter {
       async fetchMessages(opts = {}) {
         return self._buscarMensagens(chatId, opts.limit || 50);
       },
-      async sendSeen() { return true; },
+      async sendSeen() {
+        this.unreadCount = 0;
+        return true;
+      },
       async getLabels() { return []; },
       async changeLabels() {
         console.warn('⚠️ [Evolution] etiquetas ainda não suportadas neste motor');
@@ -430,12 +454,15 @@ class EvolutionClient extends EventEmitter {
   }
 
   async _participantesGrupo(groupJid) {
+    // Cache 5 min por grupo: o WhatsApp aplica rate limit agressivo em metadados de grupo
+    const hit = this._participantesCache.get(groupJid);
+    if (hit && Date.now() - hit.em < 300000) return hit.lista;
     try {
       const { data } = await this.http.get(
         this._instPath('/group/participants') + `?groupJid=${encodeURIComponent(groupJid)}`
       );
       const lista = data?.participants || [];
-      return lista.map((p) => {
+      const mapeada = lista.map((p) => {
         this._aprenderLid(p.id, p.phoneNumber);
         const pn = apenasDigitos(p.phoneNumber);
         return {
@@ -444,8 +471,12 @@ class EvolutionClient extends EventEmitter {
           isSuperAdmin: p.admin === 'superadmin'
         };
       });
+      this._participantesCache.set(groupJid, { em: Date.now(), lista: mapeada });
+      return mapeada;
     } catch (e) {
       console.warn(`⚠️ [Evolution] participantes de ${groupJid}:`, e.response?.data?.response?.message || e.message);
+      // Cacheia o vazio por 1 min para não martelar durante rate limit
+      this._participantesCache.set(groupJid, { em: Date.now() - 240000, lista: [] });
       return [];
     }
   }

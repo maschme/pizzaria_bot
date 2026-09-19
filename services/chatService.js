@@ -222,6 +222,17 @@ async function fetchMensagensSeguro(client, chat, limit) {
   const chatId = chat.id._serialized;
   const lim = Math.max(1, Math.min(100, limit));
 
+  // Motor evolution não tem Puppeteer: vai direto ao fetchMessages do chat
+  if (!client.pupPage) {
+    try {
+      const msgs = await chat.fetchMessages({ limit: lim });
+      return msgs.map(formatarMensagemApi).filter(Boolean);
+    } catch (e) {
+      console.warn('⚠️ fetchMessages (evolution):', e.message);
+      return [];
+    }
+  }
+
   try {
     const raw = await client.pupPage.evaluate(async (cid, max) => {
       try {

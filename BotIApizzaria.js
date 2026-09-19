@@ -258,14 +258,41 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // Servir arquivos estáticos (Dashboard)
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ============================================================
+// 🔐 AUTENTICAÇÃO ADMIN (ADMIN_TOKEN no .env)
+// ============================================================
+// Protege APIs administrativas. Aceita header x-admin-token, Authorization: Bearer
+// ou ?token= (para links diretos). Sem ADMIN_TOKEN definido, segue aberto (com aviso),
+// para não quebrar instalações existentes até configurarem o .env.
+const ADMIN_TOKEN = (process.env.ADMIN_TOKEN || '').trim();
+if (!ADMIN_TOKEN) {
+  console.warn('⚠️  ADMIN_TOKEN não definido no .env — dashboard e APIs SEM autenticação. Defina ADMIN_TOKEN para proteger.');
+}
+
+function exigirAdmin(req, res, next) {
+  if (!ADMIN_TOKEN) return next();
+  const token =
+    req.headers['x-admin-token'] ||
+    String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
+    req.query.token;
+  if (token === ADMIN_TOKEN) return next();
+  return res.status(401).json({ success: false, error: 'Não autorizado: token admin ausente ou inválido' });
+}
+
+// Rotas administrativas raiz (send-message, config, campanha, whatsapp/QR)
+app.use(['/send-message', '/config', '/campanha', '/whatsapp'], exigirAdmin);
+
 // Rotas do Dashboard
-app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/dashboard', exigirAdmin, dashboardRoutes);
 
 // Rotas de IA, Prompts e Requisições
-app.use('/api/ia', iaRoutes);
+app.use('/api/ia', exigirAdmin, iaRoutes);
 
-// Rotas de Fluxos
-app.use('/api/fluxos', fluxoRoutes);
+// Rotas de Fluxos — POST /:id/webhook fica público (gatilho de automações por sistemas externos)
+app.use('/api/fluxos', (req, res, next) => {
+  if (req.method === 'POST' && /^\/[^/]+\/webhook\/?$/.test(req.path)) return next();
+  return exigirAdmin(req, res, next);
+}, fluxoRoutes);
 
 
 

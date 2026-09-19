@@ -6,7 +6,8 @@ services:
     container_name: evolution-piloto
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      # Porta externa configurável via EVOLUTION_PORT no .env (default 8081)
+      - "${EVOLUTION_PORT:-8081}:8080"
     env_file:
       - .env
     volumes:

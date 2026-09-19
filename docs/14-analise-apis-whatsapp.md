@@ -59,7 +59,7 @@ Legenda: ✅ suporta | ⚠️ parcial/com ressalvas | ❌ não suporta | ❓ val
 | Receber/enviar texto | ✅ | ✅ | ✅ | ✅ |
 | `reply` (citar mensagem) | ✅ | ✅ (context) | ✅ | ✅ |
 | Enviar áudio/mídia | ✅ | ✅ | ✅ | ✅ |
-| **Receber vCard (indicações)** | ✅ | ⚠️ recebe `contacts` estruturado (formato diferente, refazer parser) | ✅ (contactMessage) | ✅ (webhook contactMessage) |
+| **Receber vCard (indicações)** | ✅ | ⚠️ recebe `contacts` estruturado (formato diferente, refazer parser) | ✅ (contactMessage) | ✅ **validado 19/09**: `contactMessage.vcard` idêntico ao formato atual (incl. `waid=`); parser atual serve sem alteração |
 | **Grupos: eventos de entrada (`group_join`)** | ✅ | ❌ **Cloud API não opera grupos** | ✅ | ✅ |
 | **Grupos: participantes, links de convite** | ✅ (+ Store hack) | ❌ | ✅ | ✅ |
 | **Etiquetas (labels) Business** | ✅ | ❌ | ⚠️ leitura/aplicação disponível ❓ | ⚠️ ❓ |
@@ -103,6 +103,26 @@ O problema das desconexões do whatsapp-web.js vem em grande parte da arquitetur
 **Ressalva**: ambas continuam não-oficiais (mesmo risco de banimento do atual — não piora, não melhora). Os itens marcados ❓ na matriz (labels, LID, estabilidade real) **precisam de validação prática** — versões dessas ferramentas mudam rápido.
 
 ---
+
+## 3.1 Resultados do piloto (em andamento)
+
+Piloto no ar desde 19/09/2026 — Evolution API v2.3.7 (Docker, porta 8033) + webhook listener (porta 3099).
+
+| Teste | Resultado | Data |
+|-------|-----------|------|
+| Receber texto (webhook `messages.upsert`) | ✅ Passou | 19/09/2026 |
+| Receber vCard (`contactMessage`) | ✅ Passou — vCard cru idêntico ao formato do wwebjs (incl. `waid=`); `utils/vcardParser.js` funciona sem alteração | 19/09/2026 |
+| Vários contatos de uma vez (`contactsArrayMessage`) | Pendente | |
+| Entrada em grupo (`GROUP_PARTICIPANTS_UPDATE`) | Pendente | |
+| Participantes / link de convite | Pendente | |
+| Botões / listas (Android e iOS) | Pendente | |
+| Enquete + voto | Pendente | |
+| Etiquetas | Pendente | |
+| Número frio + validação | Pendente | |
+| LID ↔ telefone | Pendente | |
+| Estabilidade 2–4 semanas | Em observação | |
+
+Nota: o piloto está rodando com um número real por decisão do operador (19/09); testes de envio (botões/enquetes/número frio) devem preferencialmente ser repetidos em chip de teste.
 
 ## 4. Próximo passo proposto: piloto de validação
 

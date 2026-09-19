@@ -55,10 +55,10 @@ Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado a uma
 | Item | Detalhe |
 |------|---------|
 | ✅ Sessão via `.env` | `WA_SESSION_ID`, `WA_AUTH_DIR`, `PUPPETEER_EXECUTABLE_PATH` (feito 19/09/2026) |
-| Autenticação no dashboard | Token/senha única por instância no `.env` (`ADMIN_TOKEN`), middleware nas rotas `/api/*` e páginas |
-| Remover API keys dos seeds | Chaves de IA passam para `.env` ou cadastro via dashboard |
-| Unificar conexão Sequelize | Models legados usam `database/connection.js` |
-| Remover código morto | `BotIcopia.js`, `roteadorMensagens.js`; consolidar `ias.js` no `provedorIAService` |
+| ✅ Autenticação no dashboard | `ADMIN_TOKEN` no `.env` + middleware + tela de login (`public/auth.js`) — feito e verificado em produção 19/09/2026. Webhooks externos seguem públicos |
+| ✅ Remover API keys dos seeds | `QWEN_API_KEY`/`OPENROUTER_API_KEY` no `.env` (setup.js e ias.js) — feito 19/09/2026. **Pendente: rotacionar as chaves antigas expostas no histórico do git** |
+| ✅ Unificar conexão Sequelize | 5 models legados migrados para `database/connection.js` — feito 19/09/2026 |
+| ✅ Remover código morto | `BotIcopia.js` e `roteadorMensagens.js` removidos; funções mortas de `ias.js` limpas — 19/09/2026. Pendente: consolidar `ias.js` no `provedorIAService` |
 | Persistir sessões de campanha | Tabela `sessoes_campanha` em MySQL (hoje `Map` em memória) |
 
 ### Fase 1 — Instância provisionável e monitorada (2–4 semanas)

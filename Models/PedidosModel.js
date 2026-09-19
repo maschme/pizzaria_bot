@@ -1,10 +1,5 @@
-const { Sequelize, DataTypes } = require('sequelize');
-
-// Configuração da conexão com o MySQL usando suas credenciais
-const sequelize = new Sequelize('pizzaria', 'mitouser', 'naoteconto', {
-  host: 'localhost',
-  dialect: 'mysql'
-});
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../database/connection');
 
 const Pedido = sequelize.define('pedidos', {
   id: {

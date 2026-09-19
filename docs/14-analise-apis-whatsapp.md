@@ -113,13 +113,15 @@ Piloto no ar desde 19/09/2026 — Evolution API v2.3.7 (Docker, porta 8033) + we
 | Receber texto (webhook `messages.upsert`) | ✅ Passou | 19/09/2026 |
 | Receber vCard (`contactMessage`) | ✅ Passou — vCard cru idêntico ao formato do wwebjs (incl. `waid=`); `utils/vcardParser.js` funciona sem alteração | 19/09/2026 |
 | Vários contatos de uma vez (`contactsArrayMessage`) | Pendente | |
-| Entrada em grupo (`GROUP_PARTICIPANTS_UPDATE`) | Pendente | |
-| Participantes / link de convite | Pendente | |
+| Entrada em grupo (`group-participants.update`) | ✅ Passou — payload traz id do grupo, `action: "add"` e participante com **LID e telefone já resolvidos** (melhor que o wwebjs, que exige `getContactLidAndPhone`) | 19/09/2026 |
+| Participantes de grupo específico (`/group/participants`) | ✅ Passou — LID + telefone + admin por participante; **substitui o hack `window.Store`** do wwebjs | 19/09/2026 |
+| Link de convite (`/group/inviteCode`) | ✅ Passou — retorna `inviteUrl` e `inviteCode` | 19/09/2026 |
+| Listar todos os grupos (`/group/fetchAllGroups`) | ⚠️ Timeout em conta grande (1.749 chats), mesmo sem participantes. Contornável: consultar por grupo específico (nosso caso de uso real). Revalidar em número limpo | 19/09/2026 |
 | Botões / listas (Android e iOS) | Pendente | |
 | Enquete + voto | Pendente | |
 | Etiquetas | Pendente | |
 | Número frio + validação | Pendente | |
-| LID ↔ telefone | Pendente | |
+| LID ↔ telefone | ✅ Passou — resolvido nativamente nos eventos de grupo e na listagem de participantes | 19/09/2026 |
 | Estabilidade 2–4 semanas | Em observação | |
 
 Nota: o piloto está rodando com um número real por decisão do operador (19/09); testes de envio (botões/enquetes/número frio) devem preferencialmente ser repetidos em chip de teste.

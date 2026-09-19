@@ -19,6 +19,7 @@ Bot de atendimento WhatsApp com IA para a **Pizzaria Tempero Napolitano**. Este 
 | 11 | [Evolução e Etapas](./11-evolucao-etapas.md) | Histórico de desenvolvimento e marcos |
 | 12 | [Código Legado](./12-codigo-legado.md) | Arquivos antigos e pendências de migração |
 | 13 | [Plano SaaS Multi-empresa](./13-plano-saas-multiempresa.md) | Estratégia e fases para atender múltiplas empresas |
+| 14 | [Análise de APIs WhatsApp](./14-analise-apis-whatsapp.md) | Inventário de funções usadas e comparação de APIs (oficial e alternativas) |
 | — | [Tabela Contatos](./CONTATOS_TABELA.md) | Uso específico da tabela `contatos` |
 
 ## Início rápido

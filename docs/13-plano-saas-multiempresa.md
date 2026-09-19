@@ -44,7 +44,7 @@ Justificativa:
 3. **Isolamento de dados natural**: um banco por empresa dispensa reescrever todas as queries com `empresa_id` agora.
 4. **O código atual já suporta**: a "Opção 1" existente vira o motor do SaaS; o que falta é orquestração, não rearquitetura.
 
-Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado à **Fase 4** (WhatsApp Cloud API), onde não existe mais um navegador por número.
+Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado a uma eventual troca de API WhatsApp que elimine o navegador por número — decisão que depende da análise comparativa do [doc 14](./14-analise-apis-whatsapp.md). **Alinhamento de 19/09/2026: a API oficial da Meta está fora do escopo** (incompatível com grupos e campanha de indicações; ver doc 14).
 
 ---
 
@@ -98,8 +98,8 @@ Aplicação separada (pode reaproveitar o stack Node + MySQL) que gerencia as in
 
 | Item | Detalhe |
 |------|---------|
-| WhatsApp Cloud API (oficial) | Elimina Puppeteer/QR; habilita multi-tenant real num app único |
-| Multi-tenant com `empresa_id` | Reescrita das queries/services; um banco único ou schema por empresa |
+| Avaliação de API WhatsApp alternativa | Piloto conforme [doc 14](./14-analise-apis-whatsapp.md) (candidata atual: Evolution API/Baileys, sem navegador). **API oficial da Meta descartada** para o escopo atual — não opera grupos nem mensagens fora da janela de 24h |
+| Multi-tenant com `empresa_id` | Só se a API adotada eliminar o navegador por número; reescrita das queries/services |
 | White-label | Marca própria por revendedor |
 
 ---
@@ -142,7 +142,7 @@ Convenção sugerida para novas empresas: `WA_SESSION_ID=empresa-<slug>`, `DB_NA
 
 | Risco | Mitigação |
 |-------|-----------|
-| whatsapp-web.js é não-oficial (risco de banimento e de breaking changes do WhatsApp Web) | Avisar clientes no contrato; limitar disparos em massa; planejar Cloud API (Fase 4) |
+| whatsapp-web.js é não-oficial (risco de banimento e de breaking changes do WhatsApp Web) | Avisar clientes no contrato; limitar disparos em massa; piloto de API alternativa ([doc 14](./14-analise-apis-whatsapp.md)) |
 | Sessão cai após restart e exige QR | Página de QR no dashboard + alerta automático (Fase 1); janelas de deploy combinadas |
 | Dashboards hoje expostos sem senha | Fase 0 é pré-requisito antes de qualquer cliente novo |
 | Muitas instâncias = muita RAM (Chromium por empresa) | Dimensionar ~300 MB/empresa; escalar horizontal por VPS; consolidar na Cloud API |

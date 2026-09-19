@@ -117,8 +117,8 @@ Piloto no ar desde 19/09/2026 — Evolution API v2.3.7 (Docker, porta 8033) + we
 | Participantes de grupo específico (`/group/participants`) | ✅ Passou — LID + telefone + admin por participante; **substitui o hack `window.Store`** do wwebjs | 19/09/2026 |
 | Link de convite (`/group/inviteCode`) | ✅ Passou — retorna `inviteUrl` e `inviteCode` | 19/09/2026 |
 | Listar todos os grupos (`/group/fetchAllGroups`) | ⚠️ Timeout em conta grande (1.749 chats), mesmo sem participantes. Contornável: consultar por grupo específico (nosso caso de uso real). Revalidar em número limpo | 19/09/2026 |
-| Botões / listas (Android e iOS) | Pendente | |
-| Enquete + voto | Pendente | |
+| Botões / listas (Android e iOS) | ❌ Botões enviados via `sendButtons` **não chegaram** ao destinatário — confirma a instabilidade do contorno "native flow" no Baileys. Não contar com botões/listas em nenhuma API não-oficial | 19/09/2026 |
+| Enquete + voto | ✅ **Passou de ponta a ponta** — enquete entregue e voto retornou via webhook. **Substituto recomendado para menus** (sabores, tamanhos, confirmações) | 19/09/2026 |
 | Etiquetas | Pendente | |
 | Número frio + validação | Pendente | |
 | LID ↔ telefone | ✅ Passou — resolvido nativamente nos eventos de grupo e na listagem de participantes | 19/09/2026 |

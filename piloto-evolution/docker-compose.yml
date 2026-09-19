@@ -2,7 +2,7 @@
 # Sobe: Evolution API (8081) + PostgreSQL + Redis, isolados do bot de produção.
 services:
   evolution-api:
-    image: atendai/evolution-api:v2.2.3
+    image: evoapicloud/evolution-api:v2.3.7
     container_name: evolution-piloto
     restart: unless-stopped
     ports:

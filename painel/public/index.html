@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Central</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0d0d12; --bg-card: #16161e; --border-subtle: #2a2a35;
+      --text-primary: #e6e6ea; --text-secondary: #9a9aa5; --accent: #dc3545;
+    }
+    body { background: var(--bg-main); color: var(--text-primary); font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; padding: 18px 26px; border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px; }
+    .topbar h1 { font-size: 1.15rem; margin: 0; font-weight: 700; }
+    .totais { display: flex; gap: 18px; font-size: .85rem; color: var(--text-secondary); flex-wrap: wrap; }
+    .totais b { color: var(--text-primary); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; padding: 22px 26px; }
+    .card-emp { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; }
+    .card-emp h5 { font-size: 1rem; margin: 0; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .dot.verde { background: #2fbf71; box-shadow: 0 0 6px #2fbf71; }
+    .dot.vermelho { background: #e74c3c; }
+    .dot.amarelo { background: #f1c40f; }
+    .dot.cinza { background: #666; }
+    .meta { font-size: .78rem; color: var(--text-secondary); margin: 6px 0 10px; }
+    .badge-st { font-size: .68rem; padding: 3px 8px; border-radius: 10px; text-transform: uppercase; font-weight: 600; }
+    .st-ativa { background: #143d2b; color: #2fbf71; }
+    .st-inadimplente { background: #4d3a10; color: #f1c40f; }
+    .st-suspensa, .st-encerrada { background: #43181c; color: #e77; }
+    .acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn-mini { font-size: .74rem; padding: 4px 9px; }
+    .modal-content { background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary); }
+    .form-control, .form-select { background: #0f0f15; border: 1px solid var(--border-subtle); color: var(--text-primary); }
+    .form-control:focus, .form-select:focus { background: #0f0f15; color: var(--text-primary); border-color: var(--accent); box-shadow: none; }
+    .log-box { background: #0a0a0e; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; font-family: monospace; font-size: .72rem; white-space: pre-wrap; max-height: 300px; overflow-y: auto; color: #9a9; }
+    .qr-wrap { text-align: center; padding: 10px; }
+    .qr-wrap img { max-width: 260px; border-radius: 8px; background: #fff; padding: 8px; }
+    .evento-item { border-left: 2px solid var(--border-subtle); padding: 6px 12px; margin-left: 8px; font-size: .8rem; }
+    .evento-item small { color: var(--text-secondary); }
+    #authOverlay { position: fixed; inset: 0; z-index: 9999; background: rgba(10,10,14,.95); display: flex; align-items: center; justify-content: center; }
+    .auth-box { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 28px; width: 320px; text-align: center; }
+    .toast-container { position: fixed; bottom: 16px; right: 16px; z-index: 10000; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1><i class="bi bi-buildings"></i> Painel Central</h1>
+    <div class="totais" id="totais">Carregando...</div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-light" id="btnNovaEmpresa"><i class="bi bi-plus-lg"></i> Empresa</button>
+      <button class="btn btn-sm btn-danger" id="btnProvisionar"><i class="bi bi-rocket-takeoff"></i> Provisionar</button>
+    </div>
+  </div>
+
+  <div class="grid" id="gridEmpresas"></div>
+
+  <!-- Modal Empresa (criar/editar) -->
+  <div class="modal fade" id="modalEmpresa" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title" id="tituloModalEmpresa">Empresa</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formEmpresa">
+            <input type="hidden" name="id">
+            <div class="mb-2"><label class="form-label small">Nome</label><input class="form-control form-control-sm" name="nome" required></div>
+            <div class="mb-2"><label class="form-label small">Slug (fixo após criar)</label><input class="form-control form-control-sm" name="slug" pattern="[a-z0-9][a-z0-9-]{1,30}"></div>
+            <div class="mb-2"><label class="form-label small">Telefone de contato</label><input class="form-control form-control-sm" name="telefone_contato"></div>
+            <div class="row">
+              <div class="col mb-2"><label class="form-label small">Plano</label><input class="form-control form-control-sm" name="plano" placeholder="ex.: mensal"></div>
+              <div class="col mb-2"><label class="form-label small">Valor (R$)</label><input class="form-control form-control-sm" name="valor_mensal" type="number" step="0.01"></div>
+            </div>
+            <div class="mb-2"><label class="form-label small">Status de cobrança</label>
+              <select class="form-select form-select-sm" name="status">
+                <option value="ativa">Ativa</option><option value="inadimplente">Inadimplente</option>
+                <option value="suspensa">Suspensa</option><option value="encerrada">Encerrada</option>
+              </select>
+            </div>
+            <div class="mb-2"><label class="form-label small">Observações</label><textarea class="form-control form-control-sm" name="observacoes" rows="2"></textarea></div>
+            <div class="mb-2" id="blocoImportar">
+              <label class="form-label small">Vincular instância existente (pasta no servidor, opcional)</label>
+              <input class="form-control form-control-sm" name="dir_path" placeholder="/home/chia/canivetesuico/pizzaria_bot">
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-sm btn-danger" id="btnSalvarEmpresa">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Provisionar -->
+  <div class="modal fade" id="modalProv" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title">🚀 Provisionar nova empresa</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formProv">
+            <div class="mb-2"><label class="form-label small">Nome</label><input class="form-control form-control-sm" name="nome" required></div>
+            <div class="mb-2"><label class="form-label small">Slug</label><input class="form-control form-control-sm" name="slug" pattern="[a-z0-9][a-z0-9-]{1,30}" required></div>
+            <div class="mb-2"><label class="form-label small">Porta</label><input class="form-control form-control-sm" name="porta" type="number" required></div>
+          </form>
+          <div class="log-box d-none" id="provLog"></div>
+          <div class="alert alert-success d-none mt-2 py-2 small" id="provSucesso"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button class="btn btn-sm btn-danger" id="btnExecProv"><i class="bi bi-rocket-takeoff"></i> Executar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal QR -->
+  <div class="modal fade" id="modalQr" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title">Conectar WhatsApp</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body qr-wrap" id="qrConteudo">Carregando QR...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Eventos -->
+  <div class="modal fade" id="modalEventos" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title" id="tituloEventos">Eventos</h5>
+          <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex gap-2 mb-3">
+            <input class="form-control form-control-sm" id="novaNota" placeholder="Adicionar nota...">
+            <button class="btn btn-sm btn-outline-light" id="btnAddNota">Salvar</button>
+          </div>
+          <div id="listaEventos"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // ===== Auth (token no localStorage, overlay em 401) =====
+    const TK = 'painel_token';
+    const fetchOrig = window.fetch.bind(window);
+    window.fetch = (url, init = {}) => {
+      const h = new Headers(init.headers || {});
+      const t = localStorage.getItem(TK);
+      if (t) h.set('x-admin-token', t);
+      init.headers = h;
+      return fetchOrig(url, init).then((r) => { if (r.status === 401) mostrarLogin(); return r; });
+    };
+    function mostrarLogin() {
+      if (document.getElementById('authOverlay')) return;
+      const d = document.createElement('div');
+      d.id = 'authOverlay';
+      d.innerHTML = `<div class="auth-box"><h5>🔐 Painel Central</h5><p class="text-secondary small">Informe o PAINEL_TOKEN</p>
+        <input type="password" id="authInp" class="form-control form-control-sm mb-2" placeholder="Token">
+        <button class="btn btn-sm btn-danger w-100" id="authBtn">Entrar</button></div>`;
+      document.body.appendChild(d);
+      const entrar = () => { localStorage.setItem(TK, document.getElementById('authInp').value.trim()); location.reload(); };
+      d.querySelector('#authBtn').onclick = entrar;
+      d.querySelector('#authInp').onkeydown = (e) => { if (e.key === 'Enter') entrar(); };
+      d.querySelector('#authInp').focus();
+    }
+
+    // ===== Helpers =====
+    async function api(path, opts = {}) {
+      const r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+      return r.json();
+    }
+    function toast(msg, tipo = 'success') {
+      const el = document.createElement('div');
+      el.className = `toast show text-white bg-${tipo} border-0 mb-2`;
+      el.innerHTML = `<div class="toast-body py-2">${msg}</div>`;
+      document.getElementById('toasts').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+    const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+    // ===== Estado =====
+    let empresas = [];
+    let saude = [];
+    let qrTimer = null;
+    let qrInstAtual = null;
+
+    function saudeDaInstancia(instId) {
+      return saude.find((s) => s.instancia_id === instId) || null;
+    }
+
+    function renderizar() {
+      const grid = document.getElementById('gridEmpresas');
+      if (!empresas.length) {
+        grid.innerHTML = '<div class="text-secondary p-3">Nenhuma empresa. Crie uma (vinculando instância existente) ou provisione uma nova.</div>';
+      } else {
+        grid.innerHTML = empresas.map((e) => {
+          const inst = e.instancia;
+          const h = inst ? saudeDaInstancia(inst.id) : null;
+          let dot = 'cinza', estado = 'sem instância';
+          if (inst) {
+            if (!h) { dot = 'cinza'; estado = 'verificando...'; }
+            else if (h.ok) { dot = 'verde'; estado = 'conectado'; }
+            else if (h.whatsapp?.qrPendente) { dot = 'amarelo'; estado = 'QR pendente'; }
+            else if (h.erro) { dot = 'vermelho'; estado = h.erro; }
+            else { dot = 'vermelho'; estado = h.whatsapp ? `degradado (${h.whatsapp.estado})` : 'degradado'; }
+          }
+          return `
+          <div class="card-emp">
+            <div class="d-flex justify-content-between align-items-start">
+              <h5><span class="dot ${dot}" title="${esc(estado)}"></span>${esc(e.nome)}</h5>
+              <span class="badge-st st-${e.status}">${e.status}</span>
+            </div>
+            <div class="meta">
+              ${inst ? `porta <b>${inst.porta}</b> · ${esc(inst.pm2_name)} · ` : ''}${esc(estado)}
+              ${e.plano ? `<br>plano: ${esc(e.plano)}${e.valor_mensal ? ' — R$ ' + Number(e.valor_mensal).toFixed(2) : ''}` : ''}
+            </div>
+            <div class="acoes">
+              ${inst ? `
+                ${h && h.whatsapp?.qrPendente ? `<button class="btn btn-warning btn-mini" onclick="abrirQr(${inst.id}, '${esc(e.nome)}')"><i class="bi bi-qr-code"></i> Conectar</button>` : ''}
+                <a class="btn btn-outline-light btn-mini" href="http://${location.hostname}:${inst.porta}/dashboard.html" target="_blank"><i class="bi bi-speedometer2"></i> Dashboard</a>
+                <button class="btn btn-outline-light btn-mini" onclick="acaoInstancia(${inst.id}, 'restart', 'Reiniciar o processo ${esc(inst.pm2_name)}?')"><i class="bi bi-arrow-clockwise"></i> Restart</button>
+                <button class="btn btn-outline-light btn-mini" onclick="acaoInstancia(${inst.id}, 'backup')"><i class="bi bi-download"></i> Backup</button>
+              ` : `<button class="btn btn-outline-warning btn-mini" onclick="editarEmpresa(${e.id})"><i class="bi bi-link-45deg"></i> Vincular instância</button>`}
+              <button class="btn btn-outline-light btn-mini" onclick="editarEmpresa(${e.id})"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-outline-light btn-mini" onclick="abrirEventos(${e.id}, '${esc(e.nome)}')"><i class="bi bi-clock-history"></i></button>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      const conectadas = saude.filter((s) => s.ok).length;
+      const problemas = saude.filter((s) => !s.ok).length;
+      document.getElementById('totais').innerHTML =
+        `<span>Empresas: <b>${empresas.length}</b></span><span>🟢 Conectadas: <b>${conectadas}</b></span><span>🔴 Com problema: <b>${problemas}</b></span>`;
+    }
+
+    async function carregar() {
+      const [re, rs] = await Promise.all([api('/empresas'), api('/saude')]);
+      if (re.success) empresas = re.data;
+      if (rs.success) saude = rs.data;
+      renderizar();
+    }
+
+    // ===== Empresa criar/editar =====
+    document.getElementById('btnNovaEmpresa').onclick = () => {
+      const f = document.getElementById('formEmpresa');
+      f.reset(); f.id.value = ''; f.slug.disabled = false;
+      document.getElementById('tituloModalEmpresa').textContent = 'Nova empresa';
+      document.getElementById('blocoImportar').style.display = '';
+      new bootstrap.Modal(document.getElementById('modalEmpresa')).show();
+    };
+
+    window.editarEmpresa = (id) => {
+      const e = empresas.find((x) => x.id === id);
+      if (!e) return;
+      const f = document.getElementById('formEmpresa');
+      f.reset();
+      f.id.value = e.id; f.nome.value = e.nome; f.slug.value = e.slug; f.slug.disabled = true;
+      f.telefone_contato.value = e.telefone_contato || ''; f.plano.value = e.plano || '';
+      f.valor_mensal.value = e.valor_mensal || ''; f.status.value = e.status; f.observacoes.value = e.observacoes || '';
+      document.getElementById('tituloModalEmpresa').textContent = 'Editar: ' + e.nome;
+      document.getElementById('blocoImportar').style.display = e.instancia ? 'none' : '';
+      new bootstrap.Modal(document.getElementById('modalEmpresa')).show();
+    };
+
+    document.getElementById('btnSalvarEmpresa').onclick = async () => {
+      const f = document.getElementById('formEmpresa');
+      const body = {
+        nome: f.nome.value.trim(), slug: f.slug.value.trim(), telefone_contato: f.telefone_contato.value.trim(),
+        plano: f.plano.value.trim(), valor_mensal: f.valor_mensal.value || null,
+        status: f.status.value, observacoes: f.observacoes.value.trim()
+      };
+      let empresaId = f.id.value;
+      let r;
+      if (empresaId) {
+        r = await api('/empresas/' + empresaId, { method: 'PUT', body: JSON.stringify(body) });
+      } else {
+        r = await api('/empresas', { method: 'POST', body: JSON.stringify(body) });
+        if (r.success) empresaId = r.data.id;
+      }
+      if (!r.success) return toast(r.error, 'danger');
+
+      const dir = f.dir_path.value.trim();
+      if (dir && empresaId) {
+        const ri = await api(`/empresas/${empresaId}/importar-instancia`, { method: 'POST', body: JSON.stringify({ dir_path: dir }) });
+        if (!ri.success) { toast('Empresa salva, mas: ' + ri.error, 'warning'); carregar(); return; }
+        toast('Instância vinculada (porta ' + ri.data.porta + ')');
+      }
+      toast('Salvo');
+      bootstrap.Modal.getInstance(document.getElementById('modalEmpresa')).hide();
+      carregar();
+    };
+
+    // ===== Ações =====
+    window.acaoInstancia = async (id, acao, confirmar) => {
+      if (confirmar && !confirm(confirmar)) return;
+      toast(acao === 'restart' ? 'Reiniciando...' : 'Executando backup...', 'secondary');
+      const r = await api(`/instancias/${id}/${acao}`, { method: 'POST' });
+      if (r.success) { toast(acao === 'restart' ? 'Reiniciada' : 'Backup concluído'); setTimeout(carregar, 2500); }
+      else toast(r.error, 'danger');
+    };
+
+    // ===== QR remoto =====
+    window.abrirQr = (instId, nome) => {
+      qrInstAtual = instId;
+      document.querySelector('#modalQr .modal-title').textContent = 'Conectar: ' + nome;
+      const modal = new bootstrap.Modal(document.getElementById('modalQr'));
+      modal.show();
+      const atualizar = async () => {
+        const r = await fetch(`/api/instancias/${instId}/qr`).then((x) => x.json()).catch(() => null);
+        const box = document.getElementById('qrConteudo');
+        if (r && r.success && r.qrImage) box.innerHTML = `<img src="${r.qrImage}" alt="QR"><p class="small text-secondary mt-2 mb-0">Atualiza sozinho — escaneie com o WhatsApp da empresa</p>`;
+        else box.innerHTML = '<p class="text-secondary small">' + (r?.error || 'Aguardando QR... (se já conectou, pode fechar)') + '</p>';
+      };
+      atualizar();
+      qrTimer = setInterval(atualizar, 5000);
+      document.getElementById('modalQr').addEventListener('hidden.bs.modal', () => {
+        clearInterval(qrTimer); qrTimer = null; carregar();
+      }, { once: true });
+    };
+
+    // ===== Eventos =====
+    let eventosEmpresaId = null;
+    window.abrirEventos = async (empresaId, nome) => {
+      eventosEmpresaId = empresaId;
+      document.getElementById('tituloEventos').textContent = 'Eventos — ' + nome;
+      new bootstrap.Modal(document.getElementById('modalEventos')).show();
+      carregarEventos();
+    };
+    async function carregarEventos() {
+      const r = await api(`/empresas/${eventosEmpresaId}/eventos`);
+      const box = document.getElementById('listaEventos');
+      if (!r.success) { box.innerHTML = '<div class="text-danger small">' + esc(r.error) + '</div>'; return; }
+      box.innerHTML = r.data.length
+        ? r.data.map((ev) => `<div class="evento-item"><b>${esc(ev.tipo)}</b> — ${esc(ev.detalhe || '')}<br><small>${new Date(ev.criado_em).toLocaleString('pt-BR')}</small></div>`).join('')
+        : '<div class="text-secondary small">Sem eventos.</div>';
+    }
+    document.getElementById('btnAddNota').onclick = async () => {
+      const inp = document.getElementById('novaNota');
+      if (!inp.value.trim()) return;
+      const r = await api(`/empresas/${eventosEmpresaId}/eventos`, { method: 'POST', body: JSON.stringify({ detalhe: inp.value.trim() }) });
+      if (r.success) { inp.value = ''; carregarEventos(); } else toast(r.error, 'danger');
+    };
+
+    // ===== Provisionar =====
+    document.getElementById('btnProvisionar').onclick = () => {
+      document.getElementById('formProv').reset();
+      document.getElementById('provLog').classList.add('d-none');
+      document.getElementById('provSucesso').classList.add('d-none');
+      document.getElementById('btnExecProv').disabled = false;
+      // Sugere próxima porta livre
+      const portas = empresas.map((e) => e.instancia?.porta).filter(Boolean);
+      document.querySelector('#formProv [name=porta]').value = portas.length ? Math.max(...portas) + 1 : 3096;
+      new bootstrap.Modal(document.getElementById('modalProv')).show();
+    };
+
+    document.getElementById('btnExecProv').onclick = async () => {
+      const f = document.getElementById('formProv');
+      const nome = f.nome.value.trim(), slug = f.slug.value.trim(), porta = f.porta.value;
+      if (!nome || !slug || !porta) return toast('Preencha nome, slug e porta', 'warning');
+      const btn = document.getElementById('btnExecProv');
+      btn.disabled = true;
+      const logBox = document.getElementById('provLog');
+      logBox.classList.remove('d-none');
+      logBox.textContent = 'Iniciando provisionamento (npm install demora alguns minutos)...\n';
+
+      const r = await api('/provisionar', { method: 'POST', body: JSON.stringify({ nome, slug, porta }) });
+      if (!r.success) { btn.disabled = false; return toast(r.error, 'danger'); }
+      const jobId = r.data.jobId;
+
+      const poll = setInterval(async () => {
+        const s = await api('/provisionar/' + jobId);
+        if (!s.success) { clearInterval(poll); btn.disabled = false; return toast(s.error, 'danger'); }
+        logBox.textContent = s.data.log || '...';
+        logBox.scrollTop = logBox.scrollHeight;
+        if (s.data.status === 'erro') { clearInterval(poll); btn.disabled = false; toast('Provisionamento falhou — veja o log', 'danger'); }
+        if (s.data.status === 'sucesso') {
+          clearInterval(poll);
+          const c = await api(`/provisionar/${jobId}/concluir`, { method: 'POST', body: JSON.stringify({ nome, slug }) });
+          if (c.success) {
+            const ok = document.getElementById('provSucesso');
+            ok.classList.remove('d-none');
+            ok.innerHTML = `🎉 <b>${esc(nome)}</b> no ar na porta <b>${c.data.porta}</b>!<br>ADMIN_TOKEN do dashboard: <code>${esc(c.data.admin_token || 'ver log')}</code><br>Próximo passo: Conectar WhatsApp no card da empresa.`;
+            toast('Empresa provisionada');
+            carregar();
+          } else toast(c.error, 'danger');
+        }
+      }, 3000);
+    };
+
+    // ===== Boot =====
+    carregar();
+    setInterval(carregar, 15000);
+  </script>
+</body>
+</html>

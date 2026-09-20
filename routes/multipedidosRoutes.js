@@ -23,7 +23,11 @@ captura.all(
   async (req, res) => {
     const segredo = (process.env.MULTIPEDIDOS_WEBHOOK_SECRET || '').trim();
     if (!segredo) return res.status(404).json({ ok: false });
-    if (req.params.secret !== segredo) return res.status(401).json({ ok: false });
+    if (req.params.secret !== segredo) {
+      // Ajuda a diagnosticar URL cadastrada errada no painel (não loga o segredo recebido).
+      console.warn(`⚠️ Webhook Multipedidos: segredo inválido (${req.method}, ip ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}, ua ${req.headers['user-agent'] || '-'})`);
+      return res.status(401).json({ ok: false });
+    }
 
     const body = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
     const queryString = req.originalUrl.includes('?') ? req.originalUrl.split('?').slice(1).join('?') : '';

@@ -103,6 +103,43 @@ OPENROUTER_API_KEY=$(getenv OPENROUTER_API_KEY)
 
 WA_SESSION_ID=empresa-$SLUG
 EOF
+
+# Motor WhatsApp: se a instalação base usa Evolution, a nova empresa nasce nela também
+EVO_URL="$(getenv EVOLUTION_URL)"
+EVO_APIKEY="$(getenv EVOLUTION_APIKEY)"
+EVO_PUBLIC_BASE="$(getenv EVOLUTION_PUBLIC_URL)"
+if [[ -n "$EVO_URL" && -n "$EVO_APIKEY" ]]; then
+  EVO_INSTANCIA="empresa-$SLUG"
+  WEBHOOK_SECRET="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  PUBLIC_HOST="$(echo "$EVO_PUBLIC_BASE" | sed -E 's#^(https?://[^:/]+).*#\1#')"
+  [[ -z "$PUBLIC_HOST" ]] && PUBLIC_HOST="http://localhost"
+
+  cat >> "$DESTINO/.env" <<EOF
+
+WA_ENGINE=evolution
+EVOLUTION_URL=$EVO_URL
+EVOLUTION_APIKEY=$EVO_APIKEY
+EVOLUTION_INSTANCE=$EVO_INSTANCIA
+EVOLUTION_WEBHOOK_SECRET=$WEBHOOK_SECRET
+EVOLUTION_PUBLIC_URL=$PUBLIC_HOST:$PORTA
+EOF
+
+  # Cria a instância na Evolution (se já existir, segue em frente)
+  HTTP_CODE=$(curl -s -o /tmp/evo-create-$SLUG.json -w "%{http_code}" -X POST "$EVO_URL/instance/create" \
+    -H "apikey: $EVO_APIKEY" -H "Content-Type: application/json" \
+    -d "{\"instanceName\":\"$EVO_INSTANCIA\",\"integration\":\"WHATSAPP-BAILEYS\",\"qrcode\":true}")
+  if [[ "$HTTP_CODE" == "201" || "$HTTP_CODE" == "200" ]]; then
+    echo "✅ Instância Evolution criada: $EVO_INSTANCIA"
+  elif grep -q "already in use\|already exists" /tmp/evo-create-$SLUG.json 2>/dev/null; then
+    echo "⏭️ Instância Evolution já existia: $EVO_INSTANCIA"
+  else
+    echo "⚠️ Evolution instance/create HTTP $HTTP_CODE — verifique depois: $(head -c 200 /tmp/evo-create-$SLUG.json)"
+  fi
+  echo "EVOLUTION_INSTANCE: $EVO_INSTANCIA"
+else
+  echo "⚠️ Base sem EVOLUTION_URL/APIKEY — nova empresa usará motor wwebjs"
+fi
+
 echo "✅ .env criado (ADMIN_TOKEN gerado automaticamente)"
 
 # 3. Dependências + banco + migrações + PM2 (run-setup faz tudo lendo o .env novo)

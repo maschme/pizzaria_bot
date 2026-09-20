@@ -123,13 +123,14 @@ function provisionarEmpresa(slug, porta) {
   proc.on('close', (code) => {
     if (code === 0) {
       const tokenMatch = job.log.match(/ADMIN_TOKEN:\s*([0-9a-f]+)/i);
+      const evoMatch = job.log.match(/EVOLUTION_INSTANCE:\s*(\S+)/);
       job.resultado = {
         porta,
         pm2_name: `bot-${slug}`,
         db_name: `pizzaria_${slug.replace(/-/g, '_')}`,
         dir_path: path.join(REPO_RAIZ, '..', `bot-${slug}`),
         admin_token: tokenMatch ? tokenMatch[1] : null,
-        evolution_instance: null
+        evolution_instance: evoMatch ? evoMatch[1] : null
       };
       job.status = 'sucesso';
     } else {

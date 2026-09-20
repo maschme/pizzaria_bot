@@ -50,6 +50,14 @@
 |--------|------|-----------|
 | POST | `/webhook/movimento` | Recebe movimentos CRM (stub/log) |
 
+### Integração Multipedidos (estudo — [doc 17](./17-integracao-multipedidos.md))
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| ANY | `/webhook/multipedidos/:secret` | Público (segredo `MULTIPEDIDOS_WEBHOOK_SECRET` na URL). Grava a requisição crua em `webhook_eventos` e responde 200 |
+| GET | `/api/integracoes/multipedidos/eventos` | Admin. Lista capturas (`?limite=`, `?corpo=1` inclui headers e corpo) |
+| GET | `/api/integracoes/multipedidos/eventos/:id` | Admin. Captura completa |
+
 ---
 
 ## `/api/dashboard/*`

@@ -65,7 +65,9 @@ async function listarCanais() {
 
 async function criarCanal({ nome, slug, tipo, mensagem_entrada, ativo = true }) {
   if (!nome || !mensagem_entrada) throw new Error('nome e mensagem_entrada são obrigatórios');
-  const slugFinal = normalizar(slug || nome).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+  const slugFinal = normalizar(slug || nome)
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')  // remove acentos
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
   if (!slugFinal) throw new Error('slug inválido');
 
   const conn = await mysql.createConnection(mysql2Config);
@@ -166,23 +168,61 @@ async function atribuirCanalSeCorresponder(chatId, texto) {
     const wid = apenasDigitos(chatId);
     if (wid.length < 8) return null;
 
+    await marcarContatoComCanal(wid, canal.id);
+    return canal.id;
+  } catch (e) {
+    console.warn('⚠️ Atribuição de canal falhou:', e.message);
+    return null;
+  }
+}
+
+/** Upsert do contato com canal — nunca sobrescreve atribuição existente. */
+async function marcarContatoComCanal(widDigitos, canalId) {
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    const [r] = await conn.execute(
+      `INSERT INTO contatos (whatsapp_id, canal_id, canal_atribuido_em)
+       VALUES (?, ?, NOW())
+       ON DUPLICATE KEY UPDATE
+         canal_id = IF(canal_id IS NULL, VALUES(canal_id), canal_id),
+         canal_atribuido_em = IF(canal_atribuido_em IS NULL, NOW(), canal_atribuido_em)`,
+      [widDigitos, canalId]
+    );
+    // affectedRows: 1 = contato novo, 2 = atualizado, 0 = já tinha canal (guarda preservou)
+    if (r.affectedRows > 0) console.log(`📍 Canal atribuído: contato ${widDigitos} ← canal #${canalId}`);
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Marcação ATIVA de canal (pós-venda/envios iniciados pelo bot ou operador).
+ * @param {string} chatId - número ou chatId do destinatário
+ * @param {number|string} canalRef - id numérico ou slug do canal
+ * @returns {Promise<number|null>} id do canal aplicado (ou null)
+ */
+async function marcarCanal(chatId, canalRef) {
+  try {
+    const wid = apenasDigitos(chatId);
+    if (wid.length < 8 || !canalRef) return null;
+
     const conn = await mysql.createConnection(mysql2Config);
+    let canal;
     try {
-      await conn.execute(
-        `INSERT INTO contatos (whatsapp_id, canal_id, canal_atribuido_em)
-         VALUES (?, ?, NOW())
-         ON DUPLICATE KEY UPDATE
-           canal_id = IF(canal_id IS NULL, VALUES(canal_id), canal_id),
-           canal_atribuido_em = IF(canal_atribuido_em IS NULL, NOW(), canal_atribuido_em)`,
-        [wid, canal.id]
-      );
-      console.log(`📍 Canal atribuído: contato ${wid} ← canal #${canal.id}`);
-      return canal.id;
+      const porId = Number.isInteger(Number(canalRef)) && String(canalRef).trim() !== '' && !isNaN(Number(canalRef));
+      const [rows] = porId
+        ? await conn.execute('SELECT id FROM canais WHERE id = ? AND ativo = 1 LIMIT 1', [Number(canalRef)])
+        : await conn.execute('SELECT id FROM canais WHERE slug = ? AND ativo = 1 LIMIT 1', [String(canalRef).trim()]);
+      canal = rows[0];
     } finally {
       await conn.end();
     }
+    if (!canal) return null;
+
+    await marcarContatoComCanal(wid, canal.id);
+    return canal.id;
   } catch (e) {
-    console.warn('⚠️ Atribuição de canal falhou:', e.message);
+    console.warn('⚠️ marcarCanal falhou:', e.message);
     return null;
   }
 }
@@ -279,6 +319,7 @@ async function obterFunil(opts = {}) {
 module.exports = {
   listarCanais,
   obterFunil,
+  marcarCanal,
   criarCanal,
   atualizarCanal,
   excluirCanal,

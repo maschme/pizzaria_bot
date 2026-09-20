@@ -58,8 +58,12 @@ A única dimensão nova necessária é `canal_id` — as etapas já são registr
 - API: `GET /api/dashboard/funil?inicio=&fim=` (`canalService.obterFunil`, com fallback para instâncias sem tabelas de sessão/metas)
 - Pendente desta etapa: card de resumo na visão geral (baixa prioridade — a aba Funil cobre)
 
-### Etapa 3 — Canais ativos (pós-venda)
-- Automações/envios em massa aceitam canal de origem e marcam contatos no envio
+### Etapa 3 — Canais ativos (pós-venda) ✅ (20/09/2026)
+- `canalService.marcarCanal(numero, idOuSlug)`: marcação ativa com a mesma regra (nunca sobrescreve; canal precisa estar ativo); slugs agora sem acentos
+- Pontos de envio que aceitam `canal` opcional no body:
+  - `POST /send-message` (integrações externas — ex.: automação pós-venda da Multipedidos, doc 17)
+  - `POST /api/dashboard/chats/:chatId/iniciar-fluxo` (com seletor "Canal de origem" no gerenciador de chats)
+  - `POST /api/dashboard/indicacoes/:id/mensagem`
 - (Futuro) relatório de reengajamento por canal
 
 ## 5. Fora de escopo por ora

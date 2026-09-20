@@ -25,6 +25,7 @@ const requisicaoService = require('./services/requisicaoExternaService');
 const { router: dashboardRoutes, setWhatsappClient } = require('./routes/dashboardRoutes');
 const iaRoutes = require('./routes/iaRoutes');
 const fluxoRoutes = require('./routes/fluxoRoutes');
+const multipedidosRoutes = require('./routes/multipedidosRoutes');
 const fluxoService = require('./services/fluxoService');
 const fluxoExecutor = require('./services/fluxoExecutor');
 const indicacaoService = require('./services/indicacaoService');
@@ -255,6 +256,9 @@ const DEBOUNCE_MS_PADRAO = 10000;         // fallback se não houver config
 const debounceState = new Map();
 
 
+// Webhook Multipedidos (captura crua) — precisa vir ANTES do bodyParser.json para ler o corpo como veio
+app.use('/webhook/multipedidos', multipedidosRoutes.captura);
+
 // Middleware para JSON
 app.use(bodyParser.json({ limit: '10mb' }));
 
@@ -318,6 +322,9 @@ app.use('/api/dashboard', exigirAdmin, dashboardRoutes);
 
 // Rotas de IA, Prompts e Requisições
 app.use('/api/ia', exigirAdmin, iaRoutes);
+
+// Integração Multipedidos — consulta dos webhooks capturados
+app.use('/api/integracoes/multipedidos', exigirAdmin, multipedidosRoutes.admin);
 
 // Rotas de Fluxos — POST /:id/webhook fica público (gatilho de automações por sistemas externos)
 app.use('/api/fluxos', (req, res, next) => {
@@ -486,6 +493,8 @@ app.post('/send-message', async (req, res) => {
         const chatId = number;
 
         await client.sendMessage(chatId, message);
+        // Envio ativo externo: canal opcional (id ou slug) marca a origem do contato
+        if (req.body.canal) canalService.marcarCanal(chatId, req.body.canal).catch(() => {});
         res.status(200).json({ success: true, sent_to: number });
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);

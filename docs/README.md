@@ -22,6 +22,7 @@ Bot de atendimento WhatsApp com IA para a **Pizzaria Tempero Napolitano**. Este 
 | 14 | [Análise de APIs WhatsApp](./14-analise-apis-whatsapp.md) | Inventário de funções usadas e comparação de APIs (oficial e alternativas) |
 | 15 | [Fase 2 — Painel Central](./15-fase2-painel-central.md) | Escopo do MVP do painel multi-empresa |
 | 16 | [Canais e Funil](./16-canais-e-funil.md) | Rastreio de origem dos clientes e funil de conversão por canal |
+| 17 | [Integração Multipedidos](./17-integracao-multipedidos.md) | Estudo da API/webhooks da Multipedidos e endpoint de captura |
 | — | [Tabela Contatos](./CONTATOS_TABELA.md) | Uso específico da tabela `contatos` |
 
 ## Início rápido

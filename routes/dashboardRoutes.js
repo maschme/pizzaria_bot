@@ -545,6 +545,7 @@ router.post('/indicacoes/:id/mensagem', async (req, res) => {
     if (!indicacao) return res.status(404).json({ success: false, error: 'Indicação não encontrada' });
 
     const data = await chatService.enviarMensagemParaNumero(whatsappClient, indicacao.indicado_numero, mensagem);
+    if (req.body?.canal) canalService.marcarCanal(indicacao.indicado_numero, req.body.canal).catch(() => {});
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -636,12 +637,14 @@ router.post('/chats/:chatId/iniciar-fluxo', async (req, res) => {
       return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
     }
     const chatId = decodeChatIdParam(req.params.chatId);
-    const { fluxoId, encerrarAtual, limparCampanha } = req.body;
+    const { fluxoId, encerrarAtual, limparCampanha, canal } = req.body;
     if (!fluxoId) return res.status(400).json({ success: false, error: 'fluxoId é obrigatório' });
     const data = await chatService.iniciarFluxoNoChat(whatsappClient, chatId, fluxoId, {
       encerrarAtual: encerrarAtual !== false,
       limparCampanha: limparCampanha === true
     });
+    // Envio ativo: marca o canal de origem (pós-venda etc.), sem sobrescrever
+    if (canal) canalService.marcarCanal(chatId, canal).catch(() => {});
     res.json({ success: true, data, mensagem: `Fluxo "${data.fluxo.nome}" iniciado` });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });

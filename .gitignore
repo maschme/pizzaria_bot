@@ -27,3 +27,6 @@ dist/
 tmp/
 temp/
 *.tmp
+
+# Capturas de APIs externas (contêm dados pessoais de clientes)
+capturas/

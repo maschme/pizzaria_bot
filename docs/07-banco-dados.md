@@ -220,6 +220,24 @@ Progresso por contato.
 | concluido | BOOLEAN | — |
 | concluido_em | DATETIME | — |
 
+### `webhook_eventos`
+
+Captura crua de webhooks de sistemas externos para estudo dos payloads (hoje: Multipedidos — ver [doc 17](./17-integracao-multipedidos.md)).
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | INT PK | — |
+| origem | VARCHAR(40) | Sistema que enviou (`multipedidos`) |
+| metodo | VARCHAR(10) | Método HTTP |
+| caminho | VARCHAR(255) | Sub-caminho após o segredo |
+| query_string | TEXT | — |
+| content_type | VARCHAR(120) | — |
+| headers | LONGTEXT | JSON dos headers |
+| body | LONGTEXT | Corpo cru, como recebido |
+| body_json_valido | BOOLEAN | Corpo é JSON válido |
+| ip | VARCHAR(64) | — |
+| recebido_em | TIMESTAMP | — |
+
 ---
 
 ## Tabelas legadas
@@ -273,6 +291,7 @@ Pedidos completos com total, taxa_entrega, bairro, detalhes, status_pedido, etc.
 |---------|---------|
 | `migrations/indicacoes.js` | `contatos`, `indicacoes` |
 | `migrations/metas.js` | `metas`, `contato_metas` + seeds |
+| `migrations/2026-09-20-webhook-eventos.js` | `webhook_eventos` |
 
 Executadas via `run-setup.js` ou manualmente.
 

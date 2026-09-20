@@ -1177,6 +1177,7 @@
 
       html += `<label class="form-label small fw-semibold">Iniciar fluxo</label>
         <select class="form-select form-select-modern form-select-sm mb-2" id="selectFluxoIniciar"><option value="">— Escolha —</option>${optsFluxo}</select>
+        <select class="form-select form-select-modern form-select-sm mb-2" id="selectCanalIniciar"><option value="">Canal de origem (opcional)</option></select>
         <div class="form-check mb-2">
           <input class="form-check-input" type="checkbox" id="chkLimparCampanha">
           <label class="form-check-label small" for="chkLimparCampanha">Limpar sessão campanha</label>
@@ -1197,6 +1198,21 @@
       el.innerHTML = html;
       document.getElementById('btnIniciarFluxoChat')?.addEventListener('click', iniciarFluxoNoChat);
       document.getElementById('btnEncerrarFluxoChat')?.addEventListener('click', encerrarFluxoNoChat);
+      popularCanaisIniciar();
+    }
+
+    let canaisIniciarCache = null;
+    async function popularCanaisIniciar() {
+      const sel = document.getElementById('selectCanalIniciar');
+      if (!sel) return;
+      if (!canaisIniciarCache) {
+        const r = await api('/canais');
+        canaisIniciarCache = r.success ? (r.data || []).filter(c => c.ativo) : [];
+      }
+      const atual = sel.value;
+      sel.innerHTML = '<option value="">Canal de origem (opcional)</option>' +
+        canaisIniciarCache.map(c => `<option value="${c.id}">${String(c.nome).replace(/</g, '&lt;')}</option>`).join('');
+      if (atual) sel.value = atual;
     }
 
     async function iniciarFluxoNoChat() {
@@ -1204,10 +1220,11 @@
       const fluxoId = document.getElementById('selectFluxoIniciar')?.value;
       if (!fluxoId) { showToast('Selecione um fluxo', 'warning'); return; }
       const limparCampanha = document.getElementById('chkLimparCampanha')?.checked === true;
+      const canal = document.getElementById('selectCanalIniciar')?.value || null;
       const path = '/chats/' + encodeURIComponent(chatSelecionado.chatId) + '/iniciar-fluxo';
       const data = await api(path, {
         method: 'POST',
-        body: JSON.stringify({ fluxoId: Number(fluxoId), encerrarAtual: true, limparCampanha })
+        body: JSON.stringify({ fluxoId: Number(fluxoId), encerrarAtual: true, limparCampanha, canal: canal ? Number(canal) : null })
       });
       if (data.success) {
         showToast(data.mensagem || 'Fluxo iniciado');
@@ -1588,6 +1605,7 @@
     const tiposCanal = { qr_caixa: 'QR caixa', panfleto: 'Panfleto', ifood: 'iFood', pos_venda: 'Pós-venda', trafego_pago: 'Tráfego pago', outro: 'Outro' };
 
     async function carregarCanais() {
+      canaisIniciarCache = null; // canais mudaram: seletor do chat será repopulado
       const tbody = document.getElementById('tabelaCanais');
       tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
       const data = await api('/canais');

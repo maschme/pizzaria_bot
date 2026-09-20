@@ -14,6 +14,19 @@ const crypto = require('crypto');
 
 const REPO_RAIZ = path.resolve(__dirname, '..', '..');
 
+/**
+ * Ambiente limpo para processos filhos: sem as variáveis do painel (PORT etc.),
+ * senão elas "vazam" para as instâncias e vencem o .env delas (dotenv não
+ * sobrescreve variáveis já definidas) — foi a causa do bug da porta 3100.
+ */
+function envLimpo() {
+  const env = { ...process.env };
+  for (const k of ['PORT', 'PAINEL_TOKEN', 'PAINEL_DB_NAME', 'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD']) {
+    delete env[k];
+  }
+  return env;
+}
+
 // ============================================================
 // Saúde
 // ============================================================
@@ -51,7 +64,7 @@ async function restartInstancia(inst) {
 }
 
 async function backupInstancia(inst) {
-  return rodar(process.execPath, [path.join(inst.dir_path, 'scripts', 'backup.js')], { cwd: inst.dir_path });
+  return rodar(process.execPath, [path.join(inst.dir_path, 'scripts', 'backup.js')], { cwd: inst.dir_path, env: envLimpo() });
 }
 
 // ============================================================
@@ -114,7 +127,7 @@ function provisionarEmpresa(slug, porta) {
   jobs.set(id, job);
 
   const script = path.join(REPO_RAIZ, 'scripts', 'provisionar-empresa.sh');
-  const proc = spawn('bash', [script, slug, String(porta)], { cwd: REPO_RAIZ });
+  const proc = spawn('bash', [script, slug, String(porta)], { cwd: REPO_RAIZ, env: envLimpo() });
 
   const anexar = (d) => { job.log = (job.log + d).slice(-20000); };
   proc.stdout.on('data', anexar);

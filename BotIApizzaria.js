@@ -1,4 +1,6 @@
-require('dotenv').config();
+// override:true — o .env da pasta da instância é a fonte de verdade, mesmo que
+// o processo tenha herdado variáveis (ex.: PORT) de quem o iniciou (painel/PM2)
+require('dotenv').config({ override: true });
 const { Client, Location, Poll, List, Buttons, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');  // Adicione esta linha
 const fs = require('fs');

@@ -69,8 +69,8 @@ Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado a uma
 | `ecosystem.config.js` | Todas as instâncias declaradas num arquivo PM2 versionado (fora do repo do bot ou gerado) |
 | ✅ Endpoint `/health` | `GET /health` público: WhatsApp (estado + QR pendente), banco, uptime, instância; HTTP 503 quando degradado — feito 19/09/2026 |
 | ✅ Alerta de desconexão | `scripts/monitor-health.js` (processo PM2 separado): checa `/health`, alerta na queda com re-alerta periódico e aviso de recuperação; canais: webhook genérico e **WhatsApp via Evolution API** — feito 19/09/2026 |
-| Backup automatizado | Dump diário por banco + backup da pasta de sessões |
-| Migrações versionadas | Padronizar `database/migrations/` com controle de versão aplicada (tabela `schema_migrations`) para atualizar N bancos com segurança |
+| ✅ Backup automatizado | `scripts/backup.js`: dump gzip do MySQL + cópia do `.env`, retenção configurável (default 14d), agendado via PM2 cron — feito 20/09/2026. (Sessão WhatsApp agora vive na Evolution/Postgres, não há mais pasta de sessão a copiar) |
+| ✅ Migrações versionadas | `database/migrate.js` + tabela `schema_migrations`: aplica pendentes em ordem e registra; `run-setup.js` passou a usá-lo; deploy padrão vira `git pull && node database/migrate.js && pm2 restart` — feito 20/09/2026 |
 
 ### Fase 2 — Control plane (painel central) (1–2 meses)
 

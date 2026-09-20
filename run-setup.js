@@ -34,14 +34,8 @@ run('node', ['database/create-database.js']);
 console.log('\n🗄️ Rodando setup do banco (tabelas + seeds)...');
 run('node', ['database/setup.js']);
 
-console.log('\n📋 Migrações: indicacoes...');
-run('node', ['database/migrations/indicacoes.js']);
-
-console.log('\n📋 Migrações: metas...');
-run('node', ['database/migrations/metas.js']);
-
-console.log('\n📋 Migrações: sessoes_campanha...');
-run('node', ['database/migrations/sessoes_campanha.js']);
+console.log('\n📋 Aplicando migrações versionadas...');
+run('node', ['database/migrate.js']);
 
 console.log('\n🚀 PM2: iniciando/reiniciando app com nome "' + pm2Name + '"...');
 const hasPm2 = spawnSync('pm2', ['describe', pm2Name], { cwd: root, shell: true }).status === 0;

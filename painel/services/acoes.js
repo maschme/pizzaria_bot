@@ -121,13 +121,15 @@ function importarInstancia(dirPath) {
 
 const jobs = new Map(); // id -> { status: rodando|sucesso|erro, log, resultado }
 
-function provisionarEmpresa(slug, porta) {
+function provisionarEmpresa(slug, porta, modeloDir = null) {
   const id = crypto.randomBytes(8).toString('hex');
   const job = { id, status: 'rodando', log: '', resultado: null, iniciadoEm: new Date() };
   jobs.set(id, job);
 
   const script = path.join(REPO_RAIZ, 'scripts', 'provisionar-empresa.sh');
-  const proc = spawn('bash', [script, slug, String(porta)], { cwd: REPO_RAIZ, env: envLimpo() });
+  const env = envLimpo();
+  if (modeloDir) env.MODELO_DIR = modeloDir;
+  const proc = spawn('bash', [script, slug, String(porta)], { cwd: REPO_RAIZ, env });
 
   const anexar = (d) => { job.log = (job.log + d).slice(-20000); };
   proc.stdout.on('data', anexar);

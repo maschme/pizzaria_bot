@@ -80,7 +80,7 @@ Uma empresa → uma instância no MVP (o schema já permite N no futuro).
 | Gateway de cobrança (Asaas/Mercado Pago) | Suspensão automática por inadimplência |
 | Proxy reverso + subdomínio + HTTPS | `empresa.dominio.com.br`; encerra acesso por porta |
 | Login por empresa no painel | Multiusuário com permissões |
-| Templates de fluxo por segmento | Aplicados no provisionamento |
+| ~~Templates de fluxo por segmento~~ | ✅ **Entregue em 20/09/2026 como "empresa-modelo"**: no provisionar, escolhe-se uma empresa existente como modelo e prompts, fluxos, requisições, configurações e cardápio (`arquivos/`) são copiados (`scripts/copiar-modelo.js`); dados operacionais não. Segmento novo = configurar uma empresa modelo, sem programar. Seeds padrão foram neutralizados (sem marca de pizzaria) |
 | Deploy em ondas pelo painel | `git pull` + migrate + restart instância a instância |
 | Alertas centralizados | Hoje cada instância tem seu monitor; consolidar no painel |
 

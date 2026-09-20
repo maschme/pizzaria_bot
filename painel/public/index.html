@@ -108,6 +108,11 @@
             <div class="mb-2"><label class="form-label small">Nome</label><input class="form-control form-control-sm" name="nome" required></div>
             <div class="mb-2"><label class="form-label small">Slug</label><input class="form-control form-control-sm" name="slug" pattern="[a-z0-9][a-z0-9-]{1,30}" required></div>
             <div class="mb-2"><label class="form-label small">Porta</label><input class="form-control form-control-sm" name="porta" type="number" required></div>
+            <div class="mb-2"><label class="form-label small">Empresa-modelo (copia prompts, fluxos, requisições e cardápio)</label>
+              <select class="form-select form-select-sm" name="modelo_instancia_id" id="selModelo">
+                <option value="">— sem modelo (nasce genérica) —</option>
+              </select>
+            </div>
           </form>
           <div class="log-box d-none" id="provLog"></div>
           <div class="alert alert-success d-none mt-2 py-2 small" id="provSucesso"></div>
@@ -367,6 +372,10 @@
       // Sugere próxima porta livre
       const portas = empresas.map((e) => e.instancia?.porta).filter(Boolean);
       document.querySelector('#formProv [name=porta]').value = portas.length ? Math.max(...portas) + 1 : 3096;
+      // Popula empresas-modelo (qualquer empresa com instância)
+      const sel = document.getElementById('selModelo');
+      sel.innerHTML = '<option value="">— sem modelo (nasce genérica) —</option>' +
+        empresas.filter((e) => e.instancia).map((e) => `<option value="${e.instancia.id}">${esc(e.nome)} (${esc(e.slug)})</option>`).join('');
       new bootstrap.Modal(document.getElementById('modalProv')).show();
     };
 
@@ -380,7 +389,8 @@
       logBox.classList.remove('d-none');
       logBox.textContent = 'Iniciando provisionamento (npm install demora alguns minutos)...\n';
 
-      const r = await api('/provisionar', { method: 'POST', body: JSON.stringify({ nome, slug, porta }) });
+      const modelo = document.getElementById('selModelo').value || null;
+      const r = await api('/provisionar', { method: 'POST', body: JSON.stringify({ nome, slug, porta, modelo_instancia_id: modelo }) });
       if (!r.success) { btn.disabled = false; return toast(r.error, 'danger'); }
       const jobId = r.data.jobId;
 

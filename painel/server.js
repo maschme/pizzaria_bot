@@ -187,7 +187,7 @@ app.get('/api/instancias/:id/qr', async (req, res) => {
 
 app.post('/api/provisionar', async (req, res) => {
   try {
-    const { nome, slug, porta } = req.body || {};
+    const { nome, slug, porta, modelo_instancia_id } = req.body || {};
     if (!nome || !slug || !porta) return erro(res, new Error('nome, slug e porta são obrigatórios'), 400);
     if (!/^[a-z0-9][a-z0-9-]{1,30}$/.test(slug)) return erro(res, new Error('slug inválido'), 400);
 
@@ -196,7 +196,13 @@ app.post('/api/provisionar', async (req, res) => {
     const [dupPorta] = await db.getPool().execute('SELECT id FROM instancias WHERE porta = ?', [Number(porta)]);
     if (dupPorta.length) return erro(res, new Error('Porta já usada por outra instância'), 409);
 
-    const jobId = acoes.provisionarEmpresa(slug, Number(porta));
+    let modeloDir = null;
+    if (modelo_instancia_id) {
+      const modelo = await carregarInstancia(modelo_instancia_id);
+      modeloDir = modelo.dir_path;
+    }
+
+    const jobId = acoes.provisionarEmpresa(slug, Number(porta), modeloDir);
     ok(res, { jobId });
   } catch (e) { erro(res, e); }
 });

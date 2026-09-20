@@ -147,6 +147,14 @@ echo "📦 Rodando setup completo (npm install + banco + migrações + PM2)..."
 (cd "$DESTINO" && node run-setup.js)
 echo "✅ Instância '$PM2_NAME' instalada e no PM2"
 
+# 4. Empresa-modelo (opcional): copia prompts, fluxos, requisições e cardápio
+if [[ -n "${MODELO_DIR:-}" ]]; then
+  echo "🎨 Aplicando empresa-modelo: $MODELO_DIR"
+  node "$DESTINO/scripts/copiar-modelo.js" "$MODELO_DIR" "$DESTINO"
+  pm2 restart "$PM2_NAME" >/dev/null 2>&1 || true
+  echo "✅ Modelo aplicado e instância reiniciada"
+fi
+
 echo
 echo "🎉 Empresa '$SLUG' provisionada!"
 echo "─────────────────────────────────────────────"

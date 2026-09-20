@@ -99,4 +99,6 @@ Critério de pronto do MVP: operar pizzaria + bot-teste1 + **uma empresa nova pr
 
 ## 7. Status de implementação
 
-**20/09/2026 — MVP implantado em produção** (`painel/`, porta 3100, PM2 `painel-central`): as 6 entregas do plano foram implementadas e o painel está no ar com as duas instâncias vinculadas (pizzaria-crm e bot-teste1, ambas verdes). Falta exercitar o **critério de pronto final**: provisionar uma empresa nova 100% pela interface. Backlog 2.1 permanece como listado na seção 5.
+**20/09/2026 — MVP implantado em produção** (`painel/`, porta 3100, PM2 `painel-central`): as 6 entregas do plano foram implementadas e o painel está no ar com as duas instâncias vinculadas (pizzaria-crm e bot-teste1, ambas verdes).
+
+**20/09/2026 — ✅ Critério de pronto atingido**: empresa `demonstracao` provisionada pela interface (porta 3096, banco e instância Evolution `empresa-demonstracao` criados automaticamente, motor evolution, health ok em `qr_ready`). O teste revelou e corrigiu um bug real de primeira execução: variáveis de ambiente do painel (PORT) vazavam para as instâncias filhas e venciam o `.env` delas — corrigido com spawn de ambiente limpo no painel e `dotenv override` no bot. Backlog 2.1 permanece como listado na seção 5.

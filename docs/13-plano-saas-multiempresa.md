@@ -74,7 +74,7 @@ Multi-tenant real (app único, `empresa_id` nas tabelas) fica condicionado a uma
 
 ### Fase 2 — Control plane (painel central) (1–2 meses)
 
-Aplicação separada (pode reaproveitar o stack Node + MySQL) que gerencia as instâncias:
+**Escopo do MVP definido em 20/09/2026 — ver [doc 15](./15-fase2-painel-central.md)** (cobrança manual, sem domínio/HTTPS, só super-admin, pasta `painel/` no mesmo repo). Visão original de referência:
 
 | Item | Detalhe |
 |------|---------|

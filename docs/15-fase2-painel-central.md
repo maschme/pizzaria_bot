@@ -94,3 +94,9 @@ Uma empresa → uma instância no MVP (o schema já permite N no futuro).
 6. Provisionamento pela interface (por último — é o que executa coisas mais pesadas)
 
 Critério de pronto do MVP: operar pizzaria + bot-teste1 + **uma empresa nova provisionada 100% pelo painel**, sem SSH.
+
+---
+
+## 7. Status de implementação
+
+**20/09/2026 — MVP implantado em produção** (`painel/`, porta 3100, PM2 `painel-central`): as 6 entregas do plano foram implementadas e o painel está no ar com as duas instâncias vinculadas (pizzaria-crm e bot-teste1, ambas verdes). Falta exercitar o **critério de pronto final**: provisionar uma empresa nova 100% pela interface. Backlog 2.1 permanece como listado na seção 5.

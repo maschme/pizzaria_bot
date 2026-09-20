@@ -26,12 +26,26 @@ async function listarContatos(opts = {}) {
   const conn = await mysql.createConnection(config);
   try {
     const [[countRow]] = await conn.execute('SELECT COUNT(*) AS total FROM contatos');
-    const [rows] = await conn.execute(
-      `SELECT id, whatsapp_id, whatsapp_lid, nome, cam_grupo, id_negociacao, qt_indicados, cam_indicacoes, created_at, updated_at
-       FROM contatos ORDER BY updated_at DESC, created_at DESC
-       LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
+    let rows;
+    try {
+      [rows] = await conn.execute(
+        `SELECT c.id, c.whatsapp_id, c.whatsapp_lid, c.nome, c.cam_grupo, c.id_negociacao, c.qt_indicados, c.cam_indicacoes,
+                c.created_at, c.updated_at, c.canal_id, ca.nome AS canal_nome
+           FROM contatos c
+           LEFT JOIN canais ca ON ca.id = c.canal_id
+          ORDER BY c.updated_at DESC, c.created_at DESC
+          LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+    } catch (eJoin) {
+      // Instância ainda sem a migração de canais
+      [rows] = await conn.execute(
+        `SELECT id, whatsapp_id, whatsapp_lid, nome, cam_grupo, id_negociacao, qt_indicados, cam_indicacoes, created_at, updated_at
+         FROM contatos ORDER BY updated_at DESC, created_at DESC
+         LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+    }
     const total = Number(countRow?.total || 0);
     return {
       rows,

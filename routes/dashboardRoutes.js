@@ -470,6 +470,15 @@ router.delete('/canais/:id', async (req, res) => {
   }
 });
 
+router.get('/funil', async (req, res) => {
+  try {
+    const data = await canalService.obterFunil({ inicio: req.query.inicio, fim: req.query.fim });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.get('/canais/:id/qr', async (req, res) => {
   try {
     const numeroBot = whatsappClient?.info?.wid?.user;

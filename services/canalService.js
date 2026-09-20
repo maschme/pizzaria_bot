@@ -187,8 +187,98 @@ async function atribuirCanalSeCorresponder(chatId, texto) {
   }
 }
 
+// ============================================================
+// Funil por canal (docs/16-canais-e-funil.md, etapa 2)
+// ============================================================
+
+/**
+ * Funil de conversão agrupado por canal.
+ * Etapas: chegou → iniciou campanha → missão 1 (grupo) → missão 2 (10 indicações) → converteu (cupom).
+ * @param {{ inicio?: string, fim?: string }} opts - datas YYYY-MM-DD (período sobre a chegada do contato)
+ */
+async function obterFunil(opts = {}) {
+  const inicio = /^\d{4}-\d{2}-\d{2}$/.test(opts.inicio || '') ? opts.inicio : null;
+  const fim = /^\d{4}-\d{2}-\d{2}$/.test(opts.fim || '') ? opts.fim : null;
+
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    const where = [];
+    const params = [];
+    if (inicio) { where.push('COALESCE(c.canal_atribuido_em, c.created_at) >= ?'); params.push(inicio); }
+    if (fim) { where.push('COALESCE(c.canal_atribuido_em, c.created_at) < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(fim); }
+    const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const sqlCompleto = `
+      SELECT c.canal_id,
+        COUNT(*) AS chegou,
+        SUM(CASE WHEN s.numero IS NOT NULL OR c.cam_grupo = 1 OR c.qt_indicados > 0 OR c.cam_indicacoes = 1 THEN 1 ELSE 0 END) AS iniciou,
+        SUM(CASE WHEN c.cam_grupo = 1 THEN 1 ELSE 0 END) AS missao1,
+        SUM(CASE WHEN c.cam_indicacoes = 1 THEN 1 ELSE 0 END) AS missao2,
+        SUM(CASE WHEN cm.id IS NOT NULL THEN 1 ELSE 0 END) AS converteu
+      FROM contatos c
+      LEFT JOIN sessoes_campanha s ON s.numero = CONCAT(c.whatsapp_id, '@c.us')
+      LEFT JOIN contato_metas cm ON cm.whatsapp_id = c.whatsapp_id AND cm.concluido = 1
+        AND cm.meta_id = (SELECT id FROM metas WHERE nome = 'cupom_30_resgatado' LIMIT 1)
+      ${whereSql}
+      GROUP BY c.canal_id`;
+
+    // Fallback sem joins opcionais (instâncias sem tabelas de sessão/metas)
+    const sqlSimples = `
+      SELECT c.canal_id,
+        COUNT(*) AS chegou,
+        SUM(CASE WHEN c.cam_grupo = 1 OR c.qt_indicados > 0 OR c.cam_indicacoes = 1 THEN 1 ELSE 0 END) AS iniciou,
+        SUM(CASE WHEN c.cam_grupo = 1 THEN 1 ELSE 0 END) AS missao1,
+        SUM(CASE WHEN c.cam_indicacoes = 1 THEN 1 ELSE 0 END) AS missao2,
+        0 AS converteu
+      FROM contatos c
+      ${whereSql}
+      GROUP BY c.canal_id`;
+
+    let linhas;
+    try {
+      [linhas] = await conn.execute(sqlCompleto, params);
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+      [linhas] = await conn.execute(sqlSimples, params);
+    }
+
+    let canais = [];
+    try {
+      const [cs] = await conn.execute('SELECT id, nome, tipo FROM canais');
+      canais = cs;
+    } catch (_) { /* sem tabela canais */ }
+
+    const porCanal = linhas.map((l) => {
+      const canal = l.canal_id ? canais.find((c) => c.id === l.canal_id) : null;
+      return {
+        canal_id: l.canal_id,
+        nome: canal ? canal.nome : (l.canal_id ? `Canal #${l.canal_id}` : 'Orgânico / sem canal'),
+        tipo: canal ? canal.tipo : null,
+        chegou: Number(l.chegou) || 0,
+        iniciou: Number(l.iniciou) || 0,
+        missao1: Number(l.missao1) || 0,
+        missao2: Number(l.missao2) || 0,
+        converteu: Number(l.converteu) || 0
+      };
+    }).sort((a, b) => b.chegou - a.chegou);
+
+    const total = porCanal.reduce((acc, c) => ({
+      chegou: acc.chegou + c.chegou,
+      iniciou: acc.iniciou + c.iniciou,
+      missao1: acc.missao1 + c.missao1,
+      missao2: acc.missao2 + c.missao2,
+      converteu: acc.converteu + c.converteu
+    }), { chegou: 0, iniciou: 0, missao1: 0, missao2: 0, converteu: 0 });
+
+    return { periodo: { inicio, fim }, total, porCanal };
+  } finally {
+    await conn.end();
+  }
+}
+
 module.exports = {
   listarCanais,
+  obterFunil,
   criarCanal,
   atualizarCanal,
   excluirCanal,

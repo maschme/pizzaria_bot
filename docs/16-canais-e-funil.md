@@ -51,10 +51,12 @@ A única dimensão nova necessária é `canal_id` — as etapas já são registr
 - Aba **Canais** no dashboard: CRUD, contagem de contatos por canal, modal com QR (download PNG) e link copiável
 - Canal "orgânico" implícito. Testado contra banco real: criação, matching normalizado, não-sobrescrita, mensagem orgânica, QR
 
-### Etapa 2 — Dashboard de funil
-- Gráfico funil (Chart.js) com filtro por canal e período
-- Tabela comparativa entre canais: chegadas, % por etapa, conversão final
-- Card de resumo na visão geral
+### Etapa 2 — Dashboard de funil ✅ (20/09/2026)
+- Aba **Funil** no dashboard: gráfico de barras (Chart.js) das 5 etapas, filtro por canal e período (7d/30d/tudo/datas livres), tooltip com % sobre chegadas
+- Tabela comparativa por canal com % por etapa e linha de total
+- Coluna **Canal** na aba Contatos (JOIN com fallback para instâncias sem a migração)
+- API: `GET /api/dashboard/funil?inicio=&fim=` (`canalService.obterFunil`, com fallback para instâncias sem tabelas de sessão/metas)
+- Pendente desta etapa: card de resumo na visão geral (baixa prioridade — a aba Funil cobre)
 
 ### Etapa 3 — Canais ativos (pós-venda)
 - Automações/envios em massa aceitam canal de origem e marcam contatos no envio

@@ -132,7 +132,9 @@ Decisão do operador: migrar a produção para Evolution **sem esperar o períod
 
 Implementação: `services/evolutionClient.js` — adaptador que expõe a interface do whatsapp-web.js (eventos `message`/`group_join`/`qr`/`ready`, `sendMessage`, `msg.reply`, `getChats`, participantes, invite code, cache LID↔telefone) sobre REST + webhook da Evolution. Seleção por `.env`: `WA_ENGINE=evolution` liga o novo motor; `WA_ENGINE=wwebjs` é o **rollback imediato** (basta trocar e reiniciar).
 
-Limitações conhecidas do motor evolution: etiquetas (getLabels/changeLabels) viram no-op; `sendSeen` não limpa não-lidas; gerenciador de chats do dashboard em modo best-effort (endpoints findChats/findMessages). Validado por teste estrutural com os payloads reais capturados no piloto (texto, vCard, multi-vCard, group_join, LID).
+Limitações conhecidas do motor evolution: etiquetas (getLabels/changeLabels) viram no-op; gerenciador de chats do dashboard em modo best-effort (endpoints findChats/findMessages). Validado por teste estrutural com os payloads reais capturados no piloto (texto, vCard, multi-vCard, group_join, LID).
+
+**✅ Migração concluída em 19/09/2026**: produção (`pizzaria-crm`, porta 3087, instância Evolution `pizzaria`) e `bot-teste1` (3095, instância do operador) rodando conectados no motor evolution, com envio/recebimento testados no dashboard. Correções durante a virada: mensagens recebidas na dash, caches (chats/participantes) contra rate-limit, não-lidas em tempo real, renovação automática de QR expirado e auto-restart de instância travada. O whatsapp-web.js permanece no código como rollback (`WA_ENGINE=wwebjs`). Observação de estabilidade segue via monitor (`scripts/monitor-health.js`).
 
 ## 4. Próximo passo proposto: piloto de validação
 

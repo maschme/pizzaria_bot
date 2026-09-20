@@ -31,6 +31,7 @@ const indicacaoService = require('./services/indicacaoService');
 const metaService = require('./services/metaService');
 const whatsappIdentityService = require('./services/whatsappIdentityService');
 const sessaoCampanhaService = require('./services/sessaoCampanhaService');
+const canalService = require('./services/canalService');
 const { setupDatabase } = require('./database/setup');
 const { dbConfig } = require('./database/connection');
 const mysql2Config = {
@@ -736,6 +737,9 @@ client.on('message', async (msg) => {
   if (!msg.body || msg.body.trim() === '') return;
 
   const texto = msg.body.trim();
+
+  // 📍 Atribuição de canal de aquisição (1º contato; fire-and-forget)
+  canalService.atribuirCanalSeCorresponder(numero, texto).catch(() => {});
 
   // Gatilhos e início de fluxo: processados na hora (sem debounce)
   const fluxoVisual = await fluxoService.buscarFluxoPorGatilho(texto);

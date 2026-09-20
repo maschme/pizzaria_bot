@@ -45,11 +45,11 @@ A única dimensão nova necessária é `canal_id` — as etapas já são registr
 
 ## 4. Entregas
 
-### Etapa 1 — Atribuição + gestão de canais
-- Migração `canais` + colunas em `contatos`
-- Atribuição no pipeline de mensagens (primeiro contato)
-- Aba **Canais** no dashboard: CRUD + geração automática de link `wa.me` e **QR em PNG** (lib `qrcode` já no projeto) para download/impressão
-- Canal "orgânico" implícito (sem cadastro)
+### Etapa 1 — Atribuição + gestão de canais ✅ (20/09/2026)
+- Migração `2026-09-20-canais.js` (tabela `canais` + `contatos.canal_id`/`canal_atribuido_em`)
+- `services/canalService.js`: CRUD, atribuição no pipeline (1º contato, nunca sobrescreve, cache 60s), link `wa.me` e QR PNG
+- Aba **Canais** no dashboard: CRUD, contagem de contatos por canal, modal com QR (download PNG) e link copiável
+- Canal "orgânico" implícito. Testado contra banco real: criação, matching normalizado, não-sobrescrita, mensagem orgânica, QR
 
 ### Etapa 2 — Dashboard de funil
 - Gráfico funil (Chart.js) com filtro por canal e período

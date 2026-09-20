@@ -6,6 +6,7 @@ const grupoService = require('../services/grupoWhatsappService');
 const gatilhoService = require('../services/gatilhoService');
 const contatoService = require('../services/contatoService');
 const indicacaoService = require('../services/indicacaoService');
+const canalService = require('../services/canalService');
 const chatService = require('../services/chatService');
 const fluxoExecutor = require('../services/fluxoExecutor');
 const fluxoLogService = require('../services/fluxoLogService');
@@ -417,6 +418,63 @@ router.get('/contatos/:whatsappId/logs', async (req, res) => {
       whatsappLid: lidOpcional || undefined
     });
     res.json({ success: true, total: logs.length, data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// 📍 CANAIS DE AQUISIÇÃO (docs/16-canais-e-funil.md)
+// ============================================================
+
+router.get('/canais', async (req, res) => {
+  try {
+    const canais = await canalService.listarCanais();
+    const numeroBot = whatsappClient?.info?.wid?.user || null;
+    const data = canais.map((c) => ({
+      ...c,
+      link: numeroBot ? canalService.montarLink(numeroBot, c.mensagem_entrada) : null
+    }));
+    res.json({ success: true, whatsappConectado: !!numeroBot, data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/canais', async (req, res) => {
+  try {
+    const result = await canalService.criarCanal(req.body || {});
+    res.json({ success: true, data: result });
+  } catch (error) {
+    const code = error.code === 'ER_DUP_ENTRY' ? 409 : 500;
+    res.status(code).json({ success: false, error: error.code === 'ER_DUP_ENTRY' ? 'Já existe canal com esse slug ou mensagem de entrada' : error.message });
+  }
+});
+
+router.put('/canais/:id', async (req, res) => {
+  try {
+    const result = await canalService.atualizarCanal(req.params.id, req.body || {});
+    res.json({ success: true, data: result });
+  } catch (error) {
+    const code = error.code === 'ER_DUP_ENTRY' ? 409 : 500;
+    res.status(code).json({ success: false, error: error.code === 'ER_DUP_ENTRY' ? 'Já existe canal com essa mensagem de entrada' : error.message });
+  }
+});
+
+router.delete('/canais/:id', async (req, res) => {
+  try {
+    const result = await canalService.excluirCanal(req.params.id);
+    res.json({ success: true, ...result, mensagem: result.excluido ? 'Canal excluído (contatos dele voltaram a orgânico)' : 'Canal não encontrado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/canais/:id/qr', async (req, res) => {
+  try {
+    const numeroBot = whatsappClient?.info?.wid?.user;
+    const data = await canalService.gerarQrCanal(req.params.id, numeroBot);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

@@ -587,6 +587,31 @@
       </div>
     </div>
 
+    <!-- Multipedidos: só aparece com a API ativa em Dashboard → Integrações (docs/18-cupons-multipedidos.md) -->
+    <div id="paletteMultipedidos" style="display:none;">
+      <h6 style="margin-top: 20px;">Multipedidos</h6>
+      <div class="node-palette">
+        <div class="palette-node action" draggable="true" data-type="action" data-acao="multipedidos_criar_cupom">
+          <div class="icon"><i class="bi bi-ticket-perforated-fill"></i></div>
+          <div class="info">
+            <div class="name">Criar cupom único</div>
+            <div class="desc">Cupom só do contato</div>
+          </div>
+        </div>
+        <div class="palette-node action" draggable="true" data-type="action" data-acao="multipedidos_alterar_cupom">
+          <div class="icon"><i class="bi bi-arrow-up-circle-fill"></i></div>
+          <div class="info">
+            <div class="name">Alterar cupom</div>
+            <div class="desc">Promove o cupom (10% → 20%)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="paletteMultipedidosAviso" class="help-text" style="display:none; margin: 8px 0 16px;">
+      🎟️ <strong>Cupons Multipedidos:</strong> a integração está configurada, mas a API está desligada.
+      Ative em <a href="dashboard.html" style="color:inherit; text-decoration:underline;">Dashboard → Integrações</a> para usar os nós de cupom único.
+    </div>
+
     <h6>Meus Fluxos</h6>
     <div class="fluxos-list" id="listaFluxos">
       <div class="text-muted small p-2">Carregando...</div>
@@ -1095,18 +1120,21 @@
     document.querySelectorAll('.palette-node').forEach(node => {
       node.ondragstart = (e) => {
         e.dataTransfer.setData('nodeType', node.dataset.type);
+        // Itens da paleta que são um nó de ação já com o tipo escolhido (ex.: cupons Multipedidos)
+        e.dataTransfer.setData('nodeAcao', node.dataset.acao || '');
         e.dataTransfer.effectAllowed = 'copy';
       };
     });
 
     canvasContainer.ondragover = (e) => e.preventDefault();
-    
+
     canvasContainer.ondrop = (e) => {
       e.preventDefault();
       const type = e.dataTransfer.getData('nodeType');
       if (type) {
         const pos = screenToCanvas(e.clientX, e.clientY);
-        createNode(type, pos.x - 110, pos.y - 30);
+        const acao = e.dataTransfer.getData('nodeAcao');
+        createNode(type, pos.x - 110, pos.y - 30, acao ? { ...(nodeTemplates[type]?.defaultData || {}), tipo: acao } : null);
       }
     };
 
@@ -1873,12 +1901,18 @@ Depois de entrar, me avise aqui que eu confirmo! 😉`,
     }
 
     async function carregarStatusMultipedidos() {
+      let configurada = false;
       try {
         const r = await (await fetch('/api/integracoes/multipedidos/status')).json();
         multipedidosApiAtiva = !!(r.success && r.data.api.ativa && r.data.api.tokenConfigurado);
+        // Instância que usa a Multipedidos (token no .env ou webhook ligado), mas com a API desligada:
+        // avisa onde ativar. Instância que não usa a integração não vê nada.
+        configurada = !!(r.success && (r.data.api.tokenConfigurado || r.data.webhook.ativo));
       } catch (e) {
         multipedidosApiAtiva = false;
       }
+      document.getElementById('paletteMultipedidos').style.display = multipedidosApiAtiva ? '' : 'none';
+      document.getElementById('paletteMultipedidosAviso').style.display = (!multipedidosApiAtiva && configurada) ? '' : 'none';
       nodes.forEach(renderNode);
       if (selectedNodeId) renderPropertiesPanel();
     }

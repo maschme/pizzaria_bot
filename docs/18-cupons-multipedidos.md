@@ -50,6 +50,8 @@ No select "Tipo de Ação" do nó `action`, um grupo que só é renderizado quan
   multipedidos_alterar_cupom   → "Multipedidos: alterar cupom"
 ```
 
+Além do select, a **paleta** do editor ganha a seção "Multipedidos" com os itens arrastáveis **Criar cupom único** e **Alterar cupom** (criam um nó `action` já com o tipo escolhido) — também só com a API ativa. Se a instância usa a Multipedidos (token no `.env` ou webhook ligado) mas a API está **desligada**, a paleta mostra no lugar um aviso com o link para Dashboard → Integrações; instância que não usa a integração não vê nada.
+
 Fluxo que já tem esses nós e a API for desligada: o nó **continua no desenho** com um selo "integração desativada"; na execução ele registra o erro e segue pela saída normal com `{{cupomStatus}} = erro` (não trava o fluxo).
 
 ### 2.1 Campos

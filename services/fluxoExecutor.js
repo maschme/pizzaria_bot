@@ -9,6 +9,7 @@ const arquivoService = require('./arquivoService');
 const metaService = require('./metaService');
 const fluxoLogService = require('./fluxoLogService');
 const whatsappIdentityService = require('./whatsappIdentityService');
+const multipedidosCupomService = require('./multipedidosCupomService');
 
 const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
@@ -674,6 +675,16 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
           this.fluxoCompletouCampanha = true;
           break;
         }
+
+        // Cupom único por cliente na Multipedidos (docs/18-cupons-multipedidos.md). Não envia mensagem:
+        // preenche {{cupomCodigo}}, {{cupomDesconto}}, {{cupomValidade}}, {{cupomPedidoMinimo}},
+        // {{cupomStatus}} e {{cupomErro}} para os próximos nós usarem.
+        case 'multipedidos_criar_cupom':
+        case 'multipedidos_alterar_cupom': {
+          await this.executarCupomMultipedidos(node, node.data.tipo === 'multipedidos_alterar_cupom' ? 'alterar' : 'criar');
+          this.fluxoCompletouCampanha = true;
+          break;
+        }
       }
     } catch (error) {
       console.error('Erro ao executar ação:', error);
@@ -682,6 +693,60 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     
     const nextNode = this.findNextNode(node.id);
     await this.executeNode(nextNode);
+  }
+
+  // Nós "Multipedidos: criar cupom único" / "Multipedidos: alterar cupom".
+  // Nunca lança: em qualquer falha o fluxo segue com {{cupomStatus}} = erro, para um condition_var desviar
+  // (ex.: para o enviar_cupom de arquivo).
+  async executarCupomMultipedidos(node, modo) {
+    const limpar = () => {
+      for (const v of ['cupomCodigo', 'cupomDesconto', 'cupomValidade', 'cupomPedidoMinimo', 'cupomErro']) this.variaveis[v] = '';
+    };
+    this.variaveis.dataatual = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    this.variaveis.dataHoraAtual = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+    try {
+      const promptTemplate = (node.data.promptCupom || '').trim();
+      if (!promptTemplate) throw new Error('Nó sem comando do cupom');
+
+      const interpretacao = await multipedidosCupomService.interpretarComando({
+        promptTemplate,
+        promptFinal: this.substituirVariaveis(promptTemplate),
+        modo,
+        provedor: node.data.provedorCupom || null
+      });
+
+      const contexto = {
+        whatsappId: this.getIdWhatsappParaDb(),
+        campanha: (node.data.campanha || '').trim() || this.fluxo.nome || `fluxo-${this.fluxo.id}`,
+        fluxoId: this.fluxo.id || null,
+        params: interpretacao.params,
+        prefixo: (node.data.prefixoCodigo || '').trim() || null,
+        metaAoResgatar: (node.data.metaAoResgatar || '').trim() || null
+      };
+      const r = modo === 'alterar'
+        ? await multipedidosCupomService.alterar({ ...contexto, seJaUsado: node.data.seJaUsado || 'criar_novo', seNaoExiste: node.data.seNaoExiste || 'criar_novo' })
+        : await multipedidosCupomService.emitir(contexto);
+
+      this.variaveis.cupomCodigo = r.codigo;
+      this.variaveis.cupomDesconto = r.desconto;
+      this.variaveis.cupomValidade = r.validade;
+      this.variaveis.cupomPedidoMinimo = r.pedidoMinimo;
+      this.variaveis.cupomStatus = r.status;
+      this.variaveis.cupomErro = '';
+
+      const cortes = [...(interpretacao.cortes || []), ...(r.cortes || [])];
+      console.log(`🎟️ Cupom Multipedidos (${modo}) para ${this.chatId}: ${r.status} ${r.codigo} ${r.desconto} até ${r.validade}${cortes.length ? ' | cortes: ' + cortes.join('; ') : ''}`);
+      await this.logExec(`cupom_${r.status}`, `Cupom ${r.codigo}: ${r.desconto}, válido até ${r.validade}`, node, {
+        modo, interpretado: interpretacao.descricao, origem: interpretacao.origem, cortes, campanha: contexto.campanha
+      });
+    } catch (error) {
+      limpar();
+      this.variaveis.cupomStatus = 'erro';
+      this.variaveis.cupomErro = error.message;
+      console.error(`❌ Cupom Multipedidos (${modo}) para ${this.chatId}:`, error.message);
+      await this.logExec('cupom_erro', `Falha no cupom Multipedidos (${modo}): ${error.message}`, node);
+    }
   }
 
   // Executa nó de fim

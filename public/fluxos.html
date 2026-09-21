@@ -847,7 +847,9 @@
           preview = node.data.instrucao?.substring(0, 60) || '(configurar instrução)';
           break;
         case 'action':
-          preview = node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : node.data.tipo === 'marcar_meta' ? `Marcar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'verificar_meta' ? `Verificar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'ler_contato' ? `Ler: ${node.data.campoContato || 'cam_grupo'} → {{${node.data.variavelSaidaContato || 'cam_grupo'}}}` : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
+          preview = ehAcaoMultipedidos(node.data.tipo)
+            ? `${multipedidosApiAtiva ? '' : '⚠️ integração desativada · '}${node.data.tipo === 'multipedidos_alterar_cupom' ? 'Alterar cupom' : 'Criar cupom único'} (Multipedidos): ${(node.data.promptCupom || '(escrever comando)').substring(0, 50)}`
+            : node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : node.data.tipo === 'marcar_meta' ? `Marcar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'verificar_meta' ? `Verificar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'ler_contato' ? `Ler: ${node.data.campoContato || 'cam_grupo'} → {{${node.data.variavelSaidaContato || 'cam_grupo'}}}` : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
           break;
         case 'end':
           preview = node.data.mensagemFinal?.substring(0, 60) || 'Fim do fluxo';
@@ -1406,9 +1408,14 @@
                 <option value="ler_contato" ${node.data.tipo === 'ler_contato' ? 'selected' : ''}>Ler campo do contato</option>
                 <option value="salvar_variavel" ${node.data.tipo === 'salvar_variavel' ? 'selected' : ''}>Salvar Variável</option>
                 <option value="webhook" ${node.data.tipo === 'webhook' ? 'selected' : ''}>Webhook</option>
+                ${(multipedidosApiAtiva || ehAcaoMultipedidos(node.data.tipo)) ? `
+                <optgroup label="Multipedidos">
+                  <option value="multipedidos_criar_cupom" ${node.data.tipo === 'multipedidos_criar_cupom' ? 'selected' : ''}>Multipedidos: criar cupom único</option>
+                  <option value="multipedidos_alterar_cupom" ${node.data.tipo === 'multipedidos_alterar_cupom' ? 'selected' : ''}>Multipedidos: alterar cupom</option>
+                </optgroup>` : ''}
               </select>
             </div>
-            ${node.data.tipo === 'marcar_meta' ? `
+            ${ehAcaoMultipedidos(node.data.tipo) ? formCupomMultipedidos(node) : node.data.tipo === 'marcar_meta' ? `
               <div class="form-group">
                 <label>Nome da meta</label>
                 <input type="text" value="${node.data.metaNome || ''}" onchange="updateNodeData('metaNome', this.value)" placeholder="entrada_grupo, 10_indicacoes, cupom_30_resgatado">
@@ -1850,7 +1857,122 @@ Depois de entrar, me avise aqui que eu confirmo! 😉`,
     // ============================================================
     // INIT
     // ============================================================
+    // ============================================================
+    // MULTIPEDIDOS — nós de cupom (docs/18-cupons-multipedidos.md §2)
+    // Só aparecem no select com a API ativa na tela de Integrações. Nó que já existe num fluxo
+    // continua editável mesmo com a API desligada, com aviso.
+    // ============================================================
+    let multipedidosApiAtiva = false;
+
+    function ehAcaoMultipedidos(tipo) {
+      return tipo === 'multipedidos_criar_cupom' || tipo === 'multipedidos_alterar_cupom';
+    }
+
+    function escAttr(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    async function carregarStatusMultipedidos() {
+      try {
+        const r = await (await fetch('/api/integracoes/multipedidos/status')).json();
+        multipedidosApiAtiva = !!(r.success && r.data.api.ativa && r.data.api.tokenConfigurado);
+      } catch (e) {
+        multipedidosApiAtiva = false;
+      }
+      nodes.forEach(renderNode);
+      if (selectedNodeId) renderPropertiesPanel();
+    }
+
+    function slugCampanhaFluxo() {
+      const nome = document.getElementById('flowName')?.value || '';
+      return String(nome).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    function formCupomMultipedidos(node) {
+      const alterar = node.data.tipo === 'multipedidos_alterar_cupom';
+      const d = node.data;
+      return `
+        ${multipedidosApiAtiva ? '' : `
+          <div class="form-group">
+            <div class="help-text" style="color:#f0ad4e;">⚠️ Integração desativada: a API da Multipedidos está desligada em Dashboard → Integrações. Enquanto estiver assim, este nó segue o fluxo com {{cupomStatus}} = erro.</div>
+          </div>`}
+        <div class="form-group">
+          <label>Comando do cupom (a IA interpreta)</label>
+          <textarea id="mpPromptCupom" onchange="updateNodeData('promptCupom', this.value)" rows="3"
+            placeholder="${alterar ? 'Ex: subir para 20% e renovar a validade por mais 7 dias' : 'Ex: criar cupom de 10% válido por 7 dias a partir de hoje'}">${escAttr(d.promptCupom)}</textarea>
+          <div class="help-text">${alterar
+            ? 'Diga só o que muda — o resto do cupom fica como está. O cupom é o que este contato recebeu na mesma campanha.'
+            : 'Cupom de uso único, só deste contato. Se ele já tiver um cupom ativo desta campanha, recebe o mesmo (não é criado outro).'}
+            Pode usar {{variáveis}}. Os limites de Dashboard → Integrações sempre valem.</div>
+          <button type="button" class="btn btn-secondary" style="margin-top:6px;" onclick="interpretarCupomMultipedidos('${alterar ? 'alterar' : 'criar'}')">🔎 Interpretar</button>
+          <div id="mpInterpretacao" class="help-text" style="margin-top:6px;"></div>
+        </div>
+        <div class="form-group">
+          <label>Campanha</label>
+          <input type="text" value="${escAttr(d.campanha)}" onchange="updateNodeData('campanha', this.value)" placeholder="${escAttr(slugCampanhaFluxo() || 'campanha-30')}">
+          <div class="help-text">Chave que liga o cupom ao contato. <strong>Use a mesma</strong> no nó de criar e nos de alterar. Vazio = nome do fluxo.</div>
+        </div>
+        ${alterar ? `
+          <div class="form-group">
+            <label>Se o contato já usou o cupom</label>
+            <select onchange="updateNodeData('seJaUsado', this.value)">
+              <option value="criar_novo" ${d.seJaUsado !== 'nao_fazer_nada' ? 'selected' : ''}>Criar um cupom novo com a regra nova</option>
+              <option value="nao_fazer_nada" ${d.seJaUsado === 'nao_fazer_nada' ? 'selected' : ''}>Não fazer nada ({{cupomStatus}} = inalterado)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Se o contato não tem cupom nesta campanha</label>
+            <select onchange="updateNodeData('seNaoExiste', this.value)">
+              <option value="criar_novo" ${d.seNaoExiste !== 'erro' ? 'selected' : ''}>Criar um cupom novo</option>
+              <option value="erro" ${d.seNaoExiste === 'erro' ? 'selected' : ''}>Tratar como erro ({{cupomStatus}} = erro)</option>
+            </select>
+          </div>
+        ` : `
+          <div class="form-group">
+            <label>Prefixo do código (opcional)</label>
+            <input type="text" maxlength="12" value="${escAttr(d.prefixoCodigo)}" onchange="updateNodeData('prefixoCodigo', this.value.toUpperCase())" placeholder="padrão da tela Integrações">
+          </div>
+        `}
+        <div class="form-group">
+          <label>Meta ao resgatar (opcional)</label>
+          <input type="text" value="${escAttr(d.metaAoResgatar)}" onchange="updateNodeData('metaAoResgatar', this.value)" placeholder="ex: cupom_30_resgatado">
+          <div class="help-text">Meta marcada para o contato quando ele <strong>usar</strong> o cupom num pedido.</div>
+        </div>
+        <div class="form-group">
+          <label>Provedor de IA (opcional)</label>
+          <input type="text" value="${escAttr(d.provedorCupom)}" onchange="updateNodeData('provedorCupom', this.value)" placeholder="vazio = provedor principal">
+        </div>
+        <div class="form-group">
+          <div class="help-text">Este nó <strong>não envia mensagem</strong>. Use depois um nó Mensagem com
+            {{cupomCodigo}}, {{cupomDesconto}}, {{cupomValidade}}, {{cupomPedidoMinimo}}.
+            Para tratar falha, um nó Verificar variável em {{cupomStatus}} = erro.</div>
+        </div>
+      `;
+    }
+
+    async function interpretarCupomMultipedidos(modo) {
+      const saida = document.getElementById('mpInterpretacao');
+      const prompt = (document.getElementById('mpPromptCupom')?.value || '').trim();
+      if (!prompt) { saida.textContent = 'Escreva o comando primeiro.'; return; }
+      updateNodeData('promptCupom', prompt);
+      saida.textContent = 'Interpretando…';
+      try {
+        const r = await (await fetch('/api/integracoes/multipedidos/cupons/interpretar', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, modo })
+        })).json();
+        if (!r.success) { saida.innerHTML = `<span style="color:#e74c3c;">${escAttr(r.error)}</span>`; return; }
+        const d = r.data;
+        saida.innerHTML = `<strong>Entendido como:</strong> ${escAttr(d.descricao)}`
+          + (d.cortes.length ? `<br><span style="color:#f0ad4e;">✂️ ${d.cortes.map(escAttr).join('<br>✂️ ')}</span>` : '')
+          + (d.avisos.length ? `<br><span style="color:#f0ad4e;">⚠️ ${d.avisos.map(escAttr).join('<br>⚠️ ')}</span>` : '')
+          + (d.cacheavel ? '' : '<br><span style="opacity:.7;">Comando com variáveis da conversa: é interpretado a cada execução.</span>');
+      } catch (e) {
+        saida.innerHTML = '<span style="color:#e74c3c;">Erro de conexão ao interpretar.</span>';
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      carregarStatusMultipedidos();
       carregarFluxos();
       resetView();
       document.getElementById('importFluxoFile')?.addEventListener('change', importarFluxoArquivo);

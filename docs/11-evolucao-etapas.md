@@ -189,6 +189,22 @@ Sem INSERT automático — integração CRM externa necessária.
 
 ---
 
+## Fase 9 — Integração Multipedidos e cupons únicos (set/2026)
+
+Estudo da API e dos webhooks da Multipedidos sem documentação oficial ([doc 17](./17-integracao-multipedidos.md)) e, em cima dele, os cupons únicos por cliente nos fluxos ([doc 18](./18-cupons-multipedidos.md)).
+
+### Entregas
+
+- Captura crua de webhooks (`webhook_eventos`) e documentação dos eventos `order` / `order_status`
+- Exploração só-leitura da API (login/JWT, poll, cardápio, clientes, pedidos, cupons) e teste autorizado de escrita de cupons
+- Tela **Integrações** (liga/desliga webhook e API, limites de segurança)
+- `multipedidosClient`, `multipedidosCupomService` (interpretador com IA + limites + cache, emissão idempotente, alteração, uso, expiração) e tabela `multipedidos_cupons`
+- Nós de fluxo **Multipedidos: criar cupom único** / **alterar cupom**, visíveis só com a API ativa
+- Webhook marca uso do cupom, meta e estorno; validação do `access_token`
+- Limpeza diária e script de migração de fluxos
+
+---
+
 ## Arquitetura atual (v1.0.0)
 
 ```

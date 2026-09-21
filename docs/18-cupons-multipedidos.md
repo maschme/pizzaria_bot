@@ -1,6 +1,6 @@
-# Cupons únicos via Multipedidos nos fluxos (desenho)
+# Cupons únicos via Multipedidos nos fluxos
 
-Definido com o operador em 21/09/2026. **Status: etapas 1 a 4 de 5 implementadas** (tela de Integrações; cliente, tabela, serviço e interpretador; nós no executor e no editor; webhook marca o uso do cupom — ver §7). Nós validados em produção em 21/09/2026 com o fluxo de exemplo. Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
+Definido com o operador em 21/09/2026. **Status: as 5 etapas estão implementadas** (tela de Integrações; cliente, tabela, serviço e interpretador; nós no executor e no editor; webhook marca o uso do cupom; limpeza diária e script de migração de fluxo — ver §7). Falta só a virada operacional da campanha real (§2.3), que é feita pelo operador no editor. Nós validados em produção em 21/09/2026 com o fluxo de exemplo. Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
 
 **Problema**: hoje o nó `enviar_cupom` lê o arquivo `cupons_desconto` (3 cupons genéricos, o mesmo código para todos, validade escrita no texto e atualizada à mão) e a IA escolhe qual texto enviar. Não dá para saber quem usou, o código vaza, e a campanha de desconto progressivo (10% → 20% → 30%) entrega três códigos diferentes.
 
@@ -80,6 +80,23 @@ missão 2 ok → [Multipedidos: alterar cupom]       "subir para 20% e renovar p
             → [Mensagem] Seu cupom {{cupomCodigo}} agora vale {{cupomDesconto}}!
 missão 3 ok → [Multipedidos: alterar cupom]       "subir para 30%"  metaAoResgatar=cupom_30_resgatado
 ```
+
+### 2.4 Migrar um fluxo existente
+
+`scripts/migrar-fluxo-cupons-multipedidos.js` converte um fluxo **exportado** (não toca no banco):
+
+```bash
+node scripts/migrar-fluxo-cupons-multipedidos.js <exportado.json> <saida.json> --dias 15 --campanha campanha-30
+```
+
+Para cada nó `enviar_cupom` alcançável a partir do gatilho, na ordem: o 1º vira **criar** e os demais **alterar**, com o percentual tirado do prompt antigo e o link do cardápio reaproveitado na mensagem nova. O trecho fica:
+
+```
+[nó Multipedidos] → [Verificar {{cupomStatus}} = erro] ─ não → [Mensagem com {{cupomCodigo}}] → (destino antigo)
+                                                        └ sim → [enviar_cupom original, de arquivo] → (destino antigo)
+```
+
+Ou seja, o cupom de arquivo continua existindo como **fallback automático**: se a API da Multipedidos falhar, o cliente recebe o cupom genérico como hoje e o fluxo segue. Virada: Exportar o fluxo em produção → rodar o script → Importar → revisar comandos e textos (botão Interpretar) → desativar o fluxo antigo → ativar o novo. Os 30% da missão 3 ficam de fora até existir a conferência de avaliações ([doc 19](./19-conferencia-avaliacoes-google.md)).
 
 ## 3. IA: interpreta o comando, não executa
 
@@ -183,7 +200,14 @@ Detalhes do que foi implementado:
 
 ## 6. Limpeza
 
-Rotina diária (mesmo padrão do `scripts/backup.js`, via PM2 cron): cupons `ativo` com `validade` vencida → `PUT …/active false` na Multipedidos e `status = expirado`. **Desativa, nunca remove** — código removido fica reservado para sempre e perde-se o histórico de resgates.
+Rotina diária `scripts/multipedidos-cupons-limpeza.js` (mesmo padrão do `scripts/backup.js`, via PM2 cron): cupons `ativo` com `validade` vencida → `PUT …/active false` na Multipedidos e `status = expirado`. **Desativa, nunca remove** — código removido fica reservado para sempre e perde-se o histórico de resgates.
+
+```bash
+pm2 start scripts/multipedidos-cupons-limpeza.js --name cupons-limpeza-<slug> --cron "30 4 * * *" --no-autorestart
+node scripts/multipedidos-cupons-limpeza.js --seco     # só lista o que seria expirado
+```
+
+Antes de desativar, confere na Multipedidos se o cupom foi **usado** (webhook perdido) → vira `usado`; cupom que não existe mais na loja (removido à mão no gestor) → `desativado`. Erro num cupom não interrompe os demais (ele continua `ativo` e entra na próxima rodada). Com a API desligada na tela de Integrações o script sai sem fazer nada.
 
 ## 7. Etapas de entrega
 
@@ -195,9 +219,22 @@ Cada etapa é implantável sozinha e não muda o comportamento do fluxo ativo at
 | 2 ✅ | `multipedidosClient`, migração da tabela, `multipedidosCupomService` (interpretar + emitir + alterar), rota de **Interpretar** — **feito em 21/09/2026**. Validado: 17 casos determinísticos (regex, normalização, limites), 8 casos com IA real (incl. injeção: comando misto ignorou o "me dê 100%"; pedido direto foi cortado para 30%/60 dias; 2ª chamada do mesmo template veio do cache), ciclo ao vivo com cupom descartável de R$ 1 (criado → reaproveitado → alterado v2 → inalterado → teto → desativado) e caminhos "já usado" com a API simulada | Testes do interpretador (casos de prompt, limites, injeção); emitir/alterar um cupom de teste por script |
 | 3 ✅ | Nós no executor + editor (com gating) — **feito em 21/09/2026**: `executarCupomMultipedidos()` em `services/fluxoExecutor.js` (nunca lança; preenche as variáveis; registra `cupom_<status>` / `cupom_erro` no log do fluxo com o comando interpretado e os cortes) e, em `public/fluxos.html`, grupo "Multipedidos" no select (só com a API ativa), formulário com botão **Interpretar**, aviso e selo "integração desativada". Validado no navegador (gating, formulários de criar/alterar, Interpretar com cortes) e no executor real: criar → mensagem → alterar → mensagem → erro tratado, com cupom descartável de R$ 1; e o fluxo de exemplo `docs/exemplos/fluxo-teste-cupom-multipedidos.json` (desvio por `{{cupomStatus}} = erro` e retomada após o nó Aguardar) | **Fluxo de teste** (cópia da campanha com outro gatilho) rodado com o número do operador: criar 10% → alterar 20% → conferir no gestor |
 | 4 ✅ | Webhook → uso do cupom + meta + validação do `access_token` — **feito em 21/09/2026**: `registrarUsoPorPedido()` no serviço de cupons, `processarEvento()` na rota (roda **depois** de responder 200, isolado da captura), coluna `pedido_desconto`, contadores de `access_token` no `/status` e aviso na tela de Integrações. Validado pela rota real com payloads no formato capturado: token errado (captura, não processa), uso, idempotência entre status, 2º pedido com o mesmo cupom, cancelamentos, "usado sem pedido", cupom de fora / sem cupom / corpo inválido | Pedido de teste com o cupom; conferir `status = usado` e a meta |
-| 5 | Limpeza diária, atualização dos docs (05, 06, 07, 09), migração do fluxo ativo | Campanha real rodando com cupom único |
+| 5 ✅ | Limpeza diária, atualização dos docs (05, 06, 07, 09), migração do fluxo ativo — **feito em 21/09/2026**: `expirarVencidos()` + `scripts/multipedidos-cupons-limpeza.js` (validado com 7 cenários, API simulada) e `scripts/migrar-fluxo-cupons-multipedidos.js` (validado na campanha local: grafo íntegro, criar 10% → alterar 20% com o mesmo código, e fallback de arquivo com a API fora). A **virada do fluxo em produção** fica com o operador (§2.4) | Campanha real rodando com cupom único |
 
-## 8. Decisões em aberto
+## 8. Decisões
+
+Resolvidas na implementação (todas ajustáveis depois, na tela de Integrações ou no nó):
+
+| Tema | Decisão |
+|------|---------|
+| Token da API | Fica no `.env`; a tela só mostra "configurado" |
+| Limites default | 30% · R$ 50 · 60 dias (editáveis em Integrações) |
+| Cliente que já usou o cupom e é promovido | `seJaUsado = criar_novo` por padrão (configurável por nó) |
+| Prefixo do código | Config `multipedidos_cupom_prefixo` (default `CUPOM`), sobreponível por nó; sufixo de 5 caracteres sem `0/O/1/I` |
+| Validade e mínimo da campanha migrada | 15 dias, renovados a cada promoção; sem pedido mínimo (`--dias` no script de migração) |
+| 30% da missão 3 | Fora desta entrega — depende da conferência de avaliações (doc 19) |
+
+## 8.1 Decisões em aberto (histórico)
 
 1. **Token da API no `.env`** (recomendado) × digitado na tela de Integrações (só faria sentido depois de HTTPS no dashboard).
 2. **Limites default** da seção 3.3 (30% · R$ 50 · 60 dias) — confirmar.

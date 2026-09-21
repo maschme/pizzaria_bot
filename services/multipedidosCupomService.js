@@ -654,7 +654,44 @@ async function desativar(cupomId, novoStatus = 'desativado') {
   return { ...linha, status: novoStatus };
 }
 
+/**
+ * Limpeza (docs/18 §6): cupons `ativo` com validade vencida são desativados na Multipedidos e viram
+ * `expirado` aqui. Antes de desativar confere se o cupom foi usado (webhook perdido) — nesse caso vira `usado`.
+ * Falha num cupom não interrompe os demais.
+ */
+async function expirarVencidos({ limite = 200 } = {}) {
+  const lim = Math.min(Math.max(parseInt(limite, 10) || 200, 1), 1000);
+  const vencidos = await comConexao(async (conn) => {
+    const [rows] = await conn.query(
+      `SELECT * FROM multipedidos_cupons WHERE status = 'ativo' AND validade IS NOT NULL AND validade < NOW() ORDER BY validade LIMIT ${lim}`
+    );
+    return rows;
+  });
+
+  const resumo = { analisados: vencidos.length, expirados: 0, usados: 0, sumiram: 0, erros: [] };
+  for (const linha of vencidos) {
+    try {
+      const remoto = await multipedidosClient.buscarCupomPorCodigo(linha.codigo);
+      if (!remoto) {
+        await atualizarLinha(linha.id, { status: 'desativado' }); // removido à mão no gestor
+        resumo.sumiram++;
+      } else if (cupomJaUsado(remoto)) {
+        await atualizarLinha(linha.id, { status: 'usado', usado_em: formatarDataHora(new Date()) });
+        resumo.usados++;
+      } else {
+        if (remoto.active !== false) await multipedidosClient.definirCupomAtivo(remoto.id, false);
+        await atualizarLinha(linha.id, { status: 'expirado' });
+        resumo.expirados++;
+      }
+    } catch (e) {
+      resumo.erros.push(`${linha.codigo}: ${e.message}`);
+    }
+  }
+  return resumo;
+}
+
 module.exports = {
+  expirarVencidos,
   interpretarComando,
   limparCacheInterpretacao,
   emitir,

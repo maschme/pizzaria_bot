@@ -222,7 +222,24 @@ Coluna `contatos.whatsapp_lid` para casos de privacidade.
 
 ---
 
-## 10. Envio programático
+## 10. Integração Multipedidos
+
+Detalhes: [doc 17](./17-integracao-multipedidos.md) (estudo da API/webhooks) e [doc 18](./18-cupons-multipedidos.md) (cupons).
+
+| Recurso | O que faz |
+|---------|-----------|
+| Tela **Integrações** | Liga/desliga webhook e API, mostra se os segredos do `.env` estão configurados, testa a conexão, define os limites de segurança dos cupons |
+| Captura de webhooks | `/webhook/multipedidos/<segredo>` grava todo evento cru em `webhook_eventos` |
+| **Cupom único por cliente** | Nós de fluxo "Multipedidos: criar cupom único" e "alterar cupom": comando em linguagem natural interpretado pela IA (com teto de segurança), um código por contato/campanha, promovido ao longo do fluxo (10% → 20% → …) |
+| Uso do cupom | O webhook de pedido marca o cupom como usado (valor pago e desconto), conclui a meta configurada no nó e estorna em cancelamento — alimenta a etapa "converteu" do funil por canal |
+| Limpeza diária | `scripts/multipedidos-cupons-limpeza.js` desativa na loja os cupons vencidos e não usados |
+| Migração de fluxo | `scripts/migrar-fluxo-cupons-multipedidos.js` converte os nós `enviar_cupom` de um fluxo exportado, mantendo o cupom de arquivo como fallback |
+
+Só funciona com lojas que usam a Multipedidos; instâncias sem a integração continuam com o `enviar_cupom` de arquivo.
+
+---
+
+## 11. Envio programático
 
 `POST /send-message`
 

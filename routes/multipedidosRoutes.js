@@ -14,6 +14,7 @@
 const express = require('express');
 const webhookEventoService = require('../services/webhookEventoService');
 const integracaoService = require('../services/multipedidosIntegracaoService');
+const cupomService = require('../services/multipedidosCupomService');
 
 const ORIGEM = 'multipedidos';
 
@@ -83,6 +84,24 @@ admin.put('/', async (req, res) => {
 admin.post('/testar', async (req, res) => {
   const resultado = await integracaoService.testarApi();
   res.status(resultado.ok ? 200 : 502).json({ success: resultado.ok, data: resultado, error: resultado.erro });
+});
+
+// POST /api/integracoes/multipedidos/cupons/interpretar — { prompt, modo: 'criar'|'alterar', provedor }
+// Mostra ao operador (botão "Interpretar" do editor de fluxos) o que a IA entendeu do comando,
+// já com os limites de segurança aplicados. Não cria nem altera nada.
+admin.post('/cupons/interpretar', async (req, res) => {
+  try {
+    const { prompt, modo, provedor } = req.body || {};
+    const r = await cupomService.interpretarComando({
+      promptTemplate: prompt,
+      promptFinal: prompt,
+      modo: modo === 'alterar' ? 'alterar' : 'criar',
+      provedor: provedor || null
+    });
+    res.json({ success: true, data: r });
+  } catch (e) {
+    res.status(400).json({ success: false, error: e.message });
+  }
 });
 
 // GET /api/integracoes/multipedidos/webhook-url — URL completa (com o segredo) para cadastrar no painel deles.

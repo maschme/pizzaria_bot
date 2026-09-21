@@ -220,6 +220,26 @@ Progresso por contato.
 | concluido | BOOLEAN | — |
 | concluido_em | DATETIME | — |
 
+### `multipedidos_cupons`
+
+Cupons únicos emitidos pelos fluxos na Multipedidos ([doc 18](./18-cupons-multipedidos.md) §4.3). Vínculo contato + campanha → cupom, para alterar o cupom dias depois mesmo com restart do bot.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | INT PK | — |
+| whatsapp_id | VARCHAR(32) | Telefone do contato, só dígitos |
+| campanha | VARCHAR(80) | Slug da campanha/fluxo |
+| fluxo_id | INT | — |
+| mp_cupom_id | INT | id do cupom na Multipedidos |
+| codigo | VARCHAR(40) UNIQUE | Código enviado ao cliente |
+| tipo_desconto / valor | ENUM(percent, fixed) / DECIMAL | Regra vigente |
+| pedido_minimo | DECIMAL | — |
+| validade / validade_dias | DATETIME / INT | Vencimento e duração pedida na emissão |
+| versao | INT | `currentVersion` na Multipedidos |
+| meta_ao_resgatar | VARCHAR(80) | Meta marcada quando o cupom for usado |
+| status | ENUM | ativo, usado, expirado, desativado |
+| usado_em, pedido_id, pedido_valor | — | Preenchidos pelo webhook (etapa 4) |
+
 ### `webhook_eventos`
 
 Captura crua de webhooks de sistemas externos para estudo dos payloads (hoje: Multipedidos — ver [doc 17](./17-integracao-multipedidos.md)).
@@ -292,6 +312,7 @@ Pedidos completos com total, taxa_entrega, bairro, detalhes, status_pedido, etc.
 | `migrations/indicacoes.js` | `contatos`, `indicacoes` |
 | `migrations/metas.js` | `metas`, `contato_metas` + seeds |
 | `migrations/2026-09-20-webhook-eventos.js` | `webhook_eventos` |
+| `migrations/2026-09-21-multipedidos-cupons.js` | `multipedidos_cupons` |
 | `migrations/2026-09-21-integracao-multipedidos-configs.js` | linhas em `configuracoes` (categoria `integracoes`): `multipedidos_webhook_ativo`, `multipedidos_api_ativa`, `multipedidos_cupom_max_percent`, `multipedidos_cupom_max_valor_fixo`, `multipedidos_cupom_max_validade_dias`, `multipedidos_cupom_prefixo` |
 
 Executadas via `run-setup.js` ou manualmente.

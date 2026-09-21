@@ -58,6 +58,7 @@
 | GET | `/api/integracoes/multipedidos/status` | Admin. Interruptores, segredos configurados (booleanos, nunca valores), estatísticas do webhook, último login na API, limites de cupom |
 | PUT | `/api/integracoes/multipedidos` | Admin. Aplica só os campos enviados: `webhookAtivo`, `apiAtiva`, `cupomMaxPercent`, `cupomMaxValorFixo`, `cupomMaxValidadeDias`, `cupomPrefixo`. 400 com o motivo se não puder ligar (segredo/token ausente) ou valor inválido |
 | POST | `/api/integracoes/multipedidos/testar` | Admin. Login só-leitura na API da Multipedidos (funciona com a API desligada); 502 se falhar |
+| POST | `/api/integracoes/multipedidos/cupons/interpretar` | Admin. Body `{ prompt, modo, provedor }` (`modo` = `criar` ou `alterar`) → `{ params, descricao, cortes[], avisos[], origem, cacheavel }` (`origem` = `ia`, `regex` ou `cache`). Mostra o que a IA entendeu do comando, já com os limites aplicados; não cria nem altera cupom |
 | GET | `/api/integracoes/multipedidos/webhook-url` | Admin. URL completa do webhook, **com o segredo** — separada do `/status` para o segredo só trafegar quando o operador pede para copiar. Base: `PUBLIC_URL` ou o host da requisição |
 | GET | `/api/integracoes/multipedidos/eventos` | Admin. Lista capturas (`?limite=`, `?corpo=1` inclui headers e corpo) |
 | GET | `/api/integracoes/multipedidos/eventos/:id` | Admin. Captura completa |

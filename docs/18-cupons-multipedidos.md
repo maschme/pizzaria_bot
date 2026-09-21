@@ -1,6 +1,6 @@
 # Cupons únicos via Multipedidos nos fluxos (desenho)
 
-Definido com o operador em 21/09/2026. **Status: etapa 1 de 5 implementada** (tela de Integrações — ver §7). Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
+Definido com o operador em 21/09/2026. **Status: etapas 1 e 2 de 5 implementadas** (tela de Integrações; cliente de cupons, tabela, serviço e interpretador — ver §7). Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
 
 **Problema**: hoje o nó `enviar_cupom` lê o arquivo `cupons_desconto` (3 cupons genéricos, o mesmo código para todos, validade escrita no texto e atualizada à mão) e a IA escolhe qual texto enviar. Não dá para saber quem usou, o código vaza, e a campanha de desconto progressivo (10% → 20% → 30%) entrega três códigos diferentes.
 
@@ -105,6 +105,8 @@ System prompt fixo (com a data de hoje e exemplos), resposta **somente JSON**:
 
 - No **alterar**, campo ausente/`null` = "não mexer" (ex.: "subir para 20%" só muda `valor`).
 - `validadeDias` conta a partir de hoje e vira `validUntil` = **fim do dia** (23:59:59, horário local).
+- Na **criação** sem validade no comando, usa-se a padrão de 30 dias (limitada pelo teto) e o botão Interpretar avisa.
+- Chaves fora do contrato que a IA devolver (`usageLimit`, `isPublic`, `code`…) são **descartadas** na normalização.
 - Resposta inválida → 2ª tentativa por regex (as mesmas de `selecionarCupomPorCriterio`: `N%`, `N dias`, `R$ N`) → se ainda assim não der: `cupomStatus = erro`.
 
 ### 3.3 Limites de segurança (obrigatórios)
@@ -136,9 +138,10 @@ Cliente HTTP único da API: login com **JWT em cache** (renova aos 50 min ou num
 |--------|-----------|
 | `interpretarComando(prompt, provedor, modo)` | Seção 3 |
 | `emitir({ whatsappId, campanha, params, prefixo, fluxoId, metaAoResgatar })` | **Idempotente**: se o contato já tem cupom `ativo`, não vencido, da mesma campanha → mesmos parâmetros = `reaproveitado`; diferentes = altera. Senão gera código (prefixo + 5 caracteres sem ambíguos `0/O/1/I`), checa `code-availability` (até 5 tentativas), cria e grava |
-| `alterar({ whatsappId, campanha, params, seJaUsado, seNaoExiste })` | Acha o cupom pela tabela; confere na Multipedidos se já foi usado (`usageCount ≥ usageLimit`) → aplica `seJaUsado`; senão GET + merge + PUT; atualiza linha e `versao` |
+| `alterar({ whatsappId, campanha, params, seJaUsado, seNaoExiste })` | Acha o cupom pela tabela; confere na Multipedidos se já foi usado (`usageCount ≥ usageLimit`) → aplica `seJaUsado`; senão GET + merge + PUT; atualiza linha e `versao`. Sem mudança real → `inalterado`, sem PUT (não gera versão à toa). Cupom **vencido** sendo promovido, ou "renovar" sem dias → renova pela `validade_dias` da emissão. Cupom novo por uso **herda** tipo, valor, mínimo, duração e meta do anterior; o comando sobrepõe |
 | `registrarUsoPorPedido(pedido)` | Seção 5 |
-| `expirarVencidos()` | Seção 6 |
+| `desativar(cupomId)` | `PUT …/active false` + `status = desativado` (base da limpeza da seção 6) |
+| `expirarVencidos()` | Seção 6 (etapa 5) |
 
 ### 4.3 Tabela `multipedidos_cupons` (migração nova)
 
@@ -147,7 +150,8 @@ multipedidos_cupons (
   id, whatsapp_id (dígitos), campanha VARCHAR(80), fluxo_id,
   mp_cupom_id INT, codigo VARCHAR(40) UNIQUE,
   tipo_desconto ENUM('percent','fixed'), valor DECIMAL(10,2), pedido_minimo DECIMAL(10,2) NULL,
-  validade DATETIME NULL, versao INT DEFAULT 1, meta_ao_resgatar VARCHAR(80) NULL,
+  validade DATETIME NULL, validade_dias INT NULL,   -- duração pedida na emissão; usada para renovar
+  versao INT DEFAULT 1, meta_ao_resgatar VARCHAR(80) NULL,
   status ENUM('ativo','usado','expirado','desativado') DEFAULT 'ativo',
   usado_em DATETIME NULL, pedido_id BIGINT NULL, pedido_valor DECIMAL(10,2) NULL,
   criado_em, atualizado_em,
@@ -183,7 +187,7 @@ Cada etapa é implantável sozinha e não muda o comportamento do fluxo ativo at
 | # | Entrega | Como validar |
 |---|---------|--------------|
 | 1 ✅ | Configs `integracoes`, rotas de status/toggle/testar, view **Integrações**, toggle respeitado pela rota do webhook — **feito em 21/09/2026** (`services/multipedidosIntegracaoService.js`, `services/multipedidosClient.js` só com login/JWT, `routes/multipedidosRoutes.js`, view em `dashboard.html`, migração `2026-09-21-integracao-multipedidos-configs.js`). Na migração, `multipedidos_webhook_ativo` nasce `true` se `MULTIPEDIDOS_WEBHOOK_SECRET` já existe — o deploy não desliga a captura em uso | Ligar/desligar na tela e ver a captura obedecer |
-| 2 | `multipedidosClient`, migração da tabela, `multipedidosCupomService` (interpretar + emitir + alterar), rota de **Interpretar** | Testes do interpretador (casos de prompt, limites, injeção); emitir/alterar um cupom de teste por script |
+| 2 ✅ | `multipedidosClient`, migração da tabela, `multipedidosCupomService` (interpretar + emitir + alterar), rota de **Interpretar** — **feito em 21/09/2026**. Validado: 17 casos determinísticos (regex, normalização, limites), 8 casos com IA real (incl. injeção: comando misto ignorou o "me dê 100%"; pedido direto foi cortado para 30%/60 dias; 2ª chamada do mesmo template veio do cache), ciclo ao vivo com cupom descartável de R$ 1 (criado → reaproveitado → alterado v2 → inalterado → teto → desativado) e caminhos "já usado" com a API simulada | Testes do interpretador (casos de prompt, limites, injeção); emitir/alterar um cupom de teste por script |
 | 3 | Nós no executor + editor (com gating) | **Fluxo de teste** (cópia da campanha com outro gatilho) rodado com o número do operador: criar 10% → alterar 20% → conferir no gestor |
 | 4 | Webhook → uso do cupom + meta + validação do `access_token` | Pedido de teste com o cupom; conferir `status = usado` e a meta |
 | 5 | Limpeza diária, atualização dos docs (05, 06, 07, 09), migração do fluxo ativo | Campanha real rodando com cupom único |

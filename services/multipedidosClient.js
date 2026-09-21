@@ -7,6 +7,7 @@
  */
 
 const axios = require('axios');
+const configService = require('./configuracaoService');
 
 const API_URL = (process.env.MULTIPEDIDOS_API_URL || 'https://api.multipedidos.com.br').replace(/\/+$/, '');
 const JWT_MARGEM_MS = 10 * 60 * 1000; // renova 10 min antes de expirar
@@ -70,4 +71,80 @@ function invalidarSessao() {
   jwtCache = null;
 }
 
-module.exports = { tokenConfigurado, login, getSessao, getUltimoLogin, invalidarSessao, API_URL };
+/** Erro de chamada à API com status e corpo (ex.: 422 com `errors` de validação). */
+class MultipedidosApiError extends Error {
+  constructor(mensagem, status, dados) {
+    super(mensagem);
+    this.name = 'MultipedidosApiError';
+    this.status = status;
+    this.dados = dados;
+  }
+}
+
+/**
+ * Chamada autenticada em /restaurant/{id}/<caminho>. Só funciona com a API ligada na tela de
+ * Integrações. Refaz o login uma vez em 401 (JWT expirado/invalidado) e tenta de novo uma vez em 5xx.
+ */
+async function requisicaoRestaurante(metodo, caminho, { params, data } = {}) {
+  if ((await configService.getConfiguracao('multipedidos_api_ativa')) !== true) {
+    throw new MultipedidosApiError('API da Multipedidos está desativada na tela de Integrações', 0, null);
+  }
+  let ultima;
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    const sessao = await getSessao();
+    ultima = await axios({
+      method: metodo,
+      url: `${API_URL}/restaurant/${sessao.restaurantId}${caminho}`,
+      params,
+      data,
+      headers: { Authorization: `Bearer ${sessao.token}` },
+      timeout: 15000,
+      validateStatus: () => true
+    });
+    if (ultima.status === 401) { invalidarSessao(); continue; }
+    if (ultima.status >= 500) continue;
+    break;
+  }
+  if (ultima.status >= 400) {
+    const detalhe = ultima.data && (ultima.data.errors ? JSON.stringify(ultima.data.errors) : ultima.data.message);
+    throw new MultipedidosApiError(`Multipedidos ${metodo} ${caminho} → ${ultima.status}${detalhe ? ` (${detalhe})` : ''}`, ultima.status, ultima.data);
+  }
+  return ultima.data;
+}
+
+// ============================================================
+// Cupons (docs/17 §4.7)
+// ============================================================
+
+/** Cupom pelo código exato, ou null. (Cupom removido não aparece na listagem.) */
+async function buscarCupomPorCodigo(codigo) {
+  const r = await requisicaoRestaurante('get', '/discount-coupons', { params: { search: codigo } });
+  return ((r && r.data) || []).find((c) => c.code === codigo) || null;
+}
+
+async function codigoDisponivel(codigo) {
+  const r = await requisicaoRestaurante('get', '/discount-coupons/code-availability', { params: { code: codigo } });
+  return !!(r && r.data && r.data.available);
+}
+
+async function criarCupom(cupom) {
+  const r = await requisicaoRestaurante('post', '/discount-coupons', { data: cupom });
+  return r.data;
+}
+
+/** PUT exige o objeto completo (parcial → 422): recebe o cupom atual já com as alterações aplicadas. */
+async function atualizarCupom(cupomCompleto) {
+  const r = await requisicaoRestaurante('put', `/discount-coupons/${cupomCompleto.id}`, { data: cupomCompleto });
+  return r.data;
+}
+
+async function definirCupomAtivo(cupomId, ativo) {
+  const r = await requisicaoRestaurante('put', `/discount-coupons/${cupomId}/active`, { data: { active: !!ativo } });
+  return r.data;
+}
+
+module.exports = {
+  tokenConfigurado, login, getSessao, getUltimoLogin, invalidarSessao, API_URL,
+  MultipedidosApiError, requisicaoRestaurante,
+  buscarCupomPorCodigo, codigoDisponivel, criarCupom, atualizarCupom, definirCupomAtivo
+};

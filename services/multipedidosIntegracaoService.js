@@ -29,6 +29,18 @@ function envDefinido(nome) {
   return !!(process.env[nome] || '').trim();
 }
 
+// Desde a última subida do bot. Serve para a tela avisar quando o access_token cadastrado no painel
+// da Multipedidos não bate com o MULTIPEDIDOS_WEBHOOK_TOKEN do .env (eventos chegam, mas não são processados).
+const contadorToken = { validos: 0, invalidos: 0, ultimoInvalidoEm: null };
+
+function contarEventoWebhook(tokenValido) {
+  if (tokenValido) contadorToken.validos++;
+  else {
+    contadorToken.invalidos++;
+    contadorToken.ultimoInvalidoEm = new Date().toISOString();
+  }
+}
+
 async function webhookAtivo() {
   try {
     const valor = await configService.getConfiguracao('multipedidos_webhook_ativo');
@@ -76,6 +88,7 @@ async function getStatus() {
       ativo: val('multipedidos_webhook_ativo') === true,
       segredoConfigurado: envDefinido('MULTIPEDIDOS_WEBHOOK_SECRET'),
       accessTokenConfigurado: envDefinido('MULTIPEDIDOS_WEBHOOK_TOKEN'),
+      accessToken: { ...contadorToken },
       ...(await estatisticasWebhook())
     },
     api: {
@@ -139,4 +152,4 @@ async function testarApi() {
   }
 }
 
-module.exports = { webhookAtivo, apiAtiva, getStatus, salvar, testarApi };
+module.exports = { webhookAtivo, apiAtiva, getStatus, salvar, testarApi, contarEventoWebhook };

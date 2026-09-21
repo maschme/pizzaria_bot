@@ -1,6 +1,6 @@
 # Cupons únicos via Multipedidos nos fluxos (desenho)
 
-Definido com o operador em 21/09/2026. **Status: etapas 1 a 3 de 5 implementadas** (tela de Integrações; cliente, tabela, serviço e interpretador; nós no executor e no editor — ver §7). Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
+Definido com o operador em 21/09/2026. **Status: etapas 1 a 4 de 5 implementadas** (tela de Integrações; cliente, tabela, serviço e interpretador; nós no executor e no editor; webhook marca o uso do cupom — ver §7). Nós validados em produção em 21/09/2026 com o fluxo de exemplo. Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
 
 **Problema**: hoje o nó `enviar_cupom` lê o arquivo `cupons_desconto` (3 cupons genéricos, o mesmo código para todos, validade escrita no texto e atualizada à mão) e a IA escolhe qual texto enviar. Não dá para saber quem usou, o código vaza, e a campanha de desconto progressivo (10% → 20% → 30%) entrega três códigos diferentes.
 
@@ -153,7 +153,7 @@ multipedidos_cupons (
   validade DATETIME NULL, validade_dias INT NULL,   -- duração pedida na emissão; usada para renovar
   versao INT DEFAULT 1, meta_ao_resgatar VARCHAR(80) NULL,
   status ENUM('ativo','usado','expirado','desativado') DEFAULT 'ativo',
-  usado_em DATETIME NULL, pedido_id BIGINT NULL, pedido_valor DECIMAL(10,2) NULL,
+  usado_em DATETIME NULL, pedido_id BIGINT NULL, pedido_valor DECIMAL(10,2) NULL, pedido_desconto DECIMAL(10,2) NULL,
   criado_em, atualizado_em,
   KEY (whatsapp_id, campanha), KEY (status, validade)
 )
@@ -174,7 +174,12 @@ Na rota do webhook, **depois** de gravar o evento cru (e isolado em `try/catch` 
 | pedido com `coupom_code` que existe em `multipedidos_cupons`, status `CREATED`/`APPROVED` | `status = usado`, grava `pedido_id`, `pedido_valor` (= `total_net_value`), `usado_em`; marca `meta_ao_resgatar` do contato, se houver |
 | mesmo pedido em `CANCELED` | volta para `ativo` (a Multipedidos estorna o uso no cancelamento) e desmarca nada (meta fica — decisão simples; revisar se incomodar) |
 
-Entra junto a validação pendente do header `access_token` contra `MULTIPEDIDOS_WEBHOOK_TOKEN`. Resultado: o funil por canal (doc 16) ganha a etapa "resgatou cupom" **automática e com valor do pedido**.
+Detalhes do que foi implementado:
+
+- O código do cupom é comparado **sem diferenciar maiúsculas** (`coupom_code` do pedido × `codigo`). Grava-se `pedido_valor` = `total_net_value` (valor pago: itens − desconto + entrega) e `pedido_desconto` = `discount_value` (custo do cupom).
+- **Idempotente**: o mesmo pedido chega várias vezes (`order` + `order_status`, e um evento por status) — os seguintes só atualizam os valores. Outro pedido com o mesmo cupom é ignorado. Cancelamento só estorna se for **o pedido que consumiu** o cupom; se a validade já passou, volta como `expirado`.
+- Cupom `usado` **sem pedido** (marcado antes por `emitir()`/`alterar()` ao ver o uso na Multipedidos) é completado pelo webhook quando o evento chega.
+- **`access_token`**: com `MULTIPEDIDOS_WEBHOOK_TOKEN` definido, só é processado evento cujo header `access_token` bate. Evento com token errado **continua capturado** (diagnóstico) mas não é processado, e a tela de Integrações mostra o aviso com a contagem — rejeitar com 401 faria um `.env` divergente do painel parar a captura em silêncio. Sem a variável, vale só o segredo da URL. Resultado: o funil por canal (doc 16) ganha a etapa "resgatou cupom" **automática e com valor do pedido**.
 
 ## 6. Limpeza
 
@@ -189,7 +194,7 @@ Cada etapa é implantável sozinha e não muda o comportamento do fluxo ativo at
 | 1 ✅ | Configs `integracoes`, rotas de status/toggle/testar, view **Integrações**, toggle respeitado pela rota do webhook — **feito em 21/09/2026** (`services/multipedidosIntegracaoService.js`, `services/multipedidosClient.js` só com login/JWT, `routes/multipedidosRoutes.js`, view em `dashboard.html`, migração `2026-09-21-integracao-multipedidos-configs.js`). Na migração, `multipedidos_webhook_ativo` nasce `true` se `MULTIPEDIDOS_WEBHOOK_SECRET` já existe — o deploy não desliga a captura em uso | Ligar/desligar na tela e ver a captura obedecer |
 | 2 ✅ | `multipedidosClient`, migração da tabela, `multipedidosCupomService` (interpretar + emitir + alterar), rota de **Interpretar** — **feito em 21/09/2026**. Validado: 17 casos determinísticos (regex, normalização, limites), 8 casos com IA real (incl. injeção: comando misto ignorou o "me dê 100%"; pedido direto foi cortado para 30%/60 dias; 2ª chamada do mesmo template veio do cache), ciclo ao vivo com cupom descartável de R$ 1 (criado → reaproveitado → alterado v2 → inalterado → teto → desativado) e caminhos "já usado" com a API simulada | Testes do interpretador (casos de prompt, limites, injeção); emitir/alterar um cupom de teste por script |
 | 3 ✅ | Nós no executor + editor (com gating) — **feito em 21/09/2026**: `executarCupomMultipedidos()` em `services/fluxoExecutor.js` (nunca lança; preenche as variáveis; registra `cupom_<status>` / `cupom_erro` no log do fluxo com o comando interpretado e os cortes) e, em `public/fluxos.html`, grupo "Multipedidos" no select (só com a API ativa), formulário com botão **Interpretar**, aviso e selo "integração desativada". Validado no navegador (gating, formulários de criar/alterar, Interpretar com cortes) e no executor real: criar → mensagem → alterar → mensagem → erro tratado, com cupom descartável de R$ 1; e o fluxo de exemplo `docs/exemplos/fluxo-teste-cupom-multipedidos.json` (desvio por `{{cupomStatus}} = erro` e retomada após o nó Aguardar) | **Fluxo de teste** (cópia da campanha com outro gatilho) rodado com o número do operador: criar 10% → alterar 20% → conferir no gestor |
-| 4 | Webhook → uso do cupom + meta + validação do `access_token` | Pedido de teste com o cupom; conferir `status = usado` e a meta |
+| 4 ✅ | Webhook → uso do cupom + meta + validação do `access_token` — **feito em 21/09/2026**: `registrarUsoPorPedido()` no serviço de cupons, `processarEvento()` na rota (roda **depois** de responder 200, isolado da captura), coluna `pedido_desconto`, contadores de `access_token` no `/status` e aviso na tela de Integrações. Validado pela rota real com payloads no formato capturado: token errado (captura, não processa), uso, idempotência entre status, 2º pedido com o mesmo cupom, cancelamentos, "usado sem pedido", cupom de fora / sem cupom / corpo inválido | Pedido de teste com o cupom; conferir `status = usado` e a meta |
 | 5 | Limpeza diária, atualização dos docs (05, 06, 07, 09), migração do fluxo ativo | Campanha real rodando com cupom único |
 
 ## 8. Decisões em aberto

@@ -57,8 +57,42 @@ captura.all(
     }
 
     res.json({ ok: true });
+
+    // Processamento depois de responder, isolado: nada aqui pode atrapalhar a captura nem atrasar a Multipedidos.
+    processarEvento(req, body).catch((e) => console.error('❌ Webhook Multipedidos: falha ao processar evento —', e.message));
   }
 );
+
+/**
+ * Interpreta o evento já capturado (docs/18-cupons-multipedidos.md §5). Hoje: uso de cupom emitido pelo bot.
+ * Só age sobre evento autenticado: se MULTIPEDIDOS_WEBHOOK_TOKEN está definido, o header `access_token`
+ * precisa bater. Evento com token errado continua capturado (para diagnóstico), mas não é processado.
+ */
+async function processarEvento(req, body) {
+  const tokenEsperado = (process.env.MULTIPEDIDOS_WEBHOOK_TOKEN || '').trim();
+  const tokenValido = !tokenEsperado || String(req.headers.access_token || '') === tokenEsperado;
+  integracaoService.contarEventoWebhook(tokenValido);
+  if (!tokenValido) {
+    console.warn('⚠️ Webhook Multipedidos: access_token diferente de MULTIPEDIDOS_WEBHOOK_TOKEN — evento capturado, mas não processado.');
+    return;
+  }
+  if (req.method !== 'POST' || !body) return;
+
+  let pedido;
+  try {
+    pedido = JSON.parse(body);
+  } catch (_) {
+    return;
+  }
+  if (!pedido || typeof pedido !== 'object' || !pedido.id || !pedido.order_status) return;
+
+  const r = await cupomService.registrarUsoPorPedido(pedido);
+  if (r.acao === 'usado') {
+    console.log(`🎟️ Cupom ${r.codigo} usado no pedido ${r.pedidoId} (R$ ${r.pedido_valor}, desconto R$ ${r.pedido_desconto ?? '?'})${r.meta ? ` — meta "${r.meta}" marcada` : ''}`);
+  } else if (r.acao === 'estornado') {
+    console.log(`↩️ Cupom ${r.codigo} voltou a ficar disponível (pedido cancelado)`);
+  }
+}
 
 const admin = express.Router();
 

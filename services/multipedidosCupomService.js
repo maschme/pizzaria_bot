@@ -13,6 +13,7 @@ const { dbConfig } = require('../database/connection');
 const configService = require('./configuracaoService');
 const provedorService = require('./provedorIAService');
 const multipedidosClient = require('./multipedidosClient');
+const metaService = require('./metaService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -305,10 +306,19 @@ async function buscarCupomAtivoDoContato(whatsappId, campanha) {
 async function atualizarLinha(id, campos) {
   const chaves = Object.keys(campos);
   if (chaves.length === 0) return;
-  await comConexao((conn) => conn.execute(
-    `UPDATE multipedidos_cupons SET ${chaves.map((c) => `\`${c}\` = ?`).join(', ')} WHERE id = ?`,
-    [...chaves.map((c) => campos[c]), id]
-  ));
+  try {
+    await comConexao((conn) => conn.execute(
+      `UPDATE multipedidos_cupons SET ${chaves.map((c) => `\`${c}\` = ?`).join(', ')} WHERE id = ?`,
+      [...chaves.map((c) => campos[c]), id]
+    ));
+  } catch (e) {
+    // Deploy sem a migração da coluna pedido_desconto: não perde a marcação de uso por causa dela.
+    if (e.code === 'ER_BAD_FIELD_ERROR' && 'pedido_desconto' in campos) {
+      const { pedido_desconto: _ignorado, ...resto } = campos;
+      return atualizarLinha(id, resto);
+    }
+    throw e;
+  }
 }
 
 // ============================================================
@@ -568,6 +578,70 @@ async function alterar({ whatsappId, campanha, fluxoId = null, params, prefixo =
   return resultado(alterada ? 'alterado' : 'inalterado', alterada || linha, { cortes });
 }
 
+// ============================================================
+// Uso do cupom (webhook order_status) — docs/18 §5
+// ============================================================
+
+/**
+ * Recebe o pedido de um evento de webhook e, se ele usou um cupom emitido por nós, marca o cupom como
+ * usado (com pedido e valores) e conclui a meta configurada no nó. Pedido cancelado devolve o cupom
+ * para `ativo` — a Multipedidos estorna o uso no cancelamento. Idempotente: o mesmo pedido chega
+ * várias vezes (order + order_status, e um evento por mudança de status).
+ */
+async function registrarUsoPorPedido(pedido) {
+  const codigo = pedido && typeof pedido.coupom_code === 'string' ? pedido.coupom_code.trim() : '';
+  if (!codigo) return { acao: 'ignorado', motivo: 'pedido sem cupom' };
+  const pedidoId = Number(pedido.id) || null;
+  if (!pedidoId) return { acao: 'ignorado', motivo: 'pedido sem id' };
+
+  const linha = await comConexao(async (conn) => {
+    const [rows] = await conn.execute('SELECT * FROM multipedidos_cupons WHERE UPPER(codigo) = UPPER(?) LIMIT 1', [codigo]);
+    return rows[0] || null;
+  });
+  if (!linha) return { acao: 'ignorado', motivo: 'cupom não emitido pelo bot' };
+
+  const status = String(pedido.order_status || '').toUpperCase();
+
+  if (status === 'CANCELED') {
+    if (linha.status !== 'usado' || Number(linha.pedido_id) !== pedidoId) {
+      return { acao: 'ignorado', motivo: 'cancelamento de pedido que não consumiu o cupom', codigo: linha.codigo };
+    }
+    const validade = parseDataHora(linha.validade);
+    const aindaVale = !validade || validade.getTime() > Date.now();
+    await atualizarLinha(linha.id, { status: aindaVale ? 'ativo' : 'expirado', usado_em: null, pedido_id: null, pedido_valor: null, pedido_desconto: null });
+    return { acao: 'estornado', codigo: linha.codigo, whatsappId: linha.whatsapp_id };
+  }
+
+  const valores = {
+    pedido_valor: numero(pedido.total_net_value) ?? numero(pedido.total),
+    pedido_desconto: numero(pedido.discount_value)
+  };
+  if (linha.status === 'usado' && Number(linha.pedido_id) === pedidoId) {
+    await atualizarLinha(linha.id, valores); // mesmo pedido em outro status: só atualiza valores
+    return { acao: 'ja_registrado', codigo: linha.codigo, whatsappId: linha.whatsapp_id };
+  }
+  // `usado` sem pedido = marcado por emitir()/alterar() ao ver o uso na Multipedidos antes de o webhook chegar:
+  // o evento completa os dados (pedido, valores, meta). Com outro pedido já gravado, ignora.
+  if (linha.status === 'usado' && linha.pedido_id != null) {
+    return { acao: 'ignorado', motivo: `cupom já consta como usado no pedido ${linha.pedido_id}`, codigo: linha.codigo };
+  }
+
+  await atualizarLinha(linha.id, {
+    status: 'usado',
+    pedido_id: pedidoId,
+    usado_em: parseDataHora(pedido.created_at) ? String(pedido.created_at).slice(0, 19) : formatarDataHora(new Date()),
+    ...valores
+  });
+
+  let meta = null;
+  if (linha.meta_ao_resgatar) {
+    const r = await metaService.marcarConcluido(linha.whatsapp_id, linha.meta_ao_resgatar);
+    meta = r.ok ? linha.meta_ao_resgatar : null;
+    if (!r.ok) console.warn(`⚠️ Cupom ${linha.codigo}: meta "${linha.meta_ao_resgatar}" não marcada — ${r.erro}`);
+  }
+  return { acao: 'usado', codigo: linha.codigo, whatsappId: linha.whatsapp_id, pedidoId, meta, ...valores };
+}
+
 /** Desativa o cupom na Multipedidos (nunca remove: código removido fica reservado e perde o histórico). */
 async function desativar(cupomId, novoStatus = 'desativado') {
   const linha = await comConexao(async (conn) => {
@@ -586,6 +660,7 @@ module.exports = {
   emitir,
   alterar,
   desativar,
+  registrarUsoPorPedido,
   // expostos para teste
   _interpretarPorRegex: interpretarPorRegex,
   _normalizarParametros: normalizarParametros,

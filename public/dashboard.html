@@ -1110,8 +1110,14 @@
       document.getElementById('mpWebhookAtivo').checked = !!s.webhook.ativo;
       document.getElementById('mpWebhookSegredos').innerHTML =
         seloConfigurado(s.webhook.segredoConfigurado, 'segredo da URL') + seloConfigurado(s.webhook.accessTokenConfigurado, 'access_token');
-      document.getElementById('mpWebhookStats').textContent =
-        `Último evento: ${tempoRelativo(s.webhook.ultimoEvento)} · ${s.webhook.ultimas24h} nas últimas 24 h · ${s.webhook.total} no total`;
+      const tk = s.webhook.accessToken || { validos: 0, invalidos: 0 };
+      document.getElementById('mpWebhookStats').innerHTML =
+        `Último evento: ${tempoRelativo(s.webhook.ultimoEvento)} · ${s.webhook.ultimas24h} nas últimas 24 h · ${s.webhook.total} no total`
+        + (tk.invalidos > 0
+          ? `<div class="text-warning mt-1">⚠️ ${tk.invalidos} evento(s) chegaram com <code>access_token</code> diferente do <code>MULTIPEDIDOS_WEBHOOK_TOKEN</code> do .env (último ${tempoRelativo(tk.ultimoInvalidoEm)}). Eles são capturados, mas <strong>não são processados</strong> (uso de cupom não é marcado). Confira se o valor do .env é o mesmo cadastrado no painel da Multipedidos.</div>`
+          : (!s.webhook.accessTokenConfigurado && s.webhook.ativo
+            ? '<div class="mt-1">Sem <code>MULTIPEDIDOS_WEBHOOK_TOKEN</code> no .env: os eventos são aceitos só pelo segredo da URL.</div>'
+            : ''));
 
       document.getElementById('mpApiAtiva').checked = !!s.api.ativa;
       document.getElementById('mpApiToken').innerHTML = seloConfigurado(s.api.tokenConfigurado, 'token de integração');

@@ -237,7 +237,7 @@ Item simples: `type: "general"`, com `extras[]` (`extra_name`, `extra_price`, `q
 - `crusts` é **um objeto** (apesar do plural), não array. `pizza_price_behavior: "incremental"` = sabores/borda com `price` > 0 somam ao preço base (`item_sub_total` do tamanho = `menu_price` + acréscimos).
 - `number_of_flavors` é string no body completo e número no enxuto.
 - No evento `order` (formato legado) o mesmo combo vem como `items[].sizes[]` com `crust{}`, `dough[]`, `flavors[].additionalToppings[]`, `pizza_price`, e os `id` são os do cardápio (`menu_item_id`), não os do pedido.
-- Pizza avulsa (fora de combo, `type: "pizza"`) ainda não capturada.
+- Pizza avulsa (fora de combo, `type: "pizza"`): vista só no formato legado, via poll — ver 4.2.
 
 ### 3.5 Pontos de atenção para a integração
 
@@ -303,11 +303,78 @@ Implicação: a etapa **"fez pedido"** do funil (doc 16) pode ser detectada só 
 
 ## 4. API com token
 
-_(a preencher)_ URL base, header de autenticação, endpoints testados e respostas. O token fica em `MULTIPEDIDOS_TOKEN` no `.env` — **nunca** em código, doc ou chat.
+Explorada em 20/09/2026 com o **Token de Integração** (`MULTIPEDIDOS_TOKEN` no `.env` — **nunca** em código, doc ou chat), **somente leitura**: login, `poll` e `GET`. Nenhum `acknowledge`, mudança de status ou `POST` de escrita foi chamado. Ferramenta: `scripts/multipedidos-explorar.js` (`login` | `poll` | `get <caminho>`; respostas em `capturas/`, fora do git). **[fato]** = resposta real da API.
 
-| Método | Endpoint | Retorno | Observações |
-|--------|----------|---------|-------------|
-| — | — | — | — |
+### 4.1 Autenticação
+
+- **[fato]** `POST https://api.multipedidos.com.br/integration/auth/login`, header `x-integration-token: <token>`, body vazio → `200 { "token": "<jwt>" }`. O contrato de 2023 (seção 1.2) **continua valendo**.
+- **[fato]** JWT HS256, emissor `lumen-jwt` (backend Lumen/Laravel), **validade de 1 hora** (`exp - iat = 3600`), claims `domain: "Integration_as_Restaurant"` e `restaurant_id`. Renovar = logar de novo. Uso: `Authorization: Bearer <jwt>`.
+- ⚠️ **O token é muito mais poderoso do que "integração de pedidos" sugere**: o JWT age *como o restaurante* — lê a base inteira de clientes (4.4) e o cadastro dos webhooks com seus tokens, e as rotas de escrita existem (4.5). Tratar `MULTIPEDIDOS_TOKEN` como credencial de administrador: só no `.env`, nunca em log, e regerar no painel se vazar.
+
+### 4.2 Fila de pedidos novos (polling)
+
+- **[fato]** `GET https://2bhghu4v3iluwl77hwcmwkbije0rroef.lambda-url.us-east-1.on.aws/poll`, header `Authorization: <token de integração>` (o token cru, **sem** "Bearer" e sem JWT) → `200`, array JSON. A URL Lambda de 2023 segue válida.
+- **[fato]** Devolve uma **fila de pedidos novos ainda não confirmados**: 19 pedidos (tudo o que entrou na loja nas ~2h30 anteriores, `web` e `pos`, delivery/balcão/mesa), **todos como snapshot `order_status: "CREATED"`** mesmo já tendo avançado de status. Ou seja: o poll entrega *criação de pedido*, não mudança de status.
+- **[fato]** O payload é **idêntico ao do webhook `order`** (formato legado: `items[].sizes[]`, `crust`, `dough`, `flavors[].additionalToppings`, `featured`, `is_weight_product`) — 63 chaves na raiz, com `client{}` e `history[]`. Webhook `order` e poll são a mesma esteira.
+- **[inferência]** O pedido sai da fila com `GET …/acknowledge?orderID=<id>` (não testado — tem efeito colateral). Sem acknowledge a fila só cresce; tempo de expiração desconhecido.
+- Pizza avulsa (`type: "pizza"`), que faltava nas capturas de webhook, aparece aqui: `menu_name` = tamanho, `menu_price`, `number_of_flavors`, `pizza_price_behavior`, `pizza_price`, `crust{}`, `dough[]`, `flavors[]` (`name`, `price`, `quantity`, `notes`, `additionalToppings[]`), `extras[]`.
+- **Para nós**: o webhook `order_status` já cobre criação + transições em tempo real; o poll só interessa como **rede de segurança** (recuperar pedidos perdidos se o bot ficar fora do ar) — e, como ninguém dá acknowledge hoje, funciona como um "últimas horas de pedidos".
+
+### 4.3 Rotas GET acessíveis com o JWT
+
+Base `https://api.multipedidos.com.br`, `{id}` = `restaurant_id`. Rotas candidatas extraídas do bundle público do painel; sondadas registrando só status, tamanho e formato (chaves/tipos).
+
+| Rota | Resultado | Conteúdo |
+|------|-----------|----------|
+| `/restaurant/{id}/menu` | ✅ 200 (~270 KB) | Cardápio publicado: `general[]` (categorias com produtos), `combos[]`, `extras[]`, `pizzas{ sizes[], flavorCategories[], extras }`, `hoursTemplates[]`, `stocks[]` |
+| `/restaurant/{id}/nep` | ✅ 200 (~345 KB) | Cardápio no modelo do editor: `pizzas{ sizes[], flavors[], fractions[] }`, `combos[]`, `crustCategories[]`, `additionalToppingsCategories[]`, `doughCategories[]`, `general[]`, `extras[]`, `itemsAssocs{}` (borda/adicional × tamanho), `hoursTemplate[]`, `ncms[]` |
+| `/restaurant/{id}/generic-category` | ✅ 200 | Categorias com `products[]` (36 campos por produto: nome, descrição, preço, disponibilidade…) |
+| `/restaurant/{id}/pizza/flavor-category` | ✅ 200 | Categorias de sabor com `flavors[]` (74 sabores na maior) |
+| `/restaurant/{id}/pizza/crust-category` | ✅ 200 | Bordas (`options[]`) |
+| `/restaurant/{id}/extra-category` | ✅ 200 | Complementos (`options[]`, `qtyMin`, `qtyMax`, `required`) |
+| `/restaurant/{id}/nep/combo` | ✅ 200 | Combos: `name`, `price`, `oldPrice`, `description`, `available`, `delivery`, `balcony`, `pizzaSizes[]`, `pizzaAssociations[]` |
+| `/restaurant/{id}/hours-template` | ✅ 200 | Horários: `hours{}` (7 dias), `orderScheduling{}`, `indicatesRestaurantOperation` |
+| `/restaurant/{id}/discount-coupons` | ✅ 200 | Cupons paginados: `{ data[] (28 campos), meta{ total, currentPage, lastPage, perPage } }` |
+| `/restaurant/{id}/cashback/settings` | ✅ 200 | `enabled`, `cashbackPercent`, `maxCashbackValue`, `minOrderValueForCashback`, `daysToExpire` |
+| `/restaurant/{id}/order/{orderId}` | ✅ 200 | **Pedido por id**, em **camelCase** (3º formato! `orderNo`, `status`, `totalNetValue`, `deliveryType`, `paymentMethod`, `createdAt`…) |
+| `/restaurant/{id}/client/{clientId}` | ✅ 200 | Cliente completo (mesmo objeto `client{}` do webhook: nome, telefone, e-mail, CPF, endereço, `orders_count`, `ticket_average`…). `/client/{clientId}/search` devolve o mesmo |
+| `/restaurant/{id}/client/all-clients` | ✅ 200 (~3 MB) | **Base inteira de clientes** numa chamada (milhares de registros): `id`, `name`, `uuid`, `phone`, `points`, `bairro_ci`, `is_blocked`, `wabot_opted_out`, `orders_count`, `ticket_average`, `first_order_date`, `last_order_date`, `last_valid_order_date`, `coupon_usage_percent` |
+| `/restaurant/{id}/reports/wabot-today` | ✅ 200 | `{ total_orders, revenue, ticket }` do dia |
+| `/restaurant/{id}/motoboy` | ✅ 200 | Entregadores (`id`, `name`) |
+| `/restaurant/{id}/webhook-integration` | ✅ 200 | Webhooks cadastrados: `type`, `url`, `enable`, `method`, `origin`, **`verification_token`** (expõe o access_token e a nossa URL com segredo) |
+| `/restaurant/{id}/ncms` | ✅ 200 | Configuração fiscal |
+| `/restaurant/{id}/cuisine`, `/deliveryfees/area`, `/journeys` | ✅ 200 | Listas vazias nesta loja |
+| `/restaurant/{id}`, `/restaurant/{id}/order`, `/saleChannels`, `/order/{id}/status` | 405 | Rota existe, mas não para GET (ver 4.5) |
+| `/restaurant/{id}/orders`, `/kds/orders`, `/schedule`, `/reports/total`, `/integrated-order-history` | 404 | — |
+| `/restaurant/{id}/client`, `/coupom`, `/transmission-list` | 500 | Erro do servidor (provavelmente faltam parâmetros) |
+| `/restaurant/{id}/reports/last-seven-days-sales` | timeout 30 s | — |
+
+**Não existe listagem de pedidos por GET** (histórico): pedido só por id (`/order/{orderId}`), pela fila do poll ou pelos webhooks. Histórico de vendas por cliente só agregado (`orders_count`, `ticket_average`, datas) em `all-clients`.
+
+### 4.4 O que isso destrava
+
+| Dado | Rota | Uso no produto |
+|------|------|----------------|
+| Cardápio, preços, combos, sabores, bordas, disponibilidade | `/menu` (ou `/nep`) | Contexto da **IA de atendimento** sempre atualizado, em vez de texto fixo no prompt — cachear e atualizar algumas vezes ao dia |
+| Horário de funcionamento | `/hours-template` | IA responder "estão abertos?" corretamente |
+| Cupons e cashback vigentes | `/discount-coupons`, `/cashback/settings` | IA/fluxos citarem promoções reais |
+| Base de clientes com recência, frequência e ticket | `/client/all-clients` | Casar com `contatos` pelo telefone → **funil** (quem já é cliente × quem é novo), segmentos (inativos há N dias, alto ticket) para campanhas; respeitar `wabot_opted_out` e `is_blocked` |
+| Pedido por id | `/order/{orderId}` | Consultar status atual sob demanda ("cadê meu pedido?") a partir do nº capturado no webhook |
+| Faturamento do dia | `/reports/wabot-today` | Resumo diário para o operador |
+
+### 4.5 Rotas de escrita (existem — **não testadas**)
+
+- `POST /restaurant/{id}/order/{orderId}/status` body `{"status":"…"}` — muda o status do pedido na loja (o painel envia também `cancellationReason`, `currentUserID`, `refundPayment`).
+- `GET <lambda>/acknowledge?orderID=<id>` — confirma recebimento e tira o pedido da fila do poll.
+- `/restaurant/{id}/order` responde 405 a GET → **[inferência]** aceita `POST` (criação de pedido, como o PDV faz). Seria o caminho para o bot lançar pedidos direto no gestor — exige estudo próprio, com pedido de teste e acompanhamento no painel.
+
+Qualquer teste de escrita afeta a operação real da loja: só com pedido de teste, fora do horário de movimento e com autorização explícita.
+
+### 4.6 Cuidados
+
+- **LGPD**: `all-clients` e `client/{id}` trazem dados pessoais de milhares de clientes (e CPF, quando informado). Importar só o necessário (telefone, nome, métricas), nunca logar o payload, e não versionar `capturas/`.
+- **Carga**: `/menu`, `/nep` e `all-clients` são respostas grandes (centenas de KB a MB) — cachear; não chamar por mensagem recebida. Limite de requisições não informado (sem headers `x-ratelimit-*`).
+- **Três formatos de pedido** convivem: legado (`order`/poll, `sizes[]`), persistido snake_case (`order_status`, `combo_items[]`) e camelCase (`GET /order/{id}`). Centralizar a normalização num único módulo.
 
 ## 5. Para onde isso vai (depois do estudo)
 

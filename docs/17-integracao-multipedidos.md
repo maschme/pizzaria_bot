@@ -437,7 +437,7 @@ Observações:
 | Ação | Rota | Body |
 |------|------|------|
 | Criar | `POST /discount-coupons` → ✅ **201** `{ data: <cupom com id>, replacedFeatured }` | payload abaixo |
-| Editar | `PUT /discount-coupons/{couponId}` (não testada) | cupom completo (gera nova **versão**; o uso fica separado por versão) |
+| Editar | `PUT /discount-coupons/{couponId}` → ✅ **200** `{ data: <cupom atualizado> }` | **cupom completo** (ver abaixo) — gera nova **versão** |
 | Ativar/desativar | `PUT /discount-coupons/{couponId}/active` → ✅ **200** `{ data: { id, active } }` | `{ "active": true }` ou `{ "active": false }` |
 | Remover | `DELETE /discount-coupons/{couponId}` → ✅ **204** | — ⚠️ **confirmado**: o código de cupom removido fica reservado — `code-availability` passa a responder `{ available: false, reason: "deleted", deletedCoupon: { id, code, usageCount, deletedAt } }`; só volta via `POST /{couponId}/restore` |
 
@@ -456,6 +456,9 @@ Payload de criação que funcionou (cupom de uso único):
 ```
 
 - O servidor devolve o cupom gravado com `id`, `currentVersion: 1` e contadores zerados; o `displayCode` enviado voltou `null`. Quais campos são de fato obrigatórios ainda não foi testado (enviamos todos).
+- **Edição testada (21/09/2026)**: cupom descartável de 10% editado para 20%. `PUT` **parcial** (`{ "discountValue": 20 }`) é **rejeitado com 422** (`errors: { code: ["validation.required"], discountType: ["validation.required"] }`) e não altera nada → é preciso reenviar o **objeto completo**: ler o cupom na listagem, trocar o(s) campo(s) e devolver no `PUT` (os campos só-leitura que vêm na listagem — `id`, `usageCount`, `createdAt`… — são aceitos e ignorados). Campos obrigatórios conhecidos: `code`, `discountType` (e, por consequência, `discountValue`).
+- Cada edição **fecha a versão vigente e abre outra**: `currentVersion` 1 → 2; em `/versions` a v1 ganha `effectiveTo` = instante da edição e a v2 nasce com `effectiveFrom` igual, `current: true`. Os resgates ficam contados por versão (`redemptions`), então dá para medir o efeito da mudança (quantos usaram a 10% × a 20%). O `code` e o `id` não mudam.
+- Editar vale para **todo mundo que tem o código**. Em cupom de campanha (aberto) isso muda a oferta para todos; em cupom individual emitido pelo bot é seguro — permite uma **régua de reativação com o mesmo código** (ex.: não usou os 10% em 7 dias → sobe para 20% e estende `validUntil`).
 - Fluxo recomendado: `code-availability` → `POST` → guardar `id` + `code` + contato do nosso lado. O cupom criado aparece na hora na busca (`GET ?search=<code>`) e some dela após o `DELETE`.
 - Para "aposentar" um cupom emitido pelo bot, preferir **desativar** (`active: false`) a remover — mantém o histórico de resgates consultável e evita queimar códigos à toa.
 

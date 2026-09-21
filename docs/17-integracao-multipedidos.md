@@ -349,7 +349,7 @@ Base `https://api.multipedidos.com.br`, `{id}` = `restaurant_id`. Rotas candidat
 | `/restaurant/{id}/client`, `/coupom`, `/transmission-list` | 500 | Erro do servidor (provavelmente faltam parâmetros) |
 | `/restaurant/{id}/reports/last-seven-days-sales` | timeout 30 s | — |
 
-**Não existe listagem de pedidos por GET** (histórico): pedido só por id (`/order/{orderId}`), pela fila do poll ou pelos webhooks. Histórico de vendas por cliente só agregado (`orders_count`, `ticket_average`, datas) em `all-clients`.
+Não há listagem de pedidos por `GET`, mas **há por `POST {order}/query`** (consulta só-leitura usada pelo painel — ver 4.5). Histórico de vendas por cliente só agregado (`orders_count`, `ticket_average`, datas) em `all-clients`.
 
 ### 4.4 O que isso destrava
 
@@ -362,19 +362,104 @@ Base `https://api.multipedidos.com.br`, `{id}` = `restaurant_id`. Rotas candidat
 | Pedido por id | `/order/{orderId}` | Consultar status atual sob demanda ("cadê meu pedido?") a partir do nº capturado no webhook |
 | Faturamento do dia | `/reports/wabot-today` | Resumo diário para o operador |
 
-### 4.5 Rotas de escrita (existem — **não testadas**)
+### 4.5 Rotas de escrita e edição de pedidos (mapeadas — **escrita não testada**)
 
-- `POST /restaurant/{id}/order/{orderId}/status` body `{"status":"…"}` — muda o status do pedido na loja (o painel envia também `cancellationReason`, `currentUserID`, `refundPayment`).
-- `GET <lambda>/acknowledge?orderID=<id>` — confirma recebimento e tira o pedido da fila do poll.
-- `/restaurant/{id}/order` responde 405 a GET → **[inferência]** aceita `POST` (criação de pedido, como o PDV faz). Seria o caminho para o bot lançar pedidos direto no gestor — exige estudo próprio, com pedido de teste e acompanhamento no painel.
+Mapeadas por análise estática do bundle do painel (`orderFactory` e `posFactory`) em 20/09/2026. `{order}` = `/restaurant/{id}/order`, `{pos}` = `/restaurant/{id}/pos`.
 
-Qualquer teste de escrita afeta a operação real da loja: só com pedido de teste, fora do horário de movimento e com autorização explícita.
+**Consultas que usam POST mas só leem** — **[fato]**, testadas com o JWT de integração:
+
+| Rota | Body | Resultado |
+|------|------|-----------|
+| `POST {order}/query/first` | `{"columnsTerms":{"id":<orderId>,"status":""}}` | ✅ 200 — pedido completo em camelCase (igual a `GET {order}/{orderId}`) |
+| `POST {order}/query` | `{"columnsTerms":{…},"sortSettings":{…},"limit":N}` — filtros no formato `{"0":["id",">",123],"status":""}` ou `["id","IN",[…]]` | **listagem/histórico de pedidos** (não testada com filtros amplos; mesma rota do `query/first`) |
+| `POST {order}/query/paginate/{offset}/{limit}`, `{order}/count-orders`, `{order}/total-revenue` | `columnsTerms`, `sortSettings` | paginação, contagem e faturamento (não testadas) |
+| `GET {order}/history/{orderId}` | — | ✅ 200 — histórico de status com o usuário de cada ação |
+| `GET {order}/{orderId}/payments` | — | ✅ 200 |
+| `GET {pos}/cashier` | — | ✅ 200 — caixa atual (`open`, `value`…): **o JWT de integração alcança o domínio do PDV** |
+
+> Correção do que constava antes: **existe** listagem de pedidos — não por `GET`, mas por `POST {order}/query`.
+
+**Escrita** — nenhuma chamada foi feita:
+
+| Ação | Rota | Payload (como o painel/PDV monta) |
+|------|------|-----------------------------------|
+| Mudar status | `POST {order}/{orderId}/status` | `{ status, cancellationReason, currentUserID, refundPayment }` |
+| **Criar pedido** | `PUT {pos}` (ou `PUT {pos}/create-return-cache-key`) | `{ user: {name, phone, cpf, email, address, street_number…}, details: {deliveryType, payments, deliveryFeeID, coordinates, currentUser…}, orders: [itens] }` — exige caixa aberto |
+| **Editar pedido (incluir/remover/alterar itens)** | `POST {pos}/return-cache-key` | o **pedido inteiro** de volta: `{ user, details (com o id do pedido e `currentUser`), orders: [todos os itens], removedItems: [ids] }`. Itens existentes inalterados seguem como estão; item alterado vai com `id = menu_item_id` e o id antigo entra em `removedItems`; item novo vai sem id de pedido. Resposta: `{ order, cacheKey }` |
+| Pagamentos | `POST {order}/{orderId}/payments`, `POST {order}/{orderId}/paymentStatus` | lista de pagamentos / `{ status, userID, paymentMethod }` |
+| Motoboy | `PUT {order}/{orderId}/motoboy` | `{ motoboyID }` |
+| Taxa de serviço | `POST {order}/{orderId}/add-service-fee` · `remove-service-fee` | `{}` |
+| Nº do pedido | `POST {order}/{orderId}/number` | pedido |
+| Comandas (mesa) | `PUT {order}/table/{orderId}/guest-check-pads/{padId}/close`, `PUT {order}/{orderId}/items/update-guest-check-pads-assoc` | — |
+| Poll | `GET <lambda>/acknowledge?orderID=<id>` | tira o pedido da fila |
+
+- **Não existe "adicionar item" isolado**: editar = reenviar o pedido completo pela rota do PDV, no formato interno do PDV (`user`/`details`/`orders`), que **não é** nenhum dos três formatos que recebemos (webhook/poll/GET). Montar esse payload do zero exige reproduzir o que o PDV faz (itens de pizza normalizados, `deliveryFeeID`, `payments`, `currentUser`).
+- **[inferência]** Como o JWT lê `{pos}/cashier`, é provável que também possa escrever em `{pos}` — só um teste confirma. A edição dispara o evento Pusher `UpdateOrder` (reimpressão no gestor) e o pedido passa a ter `isUpdated = 1`.
+- **Risco**: payload errado pode apagar itens de um pedido real (a rota recebe a lista final de itens) ou duplicar impressão na cozinha. Testar **somente** em pedido de teste criado para isso (ex.: mesa "teste" com 1 água), fora do horário de movimento, acompanhando no gestor, com autorização explícita — e capturar antes o payload real do PDV (aba Network do navegador ao editar um pedido) em vez de adivinhar.
 
 ### 4.6 Cuidados
 
 - **LGPD**: `all-clients` e `client/{id}` trazem dados pessoais de milhares de clientes (e CPF, quando informado). Importar só o necessário (telefone, nome, métricas), nunca logar o payload, e não versionar `capturas/`.
 - **Carga**: `/menu`, `/nep` e `all-clients` são respostas grandes (centenas de KB a MB) — cachear; não chamar por mensagem recebida. Limite de requisições não informado (sem headers `x-ratelimit-*`).
 - **Três formatos de pedido** convivem: legado (`order`/poll, `sizes[]`), persistido snake_case (`order_status`, `combo_items[]`) e camelCase (`GET /order/{id}`). Centralizar a normalização num único módulo.
+
+### 4.7 Cupons de desconto
+
+**[fato]** testado em 21/09/2026 com o JWT de integração (só leitura). Base: `/restaurant/{id}/discount-coupons`.
+
+| Rota | Resultado |
+|------|-----------|
+| `GET /discount-coupons` | ✅ Lista paginada: `{ data[], meta{ total, currentPage, lastPage, perPage } }` — `perPage` fixo em 20 (`?page=N` para as próximas; `itemsPerPage` é ignorado) |
+| `GET /discount-coupons/{couponId}/redemptions` | ✅ **Quem usou o cupom**: `{ data[], meta{ total, totalDiscount, currentPage, perPage, lastPage } }` — 20 por página |
+| `GET /discount-coupons/{couponId}/versions` | ✅ Histórico de versões da regra: `id`, `version`, `current`, `effectiveFrom`, `effectiveTo`, `redemptions` |
+| `GET /discount-coupons/{couponId}` | 405 (o detalhe já vem completo na lista) |
+
+Campos do cupom:
+
+| Grupo | Campos |
+|-------|--------|
+| Identificação | `id`, `code`, `displayCode`, `active`, `currentVersion`, `createdAt`, `updatedAt` |
+| Desconto | `discountType` (`percent` \| `fixed`), `discountValue`, `maxDiscountValue` (teto, p/ percentual), `minOrderValue` |
+| Limites | `usageLimit` (total), `perCustomerLimit`, `firstOrderOnly`, `validUntil` (`YYYY-MM-DD HH:mm:ss` ou `null` = sem validade) |
+| Uso | `usageCount`, `validUsageCount`, `currentVersionUsageCount` |
+| Restrições | `allowPizzaCombo`, `allowFeaturedItems`, `products[]`, `paymentMethods[]`, `orderTypes[]`, `availabilities[]` (`weekday` 0–6, `startTime`, `endTime`) — listas vazias = sem restrição |
+| Vitrine | `isPublic`, `publicMessage`, `isFeatured` |
+
+Campos do resgate (`redemptions.data[]`): `id`, `orderId`, `orderNo`, `clientName`, `customerPhone`, `discountApplied`, `orderTotal`, `couponVersion`, `couponVersionId`, `createdAt` (+ `couponCode`/`couponDisplayCode`, que vieram `null`). Contém dado pessoal (nome e telefone).
+
+Observações:
+- `active: true` **não significa vigente**: há cupom ativo com `validUntil` no passado. Para saber se vale hoje: `active` **e** (`validUntil` nulo ou futuro) **e** (`usageLimit` nulo ou `usageCount < usageLimit`) **e** dentro de `availabilities` (dia/horário).
+- **Uso no produto**: (1) a IA/fluxos só citarem cupons realmente vigentes; (2) **atribuição de canal por cupom** — cupons por origem (ex.: um para Instagram, outro para Facebook, outro de boas-vindas) + `redemptions` (telefone + pedido + valor) dão conversão por canal mesmo quando o cliente não entrou pelo link `wa.me` do canal (complementa o doc 16); (3) no webhook o cupom usado aparece em `coupom_code` / `discount_value` do pedido.
+- **Outras consultas** (✅ testadas): `GET /discount-coupons/code-availability?code=X` → `{ data: { available, code, reason? } }` (consulta, não reserva); `GET /discount-coupons/redemptions?from=&to=&page=` → resgates de **todos** os cupons no período; `GET /discount-coupons/analytics?from=&to=` → `totalRedemptions`, `totalDiscount`, `uniqueCustomers`, `totalOrders`, `ordersWithCoupon`, `usageRate`, `revenueWithCoupons`, `avgTicket`, `byChannel[]`, `byType[]`, `byCoupon[]`. A lista aceita `page`, `perPage`, `search`, `availability` (csv), `sort`, `order`.
+
+**Escrita** — mapeada no `discountCouponFactory` do painel ("Cupom v2": cliente HTTP fino, todas as regras e validações ficam no servidor) e **[fato] testada em 21/09/2026** com o JWT de integração, com autorização do dono da loja: ciclo completo criar → listar → desativar → remover de um cupom descartável de R$ 1 (a loja voltou ao estado original):
+
+| Ação | Rota | Body |
+|------|------|------|
+| Criar | `POST /discount-coupons` → ✅ **201** `{ data: <cupom com id>, replacedFeatured }` | payload abaixo |
+| Editar | `PUT /discount-coupons/{couponId}` (não testada) | cupom completo (gera nova **versão**; o uso fica separado por versão) |
+| Ativar/desativar | `PUT /discount-coupons/{couponId}/active` → ✅ **200** `{ data: { id, active } }` | `{ "active": true }` ou `{ "active": false }` |
+| Remover | `DELETE /discount-coupons/{couponId}` → ✅ **204** | — ⚠️ **confirmado**: o código de cupom removido fica reservado — `code-availability` passa a responder `{ available: false, reason: "deleted", deletedCoupon: { id, code, usageCount, deletedAt } }`; só volta via `POST /{couponId}/restore` |
+
+Payload de criação que funcionou (cupom de uso único):
+
+```json
+{
+  "code": "PREFIXO7K2Q9", "displayCode": "PREFIXO7K2Q9", "active": true,
+  "discountType": "fixed", "discountValue": 1, "maxDiscountValue": null, "minOrderValue": null,
+  "usageLimit": 1, "perCustomerLimit": 1, "firstOrderOnly": false,
+  "allowPizzaCombo": true, "allowFeaturedItems": false,
+  "isPublic": false, "publicMessage": null, "isFeatured": false,
+  "validUntil": "2026-09-22 23:59:59",
+  "products": [], "paymentMethods": [], "orderTypes": [], "availabilities": []
+}
+```
+
+- O servidor devolve o cupom gravado com `id`, `currentVersion: 1` e contadores zerados; o `displayCode` enviado voltou `null`. Quais campos são de fato obrigatórios ainda não foi testado (enviamos todos).
+- Fluxo recomendado: `code-availability` → `POST` → guardar `id` + `code` + contato do nosso lado. O cupom criado aparece na hora na busca (`GET ?search=<code>`) e some dela após o `DELETE`.
+- Para "aposentar" um cupom emitido pelo bot, preferir **desativar** (`active: false`) a remover — mantém o histórico de resgates consultável e evita queimar códigos à toa.
+
+**Cupom de uso único por cliente** (caso de uso: indicação, reativação, pedido de desculpas): não há campo que prenda o cupom a um telefone/cliente. O equivalente é **código aleatório exclusivo + `usageLimit: 1` + `perCustomerLimit: 1` + `validUntil` curto + `isPublic: false`**, enviado só para aquele contato — a loja já faz isso à mão (há cupons com `usageLimit: 1`). Guardar do nosso lado `código → contato` permite fechar o ciclo: o resgate aparece em `redemptions` (telefone, pedido, valor) e no webhook (`coupom_code`). Cuidados: códigos não se reciclam (cada cupom removido "queima" o código) → usar prefixo + sufixo aleatório; e prever limpeza (desativar vencidos) para não poluir a tela de cupons do gestor.
 
 ## 5. Para onde isso vai (depois do estudo)
 

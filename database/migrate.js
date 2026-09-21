@@ -10,6 +10,8 @@
  *
  * Regras para novas migrações:
  *  - Nome com prefixo de data para ordenar: 2026-09-20-minha-mudanca.js
+ *    Atenção: a ordem é a do nome INTEIRO, e "-" vem antes de "." — "x-cupons-desconto.js" roda ANTES de
+ *    "x-cupons.js". Migração que depende de outra do mesmo dia deve levar data (ou sufixo numérico) maior.
  *  - Idempotentes (CREATE TABLE IF NOT EXISTS / checar coluna antes de ADD),
  *    pois instalações antigas podem já ter o schema aplicado manualmente.
  *  - Executáveis standalone: process.exit(0) no sucesso, !=0 no erro.

@@ -3,6 +3,10 @@
 /**
  * Migração: coluna multipedidos_cupons.pedido_desconto — desconto efetivamente aplicado no pedido que
  * usou o cupom (discount_value do webhook), para medir o custo da campanha. Ver docs/18 §5. Idempotente.
+ *
+ * Depende de 2026-09-21-multipedidos-cupons.js (cria a tabela). O arquivo se chamava
+ * 2026-09-21-multipedidos-cupons-desconto.js e, por ordenar ANTES dela ("-" < "."), quebrava o deploy
+ * em banco que ainda não tinha a tabela — por isso a data maior no nome.
  */
 
 const mysql = require('mysql2/promise');

@@ -50,11 +50,15 @@
 |--------|------|-----------|
 | POST | `/webhook/movimento` | Recebe movimentos CRM (stub/log) |
 
-### Integração Multipedidos (estudo — [doc 17](./17-integracao-multipedidos.md))
+### Integração Multipedidos ([doc 17](./17-integracao-multipedidos.md) — estudo · [doc 18](./18-cupons-multipedidos.md) — tela de Integrações e cupons)
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| ANY | `/webhook/multipedidos/:secret` | Público (segredo `MULTIPEDIDOS_WEBHOOK_SECRET` na URL). Grava a requisição crua em `webhook_eventos` e responde 200 |
+| ANY | `/webhook/multipedidos/:secret` | Público (segredo `MULTIPEDIDOS_WEBHOOK_SECRET` na URL). Grava a requisição crua em `webhook_eventos` e responde 200. Responde 404 sem o segredo no `.env` **ou com o webhook desligado na tela de Integrações** |
+| GET | `/api/integracoes/multipedidos/status` | Admin. Interruptores, segredos configurados (booleanos, nunca valores), estatísticas do webhook, último login na API, limites de cupom |
+| PUT | `/api/integracoes/multipedidos` | Admin. Aplica só os campos enviados: `webhookAtivo`, `apiAtiva`, `cupomMaxPercent`, `cupomMaxValorFixo`, `cupomMaxValidadeDias`, `cupomPrefixo`. 400 com o motivo se não puder ligar (segredo/token ausente) ou valor inválido |
+| POST | `/api/integracoes/multipedidos/testar` | Admin. Login só-leitura na API da Multipedidos (funciona com a API desligada); 502 se falhar |
+| GET | `/api/integracoes/multipedidos/webhook-url` | Admin. URL completa do webhook, **com o segredo** — separada do `/status` para o segredo só trafegar quando o operador pede para copiar. Base: `PUBLIC_URL` ou o host da requisição |
 | GET | `/api/integracoes/multipedidos/eventos` | Admin. Lista capturas (`?limite=`, `?corpo=1` inclui headers e corpo) |
 | GET | `/api/integracoes/multipedidos/eventos/:id` | Admin. Captura completa |
 

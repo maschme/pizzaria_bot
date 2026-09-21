@@ -1,6 +1,6 @@
 # Cupons únicos via Multipedidos nos fluxos (desenho)
 
-Definido com o operador em 21/09/2026. **Status: desenho — nada implementado ainda.** Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
+Definido com o operador em 21/09/2026. **Status: etapa 1 de 5 implementada** (tela de Integrações — ver §7). Base técnica: [doc 17](./17-integracao-multipedidos.md) (API de cupons testada: criar, editar, ativar/desativar, remover, resgates).
 
 **Problema**: hoje o nó `enviar_cupom` lê o arquivo `cupons_desconto` (3 cupons genéricos, o mesmo código para todos, validade escrita no texto e atualizada à mão) e a IA escolhe qual texto enviar. Não dá para saber quem usou, o código vaza, e a campanha de desconto progressivo (10% → 20% → 30%) entrega três códigos diferentes.
 
@@ -182,7 +182,7 @@ Cada etapa é implantável sozinha e não muda o comportamento do fluxo ativo at
 
 | # | Entrega | Como validar |
 |---|---------|--------------|
-| 1 | Configs `integracoes`, rotas de status/toggle/testar, view **Integrações**, toggle respeitado pela rota do webhook | Ligar/desligar na tela e ver a captura obedecer |
+| 1 ✅ | Configs `integracoes`, rotas de status/toggle/testar, view **Integrações**, toggle respeitado pela rota do webhook — **feito em 21/09/2026** (`services/multipedidosIntegracaoService.js`, `services/multipedidosClient.js` só com login/JWT, `routes/multipedidosRoutes.js`, view em `dashboard.html`, migração `2026-09-21-integracao-multipedidos-configs.js`). Na migração, `multipedidos_webhook_ativo` nasce `true` se `MULTIPEDIDOS_WEBHOOK_SECRET` já existe — o deploy não desliga a captura em uso | Ligar/desligar na tela e ver a captura obedecer |
 | 2 | `multipedidosClient`, migração da tabela, `multipedidosCupomService` (interpretar + emitir + alterar), rota de **Interpretar** | Testes do interpretador (casos de prompt, limites, injeção); emitir/alterar um cupom de teste por script |
 | 3 | Nós no executor + editor (com gating) | **Fluxo de teste** (cópia da campanha com outro gatilho) rodado com o número do operador: criar 10% → alterar 20% → conferir no gestor |
 | 4 | Webhook → uso do cupom + meta + validação do `access_token` | Pedido de teste com o cupom; conferir `status = usado` e a meta |

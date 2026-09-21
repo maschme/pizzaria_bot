@@ -7,11 +7,13 @@
  *          (MULTIPEDIDOS_WEBHOOK_SECRET). Grava a requisição crua em webhook_eventos e
  *          responde 200 na hora. Deve ser montado ANTES do bodyParser.json global, para
  *          receber o corpo exatamente como veio (JSON, form, XML ou malformado).
- * admin:   /api/integracoes/multipedidos/eventos — consulta do que foi capturado.
+ * admin:   /api/integracoes/multipedidos — estado e liga/desliga da integração (tela de Integrações,
+ *          docs/18-cupons-multipedidos.md §1) e consulta do que foi capturado (/eventos).
  */
 
 const express = require('express');
 const webhookEventoService = require('../services/webhookEventoService');
+const integracaoService = require('../services/multipedidosIntegracaoService');
 
 const ORIGEM = 'multipedidos';
 
@@ -23,6 +25,8 @@ captura.all(
   async (req, res) => {
     const segredo = (process.env.MULTIPEDIDOS_WEBHOOK_SECRET || '').trim();
     if (!segredo) return res.status(404).json({ ok: false });
+    // Desligado na tela de Integrações: responde como se a rota não existisse.
+    if (!(await integracaoService.webhookAtivo())) return res.status(404).json({ ok: false });
     if (req.params.secret !== segredo) {
       // Ajuda a diagnosticar URL cadastrada errada no painel (não loga o segredo recebido).
       console.warn(`⚠️ Webhook Multipedidos: segredo inválido (${req.method}, ip ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}, ua ${req.headers['user-agent'] || '-'})`);
@@ -56,6 +60,39 @@ captura.all(
 );
 
 const admin = express.Router();
+
+// GET /api/integracoes/multipedidos/status — toggles, segredos configurados (sem valores), estatísticas
+admin.get('/status', async (req, res) => {
+  try {
+    res.json({ success: true, data: await integracaoService.getStatus() });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// PUT /api/integracoes/multipedidos — { webhookAtivo, apiAtiva, cupomMaxPercent, cupomMaxValorFixo, cupomMaxValidadeDias, cupomPrefixo }
+admin.put('/', async (req, res) => {
+  try {
+    res.json({ success: true, data: await integracaoService.salvar(req.body || {}) });
+  } catch (e) {
+    res.status(400).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/integracoes/multipedidos/testar — login só-leitura na API
+admin.post('/testar', async (req, res) => {
+  const resultado = await integracaoService.testarApi();
+  res.status(resultado.ok ? 200 : 502).json({ success: resultado.ok, data: resultado, error: resultado.erro });
+});
+
+// GET /api/integracoes/multipedidos/webhook-url — URL completa (com o segredo) para cadastrar no painel deles.
+// Rota separada do /status de propósito: o segredo só trafega quando o operador pede para copiar.
+admin.get('/webhook-url', (req, res) => {
+  const segredo = (process.env.MULTIPEDIDOS_WEBHOOK_SECRET || '').trim();
+  if (!segredo) return res.status(404).json({ success: false, error: 'MULTIPEDIDOS_WEBHOOK_SECRET não definido no .env' });
+  const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  res.json({ success: true, data: { url: `${base}/webhook/multipedidos/${segredo}` } });
+});
 
 // GET /api/integracoes/multipedidos/eventos?limite=50&corpo=1
 admin.get('/eventos', async (req, res) => {

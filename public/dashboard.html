@@ -430,6 +430,10 @@
         <i class="bi bi-funnel-fill"></i>
         <span>Funil</span>
       </a>
+      <a href="#" data-view="integracoes">
+        <i class="bi bi-plug-fill"></i>
+        <span>Integrações</span>
+      </a>
       <a href="fluxos.html">
         <i class="bi bi-diagram-3"></i>
         <span>Fluxos</span>
@@ -830,6 +834,84 @@
           </div>
         </div>
       </div>
+
+      <!-- View: Integrações (docs/18-cupons-multipedidos.md §1) -->
+      <div id="viewIntegracoes" class="view">
+        <div class="card-modern mb-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+              <h5 class="mb-0 fw-bold"><i class="bi bi-bag-check me-2"></i>Multipedidos</h5>
+              <button class="btn btn-sm btn-outline-light" onclick="carregarIntegracoes()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+            </div>
+            <p class="text-secondary small mb-3">Tokens e segredos ficam no <code>.env</code> do servidor — aqui só aparece se estão configurados. Recursos que dependem da API (ex.: nós de cupom nos fluxos) só ficam visíveis com a API ativa.</p>
+            <div id="integracoesAviso"></div>
+
+            <div class="border rounded p-3 mb-3" style="border-color: rgba(255,255,255,.12) !important;">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                  <div class="fw-bold">Webhook <span class="text-secondary fw-normal">— receber pedidos e mudanças de status</span></div>
+                  <div class="small mt-1" id="mpWebhookSegredos">—</div>
+                  <div class="small text-secondary mt-1" id="mpWebhookStats">—</div>
+                </div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="mpWebhookAtivo" onchange="salvarIntegracao({ webhookAtivo: this.checked })">
+                  <label class="form-check-label" for="mpWebhookAtivo">Ativo</label>
+                </div>
+              </div>
+              <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                <code class="small" id="mpWebhookUrl">/webhook/multipedidos/••••••••</code>
+                <button class="btn btn-sm btn-outline-light" onclick="copiarUrlWebhookMultipedidos()" title="Copia a URL completa, com o segredo"><i class="bi bi-clipboard me-1"></i>Copiar URL</button>
+              </div>
+              <div class="small text-secondary mt-1">Cadastre essa URL no painel da Multipedidos (Integrações → Webhook) nos eventos <code>order</code>, <code>order_status</code> e <code>nfce</code>.</div>
+            </div>
+
+            <div class="border rounded p-3" style="border-color: rgba(255,255,255,.12) !important;">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                  <div class="fw-bold">API <span class="text-secondary fw-normal">— cupons, cardápio e clientes</span></div>
+                  <div class="small mt-1" id="mpApiToken">—</div>
+                  <div class="small text-secondary mt-1" id="mpApiLogin">—</div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                  <button class="btn btn-sm btn-outline-light" id="mpBtnTestar" onclick="testarApiMultipedidos()"><i class="bi bi-activity me-1"></i>Testar conexão</button>
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="mpApiAtiva" onchange="salvarIntegracao({ apiAtiva: this.checked })">
+                    <label class="form-check-label" for="mpApiAtiva">Ativa</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-modern">
+          <div class="card-body">
+            <h6 class="fw-bold mb-1">Limites de segurança dos cupons</h6>
+            <p class="text-secondary small mb-3">Teto do que um fluxo pode emitir, mesmo que o comando (ou o cliente, numa conversa) peça mais. Acima disso o valor é cortado no limite.</p>
+            <div class="row g-3 align-items-end">
+              <div class="col-6 col-md-3">
+                <label class="form-label small text-secondary">Desconto máx. (%)</label>
+                <input type="number" min="1" max="100" class="form-control form-control-modern" id="mpMaxPercent">
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small text-secondary">Desconto fixo máx. (R$)</label>
+                <input type="number" min="1" class="form-control form-control-modern" id="mpMaxValorFixo">
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small text-secondary">Validade máx. (dias)</label>
+                <input type="number" min="1" class="form-control form-control-modern" id="mpMaxValidade">
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small text-secondary">Prefixo do código</label>
+                <input type="text" maxlength="12" class="form-control form-control-modern text-uppercase" id="mpPrefixo" placeholder="CUPOM">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-sm btn-success" onclick="salvarLimitesMultipedidos()"><i class="bi bi-check2 me-1"></i>Salvar limites</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -987,14 +1069,130 @@
       const link = document.querySelector(`.sidebar-nav a[data-view="${name}"]`);
       if (view) view.classList.add('active');
       if (link) link.classList.add('active');
-      const titles = { dashboard: 'Dashboard', whats: 'Whats', chats: 'Chats', contatos: 'Contatos', indicados: 'Indicados', canais: 'Canais', funil: 'Funil' };
+      const titles = { dashboard: 'Dashboard', whats: 'Whats', chats: 'Chats', contatos: 'Contatos', indicados: 'Indicados', canais: 'Canais', funil: 'Funil', integracoes: 'Integrações' };
       document.getElementById('pageTitle').textContent = titles[name] || name;
+      if (name === 'integracoes') carregarIntegracoes();
       if (name === 'contatos') carregarContatos();
       if (name === 'indicados') carregarIndicados();
       if (name === 'canais') carregarCanais();
       if (name === 'funil') carregarFunil();
       if (name === 'chats') iniciarViewChats();
       else pararPollChat();
+    }
+
+    // ============================================================
+    // Integrações — Multipedidos (docs/18-cupons-multipedidos.md §1)
+    // ============================================================
+    const INTEGRACAO_MP = '/api/integracoes/multipedidos';
+
+    async function apiIntegracaoMp(caminho, options = {}) {
+      const res = await fetch(`${INTEGRACAO_MP}${caminho}`, { headers: { 'Content-Type': 'application/json' }, ...options });
+      return await res.json();
+    }
+
+    function seloConfigurado(ok, rotulo) {
+      return `<span class="badge ${ok ? 'bg-success' : 'bg-secondary'} me-1">${ok ? '✓' : '✗'} ${rotulo}</span>`;
+    }
+
+    function tempoRelativo(iso) {
+      if (!iso) return 'nunca';
+      const seg = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+      if (seg < 60) return 'agora há pouco';
+      if (seg < 3600) return `há ${Math.round(seg / 60)} min`;
+      if (seg < 86400) return `há ${Math.round(seg / 3600)} h`;
+      return `há ${Math.round(seg / 86400)} d`;
+    }
+
+    function renderIntegracoes(s) {
+      document.getElementById('integracoesAviso').innerHTML = s.configurada ? '' :
+        '<div class="alert alert-warning py-2 small">Configurações da integração ainda não existem no banco — rode <code>node database/migrate.js</code> no servidor.</div>';
+
+      document.getElementById('mpWebhookAtivo').checked = !!s.webhook.ativo;
+      document.getElementById('mpWebhookSegredos').innerHTML =
+        seloConfigurado(s.webhook.segredoConfigurado, 'segredo da URL') + seloConfigurado(s.webhook.accessTokenConfigurado, 'access_token');
+      document.getElementById('mpWebhookStats').textContent =
+        `Último evento: ${tempoRelativo(s.webhook.ultimoEvento)} · ${s.webhook.ultimas24h} nas últimas 24 h · ${s.webhook.total} no total`;
+
+      document.getElementById('mpApiAtiva').checked = !!s.api.ativa;
+      document.getElementById('mpApiToken').innerHTML = seloConfigurado(s.api.tokenConfigurado, 'token de integração');
+      const l = s.api.ultimoLogin;
+      document.getElementById('mpApiLogin').textContent = !l ? 'Conexão ainda não testada nesta execução do bot.' :
+        l.ok ? `Último login: ok (${tempoRelativo(l.em)})${l.restaurantId ? ' · restaurante #' + l.restaurantId : ''}` : `Último login: falhou (${tempoRelativo(l.em)}) — ${l.erro}`;
+
+      document.getElementById('mpMaxPercent').value = s.limites.cupomMaxPercent ?? '';
+      document.getElementById('mpMaxValorFixo').value = s.limites.cupomMaxValorFixo ?? '';
+      document.getElementById('mpMaxValidade').value = s.limites.cupomMaxValidadeDias ?? '';
+      document.getElementById('mpPrefixo').value = s.limites.cupomPrefixo ?? '';
+    }
+
+    async function carregarIntegracoes() {
+      try {
+        const r = await apiIntegracaoMp('/status');
+        if (r.success) renderIntegracoes(r.data);
+        else showToast(r.error || 'Erro ao carregar integrações', 'danger');
+      } catch (e) {
+        showToast('Erro de conexão', 'danger');
+      }
+    }
+
+    async function salvarIntegracao(dados) {
+      try {
+        const r = await apiIntegracaoMp('', { method: 'PUT', body: JSON.stringify(dados) });
+        if (r.success) { renderIntegracoes(r.data); showToast('Integração atualizada'); }
+        else { showToast(r.error || 'Não foi possível salvar', 'danger'); carregarIntegracoes(); }
+      } catch (e) {
+        showToast('Erro de conexão', 'danger');
+        carregarIntegracoes();
+      }
+    }
+
+    function salvarLimitesMultipedidos() {
+      salvarIntegracao({
+        cupomMaxPercent: document.getElementById('mpMaxPercent').value,
+        cupomMaxValorFixo: document.getElementById('mpMaxValorFixo').value,
+        cupomMaxValidadeDias: document.getElementById('mpMaxValidade').value,
+        cupomPrefixo: document.getElementById('mpPrefixo').value
+      });
+    }
+
+    async function testarApiMultipedidos() {
+      const btn = document.getElementById('mpBtnTestar');
+      btn.disabled = true;
+      try {
+        const r = await apiIntegracaoMp('/testar', { method: 'POST' });
+        showToast(r.success ? 'Conexão com a API da Multipedidos: ok' : `Falha na conexão: ${r.error}`, r.success ? 'success' : 'danger');
+      } catch (e) {
+        showToast('Erro de conexão', 'danger');
+      } finally {
+        btn.disabled = false;
+        carregarIntegracoes();
+      }
+    }
+
+    async function copiarUrlWebhookMultipedidos() {
+      try {
+        const r = await apiIntegracaoMp('/webhook-url');
+        if (!r.success) return showToast(r.error || 'URL indisponível', 'danger');
+        // navigator.clipboard só existe em contexto seguro (HTTPS); o dashboard pode estar em HTTP.
+        let copiou = false;
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(r.data.url);
+          copiou = true;
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = r.data.url;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          copiou = document.execCommand('copy');
+          ta.remove();
+        }
+        if (copiou) showToast('URL do webhook copiada');
+        else window.prompt('Copie a URL do webhook:', r.data.url);
+      } catch (e) {
+        showToast('Não foi possível obter a URL do webhook', 'danger');
+      }
     }
 
     function pararPollChat() {

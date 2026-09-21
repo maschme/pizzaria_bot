@@ -28,6 +28,7 @@ Layout com **sidebar fixa** + área de conteúdo. Navegação interna via atribu
 | Dashboard | `dashboard` | KPIs e gráficos |
 | Whats | `whats` | Conexão WhatsApp + operação |
 | Contatos | `contatos` | CRM parcial + logs |
+| Integrações | `integracoes` | Liga/desliga e estado das integrações externas (Multipedidos) |
 
 ### Links externos (topbar/sidebar)
 
@@ -102,6 +103,18 @@ Formulário agrupado por **categoria** (atendimento, campanha, horário, mensage
 | Ações | Ver logs / Deletar contato |
 
 **Modal de logs:** histórico de `fluxo_exec_logs` por contato.
+
+### View: Integrações (`viewIntegracoes`)
+
+**Função:** ligar/desligar integrações com sistemas externos e ver o estado delas. Hoje: **Multipedidos** ([doc 18](./18-cupons-multipedidos.md) §1).
+
+| Bloco | Conteúdo |
+|-------|----------|
+| Webhook | Interruptor; selos "segredo da URL" / "access_token" (configurados no `.env`?); último evento, total 24 h; botão **Copiar URL** (busca a URL completa, com o segredo, só no clique) |
+| API | Interruptor; selo "token de integração"; **Testar conexão** (login só-leitura); último login e nº do restaurante |
+| Limites de segurança dos cupons | Desconto máx. (%), desconto fixo máx. (R$), validade máx. (dias), prefixo do código |
+
+Segredos nunca aparecem na tela (ficam no `.env`). Interruptor que não pode ser ligado (segredo/token ausente) volta para desligado com o motivo no aviso.
 
 ---
 

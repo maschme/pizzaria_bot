@@ -114,6 +114,32 @@ function variantes(entrada) {
   return saida;
 }
 
+/**
+ * Dá para mandar mensagem de WhatsApp para este número?
+ *
+ * Guarda de saída da abordagem ativa: o bot abre conversa por conta própria, então um número que
+ * não é de pessoa vira mensagem perdida, contato fantasma no funil e ruído no funil de conversão.
+ *
+ * O que barra, e por quê:
+ *  - **acima de 15 dígitos**: o padrão internacional E.164 termina aí. Pedido de marketplace traz
+ *    telefone mascarado, um 0800 com o código de rastreio colado no fim
+ *    (`0800700304030695247`), e isso passava como se fosse telefone.
+ *  - **começa com 0**: no Brasil é prefixo de serviço (0800, 0300, 0500), nunca celular.
+ *  - **número brasileiro com DDD que não existe**.
+ *  - **menos de 10 dígitos**: não dá para discar.
+ */
+function ehPlausivelParaWhatsapp(entrada) {
+  if (ehLid(entrada)) return false;
+  const d = comDdi(entrada);
+  if (!d || d.length < 10 || d.length > 15) return false;
+  if (d.startsWith('0')) return false;
+  if (d.startsWith(DDI_BR)) {
+    if (d.length !== 12 && d.length !== 13) return false;
+    if (!dddValido(d.slice(2, 4))) return false;
+  }
+  return true;
+}
+
 /** É o mesmo contato, apesar do formato? */
 function mesmoNumero(a, b) {
   const va = variantes(a);
@@ -170,6 +196,7 @@ module.exports = {
   canonico,
   variantes,
   mesmoNumero,
+  ehPlausivelParaWhatsapp,
   chatId,
   chatIdsPossiveis,
   clausulaIn,

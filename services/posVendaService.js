@@ -47,9 +47,12 @@ async function numeroConfig(chave, padrao) {
 function telefoneDoPedido(pedido) {
   const cand = [pedido && pedido.client && pedido.client.phone, pedido && pedido.phone];
   for (const c of cand) {
-    // canonico() completa o DDI e padroniza o 9º dígito; devolve '' para "0" e vazio.
+    // Plausível antes de canônico: pedido de marketplace traz telefone mascarado, um 0800 com o
+    // código de rastreio colado (0800700304030695247). Sem esta guarda, o bot tentava abrir
+    // conversa com esse "número".
+    if (!telefone.ehPlausivelParaWhatsapp(c)) continue;
     const d = telefone.canonico(c);
-    if (d && d.length >= 12) return d;
+    if (d) return d;
   }
   return null;
 }

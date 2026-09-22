@@ -141,10 +141,13 @@ async function temOptOut(whatsappId) {
  * @returns {{ enfileirado: boolean, id?: number, motivo?: string }}
  */
 async function enfileirar({ whatsappId, evento, fluxoId, variaveis = null, referencia = null, atrasoMin = 0, validadeHoras = 24 }) {
-  // Canônico na entrada da fila: o vCard de uma indicação chega sem DDI e sem o 9º dígito, e mais
-  // adiante o destinatário é montado a partir daqui. Número torto vira mensagem que nunca chega.
+  // Guarda de saída: aqui é o único portão por onde o bot abre conversa sozinho. O vCard de uma
+  // indicação chega sem DDI, e um pedido de marketplace traz telefone mascarado de 19 dígitos.
+  if (!telefone.ehPlausivelParaWhatsapp(whatsappId)) {
+    return { enfileirado: false, motivo: 'telefone não é um WhatsApp válido' };
+  }
   const wid = telefone.canonico(whatsappId);
-  if (!wid || wid.length < 12) return { enfileirado: false, motivo: 'telefone inválido' };
+  if (!wid) return { enfileirado: false, motivo: 'telefone inválido' };
   if (!evento || !fluxoId) return { enfileirado: false, motivo: 'evento/fluxo ausente' };
   if (await temOptOut(wid)) return { enfileirado: false, motivo: 'opt-out' };
 
@@ -201,6 +204,12 @@ async function processarFila(client, agora = new Date()) {
         await marcar(item.id, 'descartado', 'expirou antes de iniciar', tentativas); resumo.descartados++; continue;
       }
       if (!noHorario) { resumo.adiados++; continue; } // espera o próximo ciclo dentro do horário, sem gastar tentativa
+      // Item gravado antes da guarda de entrada, ou por outro caminho: não insiste num número que
+      // não é WhatsApp de ninguém.
+      if (!telefone.ehPlausivelParaWhatsapp(item.whatsapp_id)) {
+        await marcar(item.id, 'descartado', 'telefone não é um WhatsApp válido', tentativas);
+        resumo.descartados++; continue;
+      }
       if (await temOptOut(item.whatsapp_id)) {
         await marcar(item.id, 'descartado', 'opt-out', tentativas); resumo.descartados++; continue;
       }

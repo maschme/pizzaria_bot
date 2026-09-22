@@ -51,6 +51,7 @@ Gravar canônico e ler por variantes resolve sem tocar no que já está lá. Os 
 - **DDD é validado** contra a lista dos que existem no Brasil.
 - **`@lid` não é telefone.** `resolverIdGravavel` recusa, para não criar contato fantasma com os dígitos do identificador.
 - **`sqlFormaCurta` não usa índice.** Vale em consulta de relatório, não em caminho de mensagem.
+- **Nem todo telefone é um WhatsApp.** Antes de o bot abrir conversa sozinho, passe por `ehPlausivelParaWhatsapp()`. Pedido de marketplace traz telefone mascarado, um 0800 com o código de rastreio colado no fim (`0800700304030695247`, 19 dígitos), e isso chegou a virar abordagem em produção. A função recusa acima de 15 dígitos, que é o teto do padrão internacional, qualquer número começando com 0, e número brasileiro com código de área inexistente.
 
 ## O que foi corrigido
 

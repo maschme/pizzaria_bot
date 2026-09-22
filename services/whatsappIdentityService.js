@@ -78,7 +78,29 @@ async function resolverIdentidadeCliente(client, chatId) {
   return resultado;
 }
 
+/**
+ * Variações brasileiras do mesmo celular, por causa do 9º dígito.
+ *
+ * Cadastros (gestor, Multipedidos, importação) costumam guardar 13 dígitos — 55 + DDD + 9 + 8 —
+ * enquanto o WhatsApp pode entregar as mensagens desse mesmo contato com 12, sem o 9. Enviar
+ * funciona nos dois formatos, mas comparar não: `5547984509046` e `554784509046` são strings
+ * diferentes. Quem casa contato com sessão precisa considerar as duas.
+ *
+ * @param {string} entrada - telefone, chatId ou qualquer texto com os dígitos
+ * @returns {string[]} dígitos, sem sufixo, começando pela forma recebida
+ */
+function variantesTelefoneBr(entrada) {
+  const d = apenasDigitos(entrada);
+  if (!d || d.length < 10) return [];
+  const saida = [d];
+  const juntar = (v) => { if (v && !saida.includes(v)) saida.push(v); };
+  if (d.startsWith('55') && d.length === 13 && d[4] === '9') juntar(d.slice(0, 4) + d.slice(5));
+  if (d.startsWith('55') && d.length === 12) juntar(`${d.slice(0, 4)}9${d.slice(4)}`);
+  return saida;
+}
+
 module.exports = {
   resolverIdentidadeCliente,
-  apenasDigitos
+  apenasDigitos,
+  variantesTelefoneBr
 };

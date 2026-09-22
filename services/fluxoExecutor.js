@@ -101,24 +101,42 @@ function removerSessaoFluxoPorExecutor(executor) {
  */
 function registrarSessaoFluxo(executor) {
   const ident = executor.resolvedIdentity || {};
-  const keys = [executor.chatId];
-  for (const extra of [ident.chatIdCanonicoCUs, ident.whatsappLid]) {
-    const k = extra ? String(extra).trim() : '';
+  const keys = [];
+  const juntar = (valor) => {
+    const k = valor ? String(valor).trim() : '';
     if (k && !keys.includes(k)) keys.push(k);
+  };
+
+  juntar(executor.chatId);
+  juntar(ident.chatIdCanonicoCUs);
+  juntar(ident.whatsappLid);
+
+  // 9º dígito: o pedido traz o telefone com 13 dígitos e o WhatsApp entrega as mensagens do mesmo
+  // contato com 12 (ou o contrário). Sem as duas chaves, a resposta não acha a sessão.
+  for (const base of [executor.chatId, ident.chatIdCanonicoCUs]) {
+    if (!base || !String(base).endsWith('@c.us')) continue;
+    for (const digitos of whatsappIdentityService.variantesTelefoneBr(base)) juntar(`${digitos}@c.us`);
   }
+
   executor._sessionKeys = keys;
   for (const k of keys) sessoesFluxo.set(k, executor);
 }
 
 /**
- * Completa o @lid da identidade pelo que já está gravado em `contatos`. A biblioteca só descobre o
- * @lid de forma confiável quando a conversa chega por ele; quando somos nós que abrimos a conversa,
- * o banco costuma ser a única fonte.
+ * Alinha a identidade com o que já está gravado em `contatos`, antes de o fluxo começar.
+ *
+ * Faz duas coisas, ambas importantes quando é o BOT que abre a conversa (pós-venda, indicado):
+ *  - adota o telefone na forma já cadastrada. O pedido traz 13 dígitos e o contato pode estar
+ *    gravado com 12 (9º dígito); sem isso, histórico, metas e participação iriam para um segundo
+ *    registro e o cliente poderia receber de novo uma campanha que já fez.
+ *  - completa o @lid, que a biblioteca só devolve com confiança quando a conversa chega por ele.
  */
-async function completarLidPeloBanco(ident) {
-  if (!ident || ident.whatsappLid) return ident;
+async function alinharIdentidadeComBanco(ident) {
+  if (!ident) return ident;
   const wid = ident.widDigitosTelefone || String(ident.chatIdOriginal || '').replace(/\D/g, '');
   if (!wid || wid.length < 10) return ident;
+  const variantes = whatsappIdentityService.variantesTelefoneBr(wid);
+  if (variantes.length < 1) return ident;
   let conn;
   try {
     conn = await mysql.createConnection({
@@ -126,14 +144,24 @@ async function completarLidPeloBanco(ident) {
       password: dbConfig.password, database: dbConfig.database
     });
     const [rows] = await conn.execute(
-      'SELECT whatsapp_lid FROM contatos WHERE whatsapp_id = ? AND whatsapp_lid IS NOT NULL LIMIT 1',
-      [wid]
+      `SELECT whatsapp_id, whatsapp_lid FROM contatos
+        WHERE whatsapp_id IN (${variantes.map(() => '?').join(',')})
+        ORDER BY (whatsapp_lid IS NOT NULL) DESC, id ASC LIMIT 1`,
+      variantes
     );
-    const lid = rows[0] && String(rows[0].whatsapp_lid || '').trim();
-    if (lid) ident.whatsappLid = lid;
+    const achado = rows[0];
+    if (achado) {
+      const cadastrado = String(achado.whatsapp_id || '').trim();
+      if (cadastrado && cadastrado !== ident.widDigitosTelefone) {
+        console.log(`🔎 Contato já cadastrado como ${cadastrado} (recebido ${ident.widDigitosTelefone || wid}) — usando o cadastrado.`);
+        ident.widDigitosTelefone = cadastrado;
+      }
+      const lid = String(achado.whatsapp_lid || '').trim();
+      if (lid && !ident.whatsappLid) ident.whatsappLid = lid;
+    }
   } catch (e) {
     if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') {
-      console.warn('⚠️ Não foi possível completar o @lid pelo banco:', e.message);
+      console.warn('⚠️ Não foi possível alinhar a identidade pelo banco:', e.message);
     }
   } finally {
     if (conn) await conn.end().catch(() => {});
@@ -998,7 +1026,7 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
 async function iniciarFluxo(client, chatId, fluxo, variaveisIniciais = null) {
   const executor = new FluxoExecutor(client, chatId, fluxo);
   if (variaveisIniciais && typeof variaveisIniciais === 'object') Object.assign(executor.variaveis, variaveisIniciais);
-  executor.resolvedIdentity = await completarLidPeloBanco(
+  executor.resolvedIdentity = await alinharIdentidadeComBanco(
     await whatsappIdentityService.resolverIdentidadeCliente(client, chatId)
   );
   registrarSessaoFluxo(executor);
@@ -1070,10 +1098,11 @@ function getChatIdsEmFluxo() {
   for (const ex of sessoesFluxo.values()) {
     if (!ex || visto.has(ex)) continue;
     visto.add(ex);
-    ids.push(ex.chatId);
-    const canon = ex.resolvedIdentity && ex.resolvedIdentity.chatIdCanonicoCUs;
-    if (canon && canon !== ex.chatId) ids.push(canon);
-    if (ex.resolvedIdentity && ex.resolvedIdentity.whatsappLid) ids.push(ex.resolvedIdentity.whatsappLid);
+    // _sessionKeys já traz todos os identificadores sob os quais a sessão responde
+    // (id original, canônico, @lid e as formas com/sem 9º dígito).
+    for (const k of (ex._sessionKeys && ex._sessionKeys.length ? ex._sessionKeys : [ex.chatId])) {
+      if (k && !ids.includes(k)) ids.push(k);
+    }
   }
   return ids;
 }

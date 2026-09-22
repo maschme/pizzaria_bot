@@ -15,6 +15,7 @@ const express = require('express');
 const webhookEventoService = require('../services/webhookEventoService');
 const integracaoService = require('../services/multipedidosIntegracaoService');
 const cupomService = require('../services/multipedidosCupomService');
+const posVendaService = require('../services/posVendaService');
 
 const ORIGEM = 'multipedidos';
 
@@ -91,6 +92,14 @@ async function processarEvento(req, body) {
     console.log(`🎟️ Cupom ${r.codigo} usado no pedido ${r.pedidoId} (R$ ${r.pedido_valor}, desconto R$ ${r.pedido_desconto ?? '?'})${r.meta ? ` — meta "${r.meta}" marcada` : ''}`);
   } else if (r.acao === 'estornado') {
     console.log(`↩️ Cupom ${r.codigo} voltou a ficar disponível (pedido cancelado)`);
+  }
+
+  // Pós-venda (docs/20 frente C): pedido concluído → oferece as campanhas elegíveis, dentro de 24 h.
+  try {
+    const pv = await posVendaService.avaliarPedido(pedido);
+    if (pv.enfileirado) console.log(`🛎️ Pós-venda enfileirado para o pedido ${pedido.order_no || pedido.id}`);
+  } catch (e) {
+    console.warn('⚠️ Pós-venda:', e.message);
   }
 }
 

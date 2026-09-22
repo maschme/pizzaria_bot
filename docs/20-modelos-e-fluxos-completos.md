@@ -207,6 +207,19 @@ evento pedido_concluido (variáveis: {{pedidoNumero}}, {{pedidoValor}}, {{primei
 - Sem cupom no pós-venda em si — o desconto vem da campanha escolhida.
 - Métrica: meta `pos_venda_ofertado` / `pos_venda_aceitou` por fluxo escolhido → funil por canal ganha a etapa "reengajou no pós-venda".
 
+**Feito em 22/09/2026** — `services/posVendaService.js` + modelo `pos-venda`:
+
+| Regra | Onde fica |
+|-------|-----------|
+| Dispara em `order_status` `OVER`/`DONE` | `avaliarPedido()`, chamado pelo webhook depois de responder 200 |
+| Telefone do cliente (`client.phone`, com DDI 55) | pedido de mesa/balcão sem telefone é ignorado |
+| Atraso após o pedido | config `pos_venda_atraso_min` (40) |
+| Não repetir no mesmo contato | config `pos_venda_repetir_dias` (7) — outro pedido dentro do período não reabre |
+| **Janela de 24 h** | no **código**, não no fluxo: a validade do item da fila nunca passa do fim da janela, e os nós `listar_ofertas` / `iniciar_fluxo` recusam escolha tardia (`{{janelaExpirada}} = sim`, `{{iniciarFluxoStatus}} = janela_expirada`) |
+| Dedupe | `referencia: pedido:<id>` — o mesmo pedido chega várias vezes pelo webhook |
+
+Variáveis no fluxo: `{{pedidoNumero}}`, `{{pedidoId}}`, `{{pedidoValor}}`, `{{nomeCliente}}` (1º nome), `{{primeiroPedido}}`, `{{usouCupom}}`, `{{posVendaAte}}`. Metas `pos_venda_ofertado` e `pos_venda_aceitou`. Validado com 11 casos (dispara/não dispara, dedupe, repetição, menu, escolha, janela nos dois nós, pedido antigo).
+
 ## D. Fechar o fluxo de indicação (missão 3 = avaliação no Google)
 
 O desenho da conferência está no [doc 19](./19-conferencia-avaliacoes-google.md) (outra frente de trabalho, ainda sem implementação). O que este plano acrescenta é **como a missão 3 entra no fluxo** e **o que precisa ser decidido antes**.
@@ -244,7 +257,7 @@ A.  Modelos (tela + rotas + 1º modelo: campanha atual migrada)                 
 B0. Base de abordagem ativa: início de fluxo por evento, opt-out, horário,
     nós iniciar_fluxo / listar_ofertas, participacaoService                      — ✅ feito em 22/09/2026
 B.  Indicado ativo (evento indicacao_registrada + modelo fluxo-indicado)         — ✅ feito em 22/09/2026
-C.  Pós-venda (evento pedido_concluido, janela 24 h, bloco oferta, modelo)       — depende de B0; webhook já existe
+C.  Pós-venda (evento pedido_concluido, janela 24 h, bloco oferta, modelo)       — ✅ feito em 22/09/2026
 D.  Missão 3 no modelo (meta segundo_pedido + nós de avaliação)                  — depende do doc 19 etapas 1–3
 ```
 

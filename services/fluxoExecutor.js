@@ -12,6 +12,7 @@ const whatsappIdentityService = require('./whatsappIdentityService');
 const multipedidosCupomService = require('./multipedidosCupomService');
 const abordagemService = require('./abordagemService');
 const participacaoService = require('./participacaoService');
+const posVendaService = require('./posVendaService');
 
 const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
@@ -700,6 +701,15 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
         // Lista os fluxos com bloco "oferta" que o contato pode entrar, pelo histórico dele (docs/20 §C.2).
         // Saída: {{ofertas}} (texto numerado), {{ofertasQtd}}, {{ofertaId_1..n}}, {{ofertaNome_1..n}}
         case 'listar_ofertas': {
+          // Janela do pós-venda (docs/20 §C.1): fora dela não se oferece nada.
+          if (!posVendaService.dentroDaJanela(this.variaveis.posVendaAte)) {
+            this.variaveis.ofertasQtd = '0';
+            this.variaveis.ofertas = '';
+            this.variaveis.janelaExpirada = 'sim';
+            console.log(`⏰ Pós-venda fora da janela de 24 h para ${this.chatId} — nenhuma oferta listada`);
+            await this.logExec('ofertas_janela_expirada', 'Fora da janela de 24 h do pedido', node);
+            break;
+          }
           const ofertas = await this.listarOfertasElegiveis();
           this.variaveis.ofertasQtd = String(ofertas.length);
           this.variaveis.ofertas = ofertas.map((o, i) => `${i + 1} - ${o.titulo}${o.descricao ? ' — ' + o.descricao : ''}`).join('\n');
@@ -711,6 +721,13 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
 
         // Encadeia outro fluxo: encerra este e inicia o alvo (por id fixo ou por variável, ex.: {{ofertaId_2}}).
         case 'iniciar_fluxo': {
+          if (!posVendaService.dentroDaJanela(this.variaveis.posVendaAte)) {
+            this.variaveis.iniciarFluxoStatus = 'janela_expirada';
+            this.variaveis.janelaExpirada = 'sim';
+            console.log(`⏰ Escolha fora da janela de 24 h para ${this.chatId} — não encadeia`);
+            await this.logExec('iniciar_fluxo_janela', 'Escolha fora da janela de 24 h do pedido', node);
+            break;
+          }
           const alvoRaw = this.substituirVariaveis(String(node.data.fluxoAlvo || '')).trim();
           const alvoId = parseInt(alvoRaw, 10);
           const alvo = Number.isInteger(alvoId) ? await fluxoService.getFluxoPorId(alvoId) : null;

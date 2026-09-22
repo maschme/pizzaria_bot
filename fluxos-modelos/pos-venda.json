@@ -1,0 +1,56 @@
+{
+  "modelo": {
+    "slug": "pos-venda",
+    "titulo": "Pós-venda: campanhas que o cliente pode participar",
+    "descricao": "Depois de um pedido concluído, o bot lista só as campanhas que aquele cliente ainda não participou e ele escolhe entrar. Vale até 24 h após o pedido — depois disso, só no próximo pedido.",
+    "categoria": "pos-venda",
+    "requer": [],
+    "aviso": "Marque as campanhas que devem aparecer aqui: no fluxo delas, abra o nó Gatilho e ligue \"Oferecer este fluxo no pós-venda\". Sem nenhuma marcada, o pós-venda encerra em silêncio, sem incomodar o cliente.",
+    "variaveis": [
+      { "chave": "NOME_LOJA", "rotulo": "Nome da loja", "exemplo": "Pizzaria Exemplo" }
+    ]
+  },
+  "schemaVersion": 1,
+  "nome": "Pós-venda",
+  "tipo": "campanha",
+  "descricao": "Menu de campanhas elegíveis após o pedido, com janela de 24 h (docs/20 frente C).",
+  "gatilho": { "tipo": "evento", "evento": "pedido_concluido" },
+  "viewport": { "x": 80, "y": 40, "zoom": 0.8 },
+  "nodes": [
+    { "id": "node_1", "type": "trigger", "x": 0, "y": 0, "data": { "tipo": "evento", "evento": "pedido_concluido" } },
+    { "id": "node_2", "type": "action", "x": 0, "y": 140, "data": { "tipo": "listar_ofertas" } },
+    { "id": "node_3", "type": "condition_var", "x": 0, "y": 280, "data": { "variavelNome": "ofertasQtd", "operador": "igual", "valorComparacao": "0" } },
+    { "id": "node_4", "type": "end", "x": -360, "y": 430, "data": { "mensagemFinal": "" } },
+    { "id": "node_5", "type": "message", "x": 320, "y": 430, "data": { "delay": 500, "texto": "Oi {{nomeCliente}}! Obrigado pelo seu pedido na {{NOME_LOJA}} 🍕\n\nVocê pode participar de:\n\n{{ofertas}}\n\nResponda com o *número* da opção que quiser.\n\n*0* - Não quero receber ofertas" } },
+    { "id": "node_6", "type": "wait", "x": 320, "y": 570, "data": { "timeout": 86400000 } },
+    { "id": "node_7", "type": "ia", "x": 320, "y": 710, "data": { "instrucao": "A pessoa recebeu uma lista numerada de campanhas e respondeu. Devolva SOMENTE o número da opção que ela escolheu (1, 2, 3...), ou a palavra opt_out se ela pediu para não receber mais ofertas/mensagens, ou a palavra nenhuma se ela recusou sem pedir para parar, não entendeu ou respondeu outra coisa. Não escreva mais nada.", "variavelSaida": "escolha" } },
+    { "id": "node_8", "type": "condition_var", "x": 320, "y": 850, "data": { "variavelNome": "escolha", "operador": "contem", "valorComparacao": "opt_out" } },
+    { "id": "node_9", "type": "action", "x": -60, "y": 1000, "data": { "tipo": "opt_out" } },
+    { "id": "node_10", "type": "message", "x": -60, "y": 1140, "data": { "delay": 300, "texto": "Combinado! Não vamos mais te mandar ofertas. 🙏\n\nSeu pedido continua normal e, se precisar de algo, é só chamar aqui." } },
+    { "id": "node_11", "type": "end", "x": -60, "y": 1280, "data": { "mensagemFinal": "" } },
+    { "id": "node_12", "type": "condition_var", "x": 700, "y": 1000, "data": { "variavelNome": "escolha", "operador": "contem", "valorComparacao": "1" } },
+    { "id": "node_13", "type": "message", "x": 380, "y": 1150, "data": { "delay": 300, "texto": "Tudo bem! 😉 Qualquer coisa é só chamar.\n\nObrigado pela preferência!" } },
+    { "id": "node_14", "type": "end", "x": 380, "y": 1290, "data": { "mensagemFinal": "" } },
+    { "id": "node_15", "type": "action", "x": 1020, "y": 1150, "data": { "tipo": "marcar_meta", "metaNome": "pos_venda_aceitou" } },
+    { "id": "node_16", "type": "action", "x": 1020, "y": 1290, "data": { "tipo": "iniciar_fluxo", "fluxoAlvo": "{{ofertaId_1}}" } },
+    { "id": "node_17", "type": "end", "x": 1020, "y": 1430, "data": { "mensagemFinal": "" } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "node_1", "target": "node_2", "sourceHandle": "output" },
+    { "id": "e2", "source": "node_2", "target": "node_3", "sourceHandle": "output" },
+    { "id": "e3", "source": "node_3", "target": "node_4", "sourceHandle": "output-true" },
+    { "id": "e4", "source": "node_3", "target": "node_5", "sourceHandle": "output-false" },
+    { "id": "e5", "source": "node_5", "target": "node_6", "sourceHandle": "output" },
+    { "id": "e6", "source": "node_6", "target": "node_7", "sourceHandle": "output" },
+    { "id": "e7", "source": "node_7", "target": "node_8", "sourceHandle": "output" },
+    { "id": "e8", "source": "node_8", "target": "node_9", "sourceHandle": "output-true" },
+    { "id": "e9", "source": "node_9", "target": "node_10", "sourceHandle": "output" },
+    { "id": "e10", "source": "node_10", "target": "node_11", "sourceHandle": "output" },
+    { "id": "e11", "source": "node_8", "target": "node_12", "sourceHandle": "output-false" },
+    { "id": "e12", "source": "node_12", "target": "node_13", "sourceHandle": "output-false" },
+    { "id": "e13", "source": "node_13", "target": "node_14", "sourceHandle": "output" },
+    { "id": "e14", "source": "node_12", "target": "node_15", "sourceHandle": "output-true" },
+    { "id": "e15", "source": "node_15", "target": "node_16", "sourceHandle": "output" },
+    { "id": "e16", "source": "node_16", "target": "node_17", "sourceHandle": "output" }
+  ]
+}

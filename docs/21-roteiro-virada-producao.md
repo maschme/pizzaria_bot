@@ -171,6 +171,7 @@ Para ver o que ela faria, sem alterar nada: `node scripts/multipedidos-cupons-li
 | Cupom usado não é marcado | `access_token` divergente | Integrações mostra o aviso; acerte o `.env` e reinicie com `--update-env` |
 | Ninguém recebe pós-venda/indicado | Fluxo inativo, fora do horário, opt-out, ou nada elegível | `SELECT status, motivo FROM abordagens_fila ORDER BY id DESC LIMIT 20;` mostra o motivo de cada item |
 | Campanha não inicia pelo QR | Canal sem fluxo e frase diferente do gatilho | Canais → aponte o fluxo |
+| Cliente escolheu uma opção do menu e nada aconteceu | A resposta não chegou ao fluxo | `node scripts/diagnostico-abordagem.js <telefone>` mostra a trilha, o `@lid` do contato e a fila |
 | Quero parar tudo que é abordagem ativa | — | Desative os fluxos de pós-venda e indicado; o resto continua funcionando |
 
 ## O que fica pendente

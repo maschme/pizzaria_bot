@@ -91,12 +91,54 @@ function removerSessaoFluxoPorExecutor(executor) {
   for (const k of keys) sessoesFluxo.delete(k);
 }
 
+/**
+ * Registra a sessão sob TODOS os identificadores conhecidos do contato.
+ *
+ * Importa quando o bot inicia a conversa (abordagem ativa: pós-venda, indicado): ali o fluxo começa
+ * por `<telefone>@c.us`, mas a resposta do cliente pode chegar por `@lid` em contas que usam esse
+ * formato. Sem a chave do @lid, `processarMensagemFluxo` não acha a sessão e a resposta cai no
+ * atendimento comum — o cliente escolhe uma opção e nada acontece.
+ */
 function registrarSessaoFluxo(executor) {
+  const ident = executor.resolvedIdentity || {};
   const keys = [executor.chatId];
-  const canon = executor.resolvedIdentity && executor.resolvedIdentity.chatIdCanonicoCUs;
-  if (canon && canon !== executor.chatId) keys.push(canon);
+  for (const extra of [ident.chatIdCanonicoCUs, ident.whatsappLid]) {
+    const k = extra ? String(extra).trim() : '';
+    if (k && !keys.includes(k)) keys.push(k);
+  }
   executor._sessionKeys = keys;
   for (const k of keys) sessoesFluxo.set(k, executor);
+}
+
+/**
+ * Completa o @lid da identidade pelo que já está gravado em `contatos`. A biblioteca só descobre o
+ * @lid de forma confiável quando a conversa chega por ele; quando somos nós que abrimos a conversa,
+ * o banco costuma ser a única fonte.
+ */
+async function completarLidPeloBanco(ident) {
+  if (!ident || ident.whatsappLid) return ident;
+  const wid = ident.widDigitosTelefone || String(ident.chatIdOriginal || '').replace(/\D/g, '');
+  if (!wid || wid.length < 10) return ident;
+  let conn;
+  try {
+    conn = await mysql.createConnection({
+      host: dbConfig.host, port: dbConfig.port || 3306, user: dbConfig.username,
+      password: dbConfig.password, database: dbConfig.database
+    });
+    const [rows] = await conn.execute(
+      'SELECT whatsapp_lid FROM contatos WHERE whatsapp_id = ? AND whatsapp_lid IS NOT NULL LIMIT 1',
+      [wid]
+    );
+    const lid = rows[0] && String(rows[0].whatsapp_lid || '').trim();
+    if (lid) ident.whatsappLid = lid;
+  } catch (e) {
+    if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') {
+      console.warn('⚠️ Não foi possível completar o @lid pelo banco:', e.message);
+    }
+  } finally {
+    if (conn) await conn.end().catch(() => {});
+  }
+  return ident;
 }
 
 // Callback opcional: quando um fluxo de campanha termina (ex.: após entrada no grupo), o bot pode passar o usuário para a campanha legada (Missão 2)
@@ -956,7 +998,9 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
 async function iniciarFluxo(client, chatId, fluxo, variaveisIniciais = null) {
   const executor = new FluxoExecutor(client, chatId, fluxo);
   if (variaveisIniciais && typeof variaveisIniciais === 'object') Object.assign(executor.variaveis, variaveisIniciais);
-  executor.resolvedIdentity = await whatsappIdentityService.resolverIdentidadeCliente(client, chatId);
+  executor.resolvedIdentity = await completarLidPeloBanco(
+    await whatsappIdentityService.resolverIdentidadeCliente(client, chatId)
+  );
   registrarSessaoFluxo(executor);
   await executor.start();
   return executor;

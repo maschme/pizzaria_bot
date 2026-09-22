@@ -771,8 +771,12 @@ client.on('message', async (msg) => {
     await fluxoExecutor.iniciarFluxo(client, numero, fluxoVisual);
     return;
   }
-  let gatilhoDetectado = await verificarGatilhoDB(texto);
-  if (!gatilhoDetectado && config.gatilhosLegadoAtivos) gatilhoDetectado = verificarGatilhoLocal(texto);
+  // Só avalia gatilho de texto se o contato NÃO está no meio de um fluxo: senão uma resposta comum
+  // ("1", "sim", "quero") casaria por "contém" com algum gatilho e sequestraria o fluxo em andamento.
+  let gatilhoDetectado = fluxoExecutor.temFluxoAtivo(numero) ? null : await verificarGatilhoDB(texto);
+  if (!gatilhoDetectado && config.gatilhosLegadoAtivos && !fluxoExecutor.temFluxoAtivo(numero)) {
+    gatilhoDetectado = verificarGatilhoLocal(texto);
+  }
   if (gatilhoDetectado && !sessaoCampanhaService.has(numero)) {
     console.log(`🎯 Gatilho detectado: ${gatilhoDetectado.tipo}`);
     await processarGatilho(gatilhoDetectado, numero, texto, msg);

@@ -1,0 +1,99 @@
+'use strict';
+
+/**
+ * Diagnóstico de uma abordagem ativa (pós-venda ou indicado) que não deu certo para um contato.
+ *
+ * Mostra, para o telefone informado: a identidade conhecida (incluindo @lid), a trilha de execução
+ * do fluxo, a fila de abordagem e se a resposta digitada casaria com algum gatilho de texto.
+ *
+ * Uso:
+ *   node scripts/diagnostico-abordagem.js 5547999998888
+ *   node scripts/diagnostico-abordagem.js 5547999998888 1     # testa a resposta "1" contra os gatilhos
+ *
+ * Somente leitura: não altera nada.
+ */
+
+const mysql = require('mysql2/promise');
+const { dbConfig } = require('../database/connection');
+
+const alvo = String(process.argv[2] || '').replace(/\D/g, '');
+const resposta = process.argv[3] != null ? String(process.argv[3]) : '1';
+
+if (!alvo) {
+  console.error('Informe o telefone com DDI e DDD. Ex.: node scripts/diagnostico-abordagem.js 5547999998888');
+  process.exit(1);
+}
+
+const titulo = (s) => console.log(`\n=== ${s} ===`);
+
+(async () => {
+  const conn = await mysql.createConnection({
+    host: dbConfig.host, port: dbConfig.port || 3306, user: dbConfig.username,
+    password: dbConfig.password, database: dbConfig.database
+  });
+
+  const consultar = async (sql, params = []) => {
+    try {
+      const [rows] = await conn.execute(sql, params);
+      return rows;
+    } catch (e) {
+      console.log(`  (consulta indisponível: ${e.message})`);
+      return [];
+    }
+  };
+
+  try {
+    titulo('identidade do contato');
+    const contatos = await consultar(
+      'SELECT id, whatsapp_id, whatsapp_lid, nome, canal_id FROM contatos WHERE whatsapp_id = ? LIMIT 1', [alvo]);
+    if (!contatos.length) console.log('  contato não encontrado');
+    for (const c of contatos) {
+      console.log(`  id=${c.id}  telefone=${c.whatsapp_id}  lid=${c.whatsapp_lid || '(nenhum)'}  canal=${c.canal_id || '-'}`);
+      if (c.whatsapp_lid) {
+        console.log('  >>> contato com @lid: quando o bot abre a conversa, a resposta chega por esse outro id.');
+      }
+    }
+
+    titulo('trilha de execução do fluxo (mais antigo primeiro)');
+    const logs = await consultar(
+      `SELECT created_at, chat_id, fluxo_nome, evento, mensagem, detalhes_json
+         FROM fluxo_exec_logs
+        WHERE whatsapp_id = ? OR chat_id LIKE ?
+        ORDER BY id DESC LIMIT 40`,
+      [alvo, `%${alvo}%`]);
+    if (!logs.length) console.log('  nenhum registro');
+    for (const l of logs.reverse()) {
+      const detalhes = l.detalhes_json ? String(l.detalhes_json) : '';
+      console.log(`  ${new Date(l.created_at).toLocaleString('pt-BR')} | ${l.chat_id || '-'} | ${l.fluxo_nome || '-'} | ${l.evento} | ${l.mensagem}${detalhes ? ' | ' + detalhes.slice(0, 140) : ''}`);
+    }
+    const esperou = logs.some((l) => l.evento === 'wait_start');
+    const respondeu = logs.some((l) => l.evento === 'wait_response');
+    if (esperou && !respondeu) {
+      console.log('\n  >>> o fluxo ficou esperando e a resposta nunca chegou nele.');
+      console.log('      Causas: contato com @lid (veja acima), processo reiniciado, ou gatilho de texto no caminho.');
+    }
+
+    titulo('fila de abordagem');
+    const fila = await consultar(
+      `SELECT id, evento, status, motivo, agendado_para, processado_em
+         FROM abordagens_fila WHERE whatsapp_id = ? ORDER BY id DESC LIMIT 5`, [alvo]);
+    if (!fila.length) console.log('  nenhum item');
+    for (const f of fila) {
+      console.log(`  #${f.id} ${f.evento} ${f.status}${f.motivo ? ' (' + f.motivo + ')' : ''} agendado=${f.agendado_para} processado=${f.processado_em || '-'}`);
+    }
+
+    titulo(`a resposta "${resposta}" dispara algum gatilho de texto?`);
+    try {
+      const gatilhoService = require('../services/gatilhoService');
+      const g = await gatilhoService.verificarGatilho(resposta);
+      console.log(g ? `  SIM: gatilho "${g.tipo}"` : '  não');
+    } catch (e) {
+      console.log(`  não foi possível verificar: ${e.message}`);
+    }
+  } finally {
+    await conn.end();
+  }
+})().then(() => process.exit(0)).catch((e) => {
+  console.error('erro:', e.message);
+  process.exit(1);
+});

@@ -59,9 +59,14 @@ function emMinutos(hhmm) {
 
   try {
     titulo('identidade do contato');
-    const contatos = await consultar(
-      'SELECT id, whatsapp_id, whatsapp_lid, nome, canal_id FROM contatos WHERE whatsapp_id = ? LIMIT 1', [alvo]);
+    const alvoContato = telefone.clausulaIn('whatsapp_id', alvo);
+    const contatos = alvoContato ? await consultar(
+      `SELECT id, whatsapp_id, whatsapp_lid, nome, canal_id FROM contatos WHERE ${alvoContato.sql}`,
+      alvoContato.params) : [];
     if (!contatos.length) console.log('  contato não encontrado');
+    if (contatos.length > 1) {
+      console.log('  >>> o mesmo número está cadastrado em mais de um formato (9º dígito).');
+    }
     for (const c of contatos) {
       console.log(`  id=${c.id}  telefone=${c.whatsapp_id}  lid=${c.whatsapp_lid || '(nenhum)'}  canal=${c.canal_id || '-'}`);
       if (c.whatsapp_lid) {
@@ -70,12 +75,14 @@ function emMinutos(hhmm) {
     }
 
     titulo('trilha de execução do fluxo (mais antigo primeiro)');
-    const logs = await consultar(
+    // Por variantes: registros antigos podem estar gravados sem o 9º dígito, e ficariam escondidos.
+    const alvoLogs = telefone.clausulaIn('whatsapp_id', alvo);
+    const logs = alvoLogs ? await consultar(
       `SELECT created_at, chat_id, fluxo_nome, evento, mensagem, detalhes_json
          FROM fluxo_exec_logs
-        WHERE whatsapp_id = ? OR chat_id LIKE ?
+        WHERE ${alvoLogs.sql}
         ORDER BY id DESC LIMIT 40`,
-      [alvo, `%${alvo}%`]);
+      alvoLogs.params) : [];
     if (!logs.length) console.log('  nenhum registro');
     for (const l of logs.reverse()) {
       const detalhes = l.detalhes_json ? String(l.detalhes_json) : '';
@@ -131,6 +138,47 @@ function emMinutos(hhmm) {
 
     if (pendente && !dentro) {
       console.log('\n  >>> item PENDENTE e fora do horário: é só esperar a loja abrir.');
+    }
+
+    // Pós-venda sem oferta elegível inicia e encerra em silêncio, sem mandar nada. Visto de fora,
+    // parece que o fluxo não rodou — por isso vale mostrar a conta por campanha.
+    titulo('o que o pós-venda ofereceria a este contato');
+    try {
+      const fluxoService = require('../services/fluxoService');
+      const participacao = require('../services/participacaoService');
+      const posVenda = fluxos.find((f) => f.ativo);
+
+      const todos = await fluxoService.listarFluxos({ ativo: true });
+      const candidatos = todos.filter((f) => f.tipo !== 'automacao'
+        && (!posVenda || f.id !== posVenda.id)
+        && f.gatilho && f.gatilho.oferta && f.gatilho.oferta.ativa);
+
+      if (!candidatos.length) {
+        console.log('  Nenhuma campanha ativa está marcada como oferta.');
+        console.log('  >>> abra a campanha, nó Gatilho, e ligue "Oferecer este fluxo no pós-venda".');
+      } else {
+        const historico = await participacao.historicoDoContato(alvo,
+          { fluxoIdEmAberto: posVenda ? posVenda.id : null });
+        let elegiveis = 0;
+        for (const f of candidatos) {
+          const regra = f.gatilho.oferta.elegivel_se || 'nunca_participou';
+          const situacao = participacao.situacaoDe(historico, f.id);
+          const pode = participacao.elegivel(situacao, regra);
+          if (pode) elegiveis++;
+          const h = historico[f.id];
+          const quando = h && h.ultimoInicio ? `, último início ${new Date(h.ultimoInicio).toLocaleString('pt-BR')}` : '';
+          console.log(`  #${f.id} "${f.nome}"`);
+          console.log(`      regra: ${regra} | situação do contato: ${situacao}${quando} -> ${pode ? 'OFERECE' : 'NÃO oferece'}`);
+        }
+        console.log(`\n  Total elegível: ${elegiveis}`);
+        if (!elegiveis) {
+          console.log('  >>> com zero, o fluxo inicia e encerra em SILÊNCIO: o cliente não recebe nada.');
+          console.log('      Para testar com este número, mude a regra da campanha para "sempre",');
+          console.log('      ou use um número que ainda não participou.');
+        }
+      }
+    } catch (e) {
+      console.log(`  não foi possível calcular: ${e.message}`);
     }
 
     titulo(`a resposta "${resposta}" dispara algum gatilho de texto?`);

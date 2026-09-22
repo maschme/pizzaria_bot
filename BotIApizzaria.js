@@ -406,7 +406,12 @@ client.on('ready', async () => {
   
   // Injeta o client nas rotas do dashboard
   setWhatsappClient(client);
-  
+
+  // Scheduler PRIMEIRO: tudo que vem depois (sincronizar grupos, injetar o listener de etiquetas)
+  // é frágil e já impediu o scheduler de ligar — sem ele, nenhuma abordagem ativa sai da fila,
+  // embora o bot continue respondendo normalmente a quem escreve. É difícil de perceber.
+  abordagemService.iniciarScheduler(client);
+
   // Sincroniza grupos automaticamente ao conectar
   try {
     console.log('🔄 Sincronizando grupos do WhatsApp...');
@@ -422,6 +427,10 @@ client.on('ready', async () => {
     return;
   }
 
+  // A injeção abaixo mexe em estruturas internas do WhatsApp Web e falha com facilidade: numa
+  // reconexão, `exposeFunction` lança porque a função já existe, e o Store muda de formato entre
+  // versões. Nada disso pode derrubar o resto do boot, então vai inteira dentro de try/catch.
+  try {
   // 1. acessa o objeto Store já definido pelo whatsapp-web.js
   const Store = await client.pupPage.evaluateHandle(() => window.Store);
 
@@ -460,6 +469,10 @@ client.on('ready', async () => {
     }
   });
 });
+  } catch (err) {
+    console.warn('⚠️ Listener de etiquetas não pôde ser injetado:', err.message);
+    console.warn('   O bot segue normal; só as mudanças de etiqueta deixam de ser observadas.');
+  }
 
     console.log('🤖 Cliente WhatsApp está pronto!');
     abordagemService.iniciarScheduler(client);

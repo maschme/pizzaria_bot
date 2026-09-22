@@ -101,6 +101,20 @@ function emMinutos(hhmm) {
     const pendente = fila.find((f) => f.status === 'pendente');
 
     titulo('o bot consegue enviar agora?');
+
+    // Sem o scheduler ligado, a fila enche e nada sai — e o bot continua respondendo normalmente.
+    const ultimoCiclo = await valorConfig(conn, 'abordagem_ultimo_ciclo', null);
+    if (!ultimoCiclo) {
+      console.log('  scheduler: NUNCA registrou um ciclo.');
+      console.log('  >>> ou o processo não subiu depois desta versão, ou o scheduler não ligou.');
+      console.log('      Confira: sudo pm2 logs pizzaria-crm --nostream | grep -i scheduler');
+    } else {
+      const seg = Math.round((Date.now() - new Date(String(ultimoCiclo).replace(' ', 'T')).getTime()) / 1000);
+      const saudavel = seg >= 0 && seg < 180;
+      console.log(`  scheduler: último ciclo há ${seg} s (${ultimoCiclo}) -> ${saudavel ? 'OK' : 'PARADO'}`);
+      if (!saudavel) console.log('  >>> o scheduler deveria rodar a cada 60 s. Reinicie o processo.');
+    }
+
     const ini = await valorConfig(conn, 'horario_funcionamento_inicio', '00:00');
     const fim = await valorConfig(conn, 'horario_funcionamento_fim', '23:59');
     const agora = new Date();

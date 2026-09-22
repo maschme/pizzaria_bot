@@ -240,6 +240,27 @@ async function processarFila(client, agora = new Date()) {
   return resumo;
 }
 
+/**
+ * Sinal de vida do scheduler, gravado a cada ciclo.
+ *
+ * Sem isto, um scheduler que não ligou é invisível: a fila enche, nada sai, e o bot continua
+ * respondendo normalmente a quem escreve. O diagnóstico lê esta marca e diz há quanto tempo foi o
+ * último ciclo.
+ */
+async function registrarCiclo() {
+  try {
+    await comConexao((conn) => conn.execute(
+      `INSERT INTO configuracoes (chave, valor, tipo, categoria, descricao, createdAt, updatedAt)
+       VALUES ('abordagem_ultimo_ciclo', ?, 'string', 'sistema',
+               'Abordagem ativa: quando o scheduler rodou pela última vez (automático)', NOW(), NOW())
+       ON DUPLICATE KEY UPDATE valor = VALUES(valor), updatedAt = NOW()`,
+      [formatarDataHora(new Date())]
+    ));
+  } catch (_) {
+    // Marca de diagnóstico: nunca atrapalha o ciclo.
+  }
+}
+
 function iniciarScheduler(client) {
   clientWhats = client;
   if (timer) return;
@@ -248,6 +269,7 @@ function iniciarScheduler(client) {
     processando = true;
     try {
       await processarFila(clientWhats);
+      await registrarCiclo();
     } catch (e) {
       if (e.code !== 'ER_NO_SUCH_TABLE') console.error('❌ Scheduler de abordagem ativa:', e.message);
     } finally {
@@ -255,6 +277,7 @@ function iniciarScheduler(client) {
     }
   }, INTERVALO_MS);
   if (timer.unref) timer.unref();
+  registrarCiclo();
   console.log('📣 Scheduler de abordagem ativa ligado (a cada 60 s).');
 }
 

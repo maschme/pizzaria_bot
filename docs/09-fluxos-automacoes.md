@@ -40,7 +40,7 @@ Interface drag-and-drop com canvas, zoom, import/export JSON.
 
 | Tipo | Nome UI | Entrada | Saída | Função |
 |------|---------|---------|-------|--------|
-| `trigger` | Gatilho | — | 1 | Início; palavra-chave ou mensagem exata |
+| `trigger` | Gatilho | — | 1 | Início; palavra-chave, mensagem exata ou **evento do sistema** (ver abaixo) |
 | `message` | Mensagem | 1 | 1 | Envia texto WhatsApp |
 | `wait` | Aguardar | 1 | 1 | Pausa até resposta do usuário |
 | `wait_contacts` | Aguardar contatos | 1 | 1 | Pausa até receber vCards |
@@ -62,9 +62,24 @@ Interface drag-and-drop com canvas, zoom, import/export JSON.
 | `webhook` | Dispara HTTP externo |
 | `enviar_cupom` | Envia cupom de desconto (texto escolhido pela IA num arquivo de cupons genéricos) |
 | `multipedidos_criar_cupom` | **Multipedidos: criar cupom único** — cria na Multipedidos um cupom de uso único só daquele contato, a partir de um comando em linguagem natural (ex.: "criar cupom de 10% válido por 7 dias"). Idempotente por contato + campanha |
+| `listar_ofertas` | **Listar ofertas elegíveis** — monta a lista dos fluxos marcados como "oferecer no pós-venda" que o contato pode entrar (pelo histórico dele) → `{{ofertas}}`, `{{ofertasQtd}}`, `{{ofertaId_N}}` |
+| `iniciar_fluxo` | **Iniciar outro fluxo** — encerra o atual e inicia o alvo (id fixo ou variável, ex.: `{{ofertaId_1}}`), levando as variáveis + `{{fluxoAnterior}}` |
+| `opt_out` | **Registrar opt-out** — o contato não recebe mais nenhuma mensagem iniciada pelo bot (`contatos.opt_out`); mensagens que ele mandar continuam sendo atendidas |
 | `multipedidos_alterar_cupom` | **Multipedidos: alterar cupom** — promove/ajusta o cupom que o contato recebeu na mesma campanha (ex.: "subir para 20% e renovar a validade") |
 
 Os dois nós Multipedidos ([doc 18](./18-cupons-multipedidos.md)) **só aparecem no editor com a API da Multipedidos ativa** (Dashboard → Integrações) — na seção "Multipedidos" da paleta e no select "Tipo de Ação"; com a integração configurada mas a API desligada, a paleta mostra um aviso de onde ativar; nó já existente num fluxo continua editável, com o aviso "integração desativada". Eles **não enviam mensagem**: preenchem `{{cupomCodigo}}`, `{{cupomDesconto}}`, `{{cupomValidade}}`, `{{cupomPedidoMinimo}}`, `{{cupomStatus}}` (`criado`, `alterado`, `reaproveitado`, `novo_por_uso`, `inalterado`, `erro`) e `{{cupomErro}}` para os nós seguintes. Nunca travam o fluxo: em falha seguem pela saída normal com `{{cupomStatus}} = erro` — use um **Verificar variável** para desviar (ex.: para o `enviar_cupom` de arquivo). O botão **Interpretar** do formulário mostra o que a IA entendeu do comando, já com os limites de segurança aplicados. Fluxo de exemplo importável: `docs/exemplos/fluxo-teste-cupom-multipedidos.json`.
+
+### Gatilho por evento e abordagem ativa
+
+Além de mensagem exata / palavra-chave, o gatilho pode ser **"Iniciado pelo sistema (evento)"** ([doc 20](./20-modelos-e-fluxos-completos.md) B0): o fluxo não responde a texto — quem o inicia é o bot, quando o evento acontece (`indicacao_registrada`, `pedido_concluido`) ou quando outro fluxo o encadeia (`manual`).
+
+```
+evento → abordagemService.enfileirar()  →  abordagens_fila  →  scheduler (60 s)  →  iniciarFluxo()
+```
+
+O scheduler só inicia dentro do horário comercial (configs `horario_funcionamento_*`), para contato sem `opt_out`, que não esteja em outro fluxo, com o fluxo ativo e o item não expirado. A fila deduplica por `(evento, referencia)` — o mesmo pedido não gera duas abordagens.
+
+O gatilho também carrega o bloco **`oferta`** (checkbox "Oferecer este fluxo no pós-venda"): título, descrição, `elegivel_se` (`nunca_participou` | `nao_concluiu` | `sempre`) e prioridade. É isso que o nó **Listar ofertas elegíveis** lê.
 
 ### Ciclo de execução
 

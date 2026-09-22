@@ -131,7 +131,21 @@ O texto da mensagem, o desconto e a validade são do modelo — **cada cliente e
 
 ### B.3 Peça nova: início de fluxo por evento
 
-`fluxoExecutor.iniciarFluxoPorEvento(client, numero, slugDoFluxo, variaveisIniciais)` + campo `gatilho.tipo = 'evento'` no fluxo (o editor mostra "Iniciado pelo sistema: <evento>"). Eventos previstos: `indicacao_registrada` (B ativo), `pedido_concluido` (C). Regras: não iniciar se o número já está em fluxo; respeitar horário comercial (configs `horario_funcionamento_*` já existem — fora dele, **enfileira** para o próximo horário); **opt-out** global — coluna `contatos.opt_out` (+ `opt_out_em`), setada pela escolha "não quero mais receber mensagens" em qualquer fluxo ativo e respeitada por **toda** abordagem iniciada pelo sistema (indicado, pós-venda, campanhas futuras). Mensagem que o cliente inicia continua sendo atendida normalmente.
+**Feito em 22/09/2026** — a base ficou assim:
+
+| Peça | O que faz |
+|------|-----------|
+| `abordagens_fila` (migração) | Fila em banco dos eventos que devem iniciar um fluxo: `whatsapp_id`, `evento`, `fluxo_id`, `variaveis`, `referencia` (dedupe), `agendado_para`, `expira_em`, `status`, `motivo`, `tentativas`. Sobrevive a restart |
+| `contatos.opt_out` / `opt_out_em` | Opt-out global de abordagem ativa |
+| `services/abordagemService.js` | `enfileirar()` (dedupe por `(evento, referencia)`, recusa quem tem opt-out, aceita `atrasoMin` e `validadeHoras`), `processarFila()`, `iniciarScheduler()` (a cada 60 s, ligado quando o WhatsApp fica pronto), `marcarOptOut()`, `dentroDoHorario()` (usa as configs `horario_funcionamento_*`, trata faixa que cruza a meia-noite) |
+| `services/participacaoService.js` | `historicoDoContato()` a partir de `fluxo_exec_logs`: por fluxo, `nunca` / `em_aberto` / `concluido` / `abandonado` (7 dias) + `elegivel(situacao, regra)` |
+| Nós de ação | **Listar ofertas elegíveis** (`{{ofertas}}`, `{{ofertasQtd}}`, `{{ofertaId_N}}`), **Iniciar outro fluxo** (encadeia levando as variáveis + `{{fluxoAnterior}}`), **Registrar opt-out** |
+| Gatilho `evento` | No editor, "Iniciado pelo sistema (evento)" com `indicacao_registrada` / `pedido_concluido` / `manual`. Fluxo com esse gatilho **não é indexado** para busca por texto (confirmado em teste), só inicia por evento ou encadeamento |
+| Bloco `oferta` no gatilho | Checkbox "Oferecer este fluxo no pós-venda" + título, descrição, `elegivel_se` e prioridade |
+
+Antes de iniciar, o scheduler confere: dentro do horário (fora dele espera, sem gastar tentativa) · sem opt-out · não está em outro fluxo (adia até ~30 tentativas) · fluxo existe e está ativo · item não expirou. Validado com 15 casos (fila, dedupe, opt-out, horário, encadeamento, histórico, expiração).
+
+O contrato original previa `iniciarFluxoPorEvento(...)`; na implementação virou a fila + scheduler (mais seguro: persiste, respeita horário e não perde evento em restart). Eventos: `indicacao_registrada` (B), `pedido_concluido` (C). Regras: não iniciar se o número já está em fluxo; respeitar horário comercial (configs `horario_funcionamento_*` já existem — fora dele, **enfileira** para o próximo horário); **opt-out** global — coluna `contatos.opt_out` (+ `opt_out_em`), setada pela escolha "não quero mais receber mensagens" em qualquer fluxo ativo e respeitada por **toda** abordagem iniciada pelo sistema (indicado, pós-venda, campanhas futuras). Mensagem que o cliente inicia continua sendo atendida normalmente.
 
 ---
 
@@ -215,7 +229,7 @@ Com a missão 2 (aguardar contatos) e a 3 dentro do fluxo visual, o callback `se
 A0. Canal aponta o fluxo (canais.fluxo_id + select + ordem no bot)             — ✅ feito em 22/09/2026
 A.  Modelos (tela + rotas + 1º modelo: campanha atual migrada)                 — ✅ feito em 22/09/2026
 B0. Base de abordagem ativa: início de fluxo por evento, opt-out, horário,
-    nós iniciar_fluxo / listar_ofertas, participacaoService                      — base de B e C
+    nós iniciar_fluxo / listar_ofertas, participacaoService                      — ✅ feito em 22/09/2026
 B.  Indicado ativo (evento indicacao_registrada + modelo fluxo-indicado)         — depende de A e B0
 C.  Pós-venda (evento pedido_concluido, janela 24 h, bloco oferta, modelo)       — depende de B0; webhook já existe
 D.  Missão 3 no modelo (meta segundo_pedido + nós de avaliação)                  — depende do doc 19 etapas 1–3

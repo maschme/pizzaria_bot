@@ -10,6 +10,8 @@ const metaService = require('./metaService');
 const fluxoLogService = require('./fluxoLogService');
 const whatsappIdentityService = require('./whatsappIdentityService');
 const multipedidosCupomService = require('./multipedidosCupomService');
+const abordagemService = require('./abordagemService');
+const participacaoService = require('./participacaoService');
 
 const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
@@ -685,6 +687,45 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
           this.fluxoCompletouCampanha = true;
           break;
         }
+
+        // Abordagem ativa (docs/20 B0): o contato pediu para não receber mais mensagens iniciadas pelo bot.
+        case 'opt_out': {
+          const ok = await abordagemService.marcarOptOut(this.getIdWhatsappParaDb(), true);
+          this.variaveis.optOut = ok ? 'sim' : 'erro';
+          console.log(`🔕 Opt-out ${ok ? 'registrado' : 'NÃO registrado'} para ${this.chatId}`);
+          await this.logExec('opt_out', ok ? 'Contato pediu para não receber mais mensagens' : 'Falha ao registrar opt-out', node);
+          break;
+        }
+
+        // Lista os fluxos com bloco "oferta" que o contato pode entrar, pelo histórico dele (docs/20 §C.2).
+        // Saída: {{ofertas}} (texto numerado), {{ofertasQtd}}, {{ofertaId_1..n}}, {{ofertaNome_1..n}}
+        case 'listar_ofertas': {
+          const ofertas = await this.listarOfertasElegiveis();
+          this.variaveis.ofertasQtd = String(ofertas.length);
+          this.variaveis.ofertas = ofertas.map((o, i) => `${i + 1} - ${o.titulo}${o.descricao ? ' — ' + o.descricao : ''}`).join('\n');
+          ofertas.forEach((o, i) => { this.variaveis[`ofertaId_${i + 1}`] = String(o.fluxoId); this.variaveis[`ofertaNome_${i + 1}`] = o.titulo; });
+          console.log(`🎯 ${ofertas.length} oferta(s) elegível(is) para ${this.chatId}`);
+          await this.logExec('ofertas_listadas', `${ofertas.length} oferta(s) elegível(is)`, node, { ofertas: ofertas.map((o) => o.fluxoId) });
+          break;
+        }
+
+        // Encadeia outro fluxo: encerra este e inicia o alvo (por id fixo ou por variável, ex.: {{ofertaId_2}}).
+        case 'iniciar_fluxo': {
+          const alvoRaw = this.substituirVariaveis(String(node.data.fluxoAlvo || '')).trim();
+          const alvoId = parseInt(alvoRaw, 10);
+          const alvo = Number.isInteger(alvoId) ? await fluxoService.getFluxoPorId(alvoId) : null;
+          if (!alvo || !alvo.ativo) {
+            this.variaveis.iniciarFluxoStatus = 'erro';
+            console.warn(`⚠️ iniciar_fluxo: fluxo "${alvoRaw}" não existe ou está inativo`);
+            await this.logExec('iniciar_fluxo_erro', `Fluxo alvo "${alvoRaw}" inexistente/inativo`, node);
+            break;
+          }
+          await this.logExec('fluxo_end', `Encadeado para "${alvo.nome}"`, node);
+          removerSessaoFluxoPorExecutor(this);
+          const herdadas = Object.fromEntries(Object.entries(this.variaveis).filter(([k]) => !/^(oferta|ofertas)/.test(k)));
+          await iniciarFluxo(this.client, this.chatId, alvo, { ...herdadas, fluxoAnterior: this.fluxo.nome });
+          return; // o fluxo atual termina aqui; não segue para o próximo nó
+        }
       }
     } catch (error) {
       console.error('Erro ao executar ação:', error);
@@ -693,6 +734,18 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     
     const nextNode = this.findNextNode(node.id);
     await this.executeNode(nextNode);
+  }
+
+  /** Fluxos ativos com bloco gatilho.oferta.ativa, filtrados pela situação do contato (docs/20 §C.2). */
+  async listarOfertasElegiveis() {
+    const fluxos = await fluxoService.listarFluxos({ ativo: true });
+    const historico = await participacaoService.historicoDoContato(this.getIdWhatsappParaDb(), { fluxoIdEmAberto: this.fluxo.id });
+    return fluxos
+      .filter((f) => f.tipo !== 'automacao' && f.id !== this.fluxo.id && f.gatilho && f.gatilho.oferta && f.gatilho.oferta.ativa)
+      .map((f) => ({ fluxoId: f.id, titulo: f.gatilho.oferta.titulo || f.nome, descricao: f.gatilho.oferta.descricao || '',
+        prioridade: Number(f.gatilho.oferta.prioridade || 99), situacao: participacaoService.situacaoDe(historico, f.id), regra: f.gatilho.oferta.elegivel_se }))
+      .filter((o) => participacaoService.elegivel(o.situacao, o.regra))
+      .sort((a, b) => a.prioridade - b.prioridade);
   }
 
   // Nós "Multipedidos: criar cupom único" / "Multipedidos: alterar cupom".

@@ -869,9 +869,11 @@
       let preview = '';
       switch (node.type) {
         case 'trigger':
-          preview = node.data.tipo === 'palavra_chave' 
+          preview = node.data.tipo === 'evento'
+            ? `⚡ Evento: ${node.data.evento || '(escolher)'}${node.data.oferta && node.data.oferta.ativa ? ' · oferta' : ''}`
+            : node.data.tipo === 'palavra_chave'
             ? `Palavras: ${(node.data.palavras || []).join(', ') || '(vazio)'}`
-            : `"${node.data.valor || '(configurar)'}"`;
+            : `"${node.data.valor || '(configurar)'}"${node.data.oferta && node.data.oferta.ativa ? ' · oferta' : ''}`;
           break;
         case 'message':
           preview = node.data.texto?.substring(0, 80) || '(configurar mensagem)';
@@ -892,7 +894,10 @@
           preview = node.data.instrucao?.substring(0, 60) || '(configurar instrução)';
           break;
         case 'action':
-          preview = ehAcaoMultipedidos(node.data.tipo)
+          preview = node.data.tipo === 'listar_ofertas' ? 'Listar ofertas elegíveis → {{ofertas}}'
+            : node.data.tipo === 'iniciar_fluxo' ? `Iniciar fluxo: ${node.data.fluxoAlvo || '(alvo)'}`
+            : node.data.tipo === 'opt_out' ? 'Registrar opt-out'
+            : ehAcaoMultipedidos(node.data.tipo)
             ? `${multipedidosApiAtiva ? '' : '⚠️ integração desativada · '}${node.data.tipo === 'multipedidos_alterar_cupom' ? 'Alterar cupom' : 'Criar cupom único'} (Multipedidos): ${(node.data.promptCupom || '(escrever comando)').substring(0, 50)}`
             : node.data.tipo === 'enviar_cupom' ? (node.data.promptCupom ? `Cupom + IA: ${(node.data.arquivoCupons || 'cupons_desconto')}` : `Cupom: ${node.data.arquivoCupons || 'cupons_desconto'}`) : node.data.tipo === 'marcar_meta' ? `Marcar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'verificar_meta' ? `Verificar: ${node.data.metaNome || '(meta)'}` : node.data.tipo === 'ler_contato' ? `Ler: ${node.data.campoContato || 'cam_grupo'} → {{${node.data.variavelSaidaContato || 'cam_grupo'}}}` : `${node.data.tipo}: ${node.data.requisicaoTipo || node.data.funcao || '(configurar)'}`;
           break;
@@ -1328,7 +1333,33 @@
                 <option value="mensagem_exata" ${node.data.tipo === 'mensagem_exata' ? 'selected' : ''}>Mensagem Exata</option>
                 <option value="palavra_chave" ${node.data.tipo === 'palavra_chave' ? 'selected' : ''}>Contém Palavra-chave</option>
                 <option value="qualquer" ${node.data.tipo === 'qualquer' ? 'selected' : ''}>Qualquer Mensagem</option>
+                <option value="evento" ${node.data.tipo === 'evento' ? 'selected' : ''}>Iniciado pelo sistema (evento)</option>
               </select>
+            </div>
+            ${node.data.tipo === 'evento' ? `
+              <div class="form-group">
+                <label>Evento que inicia</label>
+                <select onchange="updateNodeData('evento', this.value)">
+                  <option value="indicacao_registrada" ${node.data.evento === 'indicacao_registrada' ? 'selected' : ''}>Indicação registrada (fluxo do indicado)</option>
+                  <option value="pedido_concluido" ${node.data.evento === 'pedido_concluido' ? 'selected' : ''}>Pedido concluído (pós-venda)</option>
+                  <option value="manual" ${node.data.evento === 'manual' ? 'selected' : ''}>Só por encadeamento / manual</option>
+                </select>
+                <div class="help-text">Este fluxo não responde a mensagens: o bot o inicia quando o evento acontece (respeitando horário comercial e opt-out) ou quando outro fluxo o encadeia. Variáveis disponíveis no início: {{eventoOrigem}}, {{fluxoAnterior}} e as do evento.</div>
+              </div>
+            ` : ''}
+            <div class="form-group" style="border-top:1px solid rgba(255,255,255,.1); padding-top:10px; margin-top:6px;">
+              <label><input type="checkbox" ${node.data.oferta && node.data.oferta.ativa ? 'checked' : ''} onchange="updateNodeData('oferta', { ...(nodes.find(n=>n.id==='${node.id}').data.oferta || {}), ativa: this.checked }); renderPropertiesPanel();"> Oferecer este fluxo no pós-venda</label>
+              <div class="help-text">Aparece na lista de opções do nó "Listar ofertas" para quem for elegível.</div>
+              ${node.data.oferta && node.data.oferta.ativa ? `
+                <input type="text" style="margin-top:6px;" placeholder="Título curto (ex.: Ganhe até 30% indicando amigos)" value="${escAttr(node.data.oferta.titulo)}" onchange="updateNodeData('oferta', { ...nodes.find(n=>n.id==='${node.id}').data.oferta, titulo: this.value })">
+                <input type="text" style="margin-top:6px;" placeholder="Descrição (opcional)" value="${escAttr(node.data.oferta.descricao)}" onchange="updateNodeData('oferta', { ...nodes.find(n=>n.id==='${node.id}').data.oferta, descricao: this.value })">
+                <select style="margin-top:6px;" onchange="updateNodeData('oferta', { ...nodes.find(n=>n.id==='${node.id}').data.oferta, elegivel_se: this.value })">
+                  <option value="nunca_participou" ${(node.data.oferta.elegivel_se || 'nunca_participou') === 'nunca_participou' ? 'selected' : ''}>Só quem nunca participou</option>
+                  <option value="nao_concluiu" ${node.data.oferta.elegivel_se === 'nao_concluiu' ? 'selected' : ''}>Quem nunca participou ou abandonou</option>
+                  <option value="sempre" ${node.data.oferta.elegivel_se === 'sempre' ? 'selected' : ''}>Sempre (exceto quem está no meio dele)</option>
+                </select>
+                <input type="number" min="1" style="margin-top:6px;" placeholder="Prioridade (1 = primeiro)" value="${node.data.oferta.prioridade || ''}" onchange="updateNodeData('oferta', { ...nodes.find(n=>n.id==='${node.id}').data.oferta, prioridade: Number(this.value) || 99 })">
+              ` : ''}
             </div>
             ${node.data.tipo === 'mensagem_exata' ? `
               <div class="form-group">
@@ -1456,6 +1487,11 @@
                 <option value="ler_contato" ${node.data.tipo === 'ler_contato' ? 'selected' : ''}>Ler campo do contato</option>
                 <option value="salvar_variavel" ${node.data.tipo === 'salvar_variavel' ? 'selected' : ''}>Salvar Variável</option>
                 <option value="webhook" ${node.data.tipo === 'webhook' ? 'selected' : ''}>Webhook</option>
+                <optgroup label="Abordagem ativa">
+                  <option value="listar_ofertas" ${node.data.tipo === 'listar_ofertas' ? 'selected' : ''}>Listar ofertas elegíveis</option>
+                  <option value="iniciar_fluxo" ${node.data.tipo === 'iniciar_fluxo' ? 'selected' : ''}>Iniciar outro fluxo (encadear)</option>
+                  <option value="opt_out" ${node.data.tipo === 'opt_out' ? 'selected' : ''}>Registrar opt-out (não receber mais)</option>
+                </optgroup>
                 ${(multipedidosApiAtiva || ehAcaoMultipedidos(node.data.tipo)) ? `
                 <optgroup label="Multipedidos">
                   <option value="multipedidos_criar_cupom" ${node.data.tipo === 'multipedidos_criar_cupom' ? 'selected' : ''}>Multipedidos: criar cupom único</option>
@@ -1463,7 +1499,21 @@
                 </optgroup>` : ''}
               </select>
             </div>
-            ${ehAcaoMultipedidos(node.data.tipo) ? formCupomMultipedidos(node) : node.data.tipo === 'marcar_meta' ? `
+            ${ehAcaoMultipedidos(node.data.tipo) ? formCupomMultipedidos(node) : node.data.tipo === 'listar_ofertas' ? `
+              <div class="form-group">
+                <div class="help-text">Monta a lista dos fluxos marcados como "oferecer no pós-venda" que este contato pode entrar (pelo histórico dele). Preenche {{ofertas}} (texto numerado), {{ofertasQtd}} e {{ofertaId_1}}, {{ofertaId_2}}… Use um nó Mensagem com {{ofertas}}, um Aguardar e depois "Iniciar outro fluxo" com {{ofertaId_N}}.</div>
+              </div>
+            ` : node.data.tipo === 'iniciar_fluxo' ? `
+              <div class="form-group">
+                <label>Fluxo alvo (id ou variável)</label>
+                <input type="text" value="${escAttr(node.data.fluxoAlvo)}" onchange="updateNodeData('fluxoAlvo', this.value)" placeholder="ex.: 12  ou  {{ofertaId_1}}">
+                <div class="help-text">Encerra este fluxo e inicia o alvo, levando as variáveis atuais (+ {{fluxoAnterior}}). Se o alvo não existir ou estiver inativo, segue com {{iniciarFluxoStatus}} = erro.</div>
+              </div>
+            ` : node.data.tipo === 'opt_out' ? `
+              <div class="form-group">
+                <div class="help-text">Marca o contato para <strong>não receber mais nenhuma mensagem iniciada pelo bot</strong> (indicado, pós-venda, campanhas). Mensagens que o cliente mandar continuam sendo atendidas. Use depois um nó Mensagem confirmando.</div>
+              </div>
+            ` : node.data.tipo === 'marcar_meta' ? `
               <div class="form-group">
                 <label>Nome da meta</label>
                 <input type="text" value="${node.data.metaNome || ''}" onchange="updateNodeData('metaNome', this.value)" placeholder="entrada_grupo, 10_indicacoes, cupom_30_resgatado">

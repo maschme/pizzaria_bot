@@ -26,6 +26,7 @@ const { router: dashboardRoutes, setWhatsappClient } = require('./routes/dashboa
 const iaRoutes = require('./routes/iaRoutes');
 const fluxoRoutes = require('./routes/fluxoRoutes');
 const multipedidosRoutes = require('./routes/multipedidosRoutes');
+const abordagemService = require('./services/abordagemService');
 const fluxoService = require('./services/fluxoService');
 const fluxoExecutor = require('./services/fluxoExecutor');
 const indicacaoService = require('./services/indicacaoService');
@@ -416,6 +417,7 @@ client.on('ready', async () => {
   // Injeção de listener de etiquetas: só existe no motor wwebjs (Puppeteer)
   if (!client.pupPage) {
     console.log('🤖 Cliente WhatsApp está pronto! (motor evolution — sem injeção de labels)');
+    abordagemService.iniciarScheduler(client);
     return;
   }
 
@@ -459,6 +461,7 @@ client.on('ready', async () => {
 });
 
     console.log('🤖 Cliente WhatsApp está pronto!');
+    abordagemService.iniciarScheduler(client);
 });
 
 // Estado de desconexão (ambos os motores emitem 'disconnected')

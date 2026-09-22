@@ -240,6 +240,25 @@ Cupons únicos emitidos pelos fluxos na Multipedidos ([doc 18](./18-cupons-multi
 | status | ENUM | ativo, usado, expirado, desativado |
 | usado_em, pedido_id, pedido_valor, pedido_desconto | — | Preenchidos pelo webhook quando um pedido usa o cupom: valor pago (`total_net_value`) e desconto aplicado (`discount_value`) |
 
+### `abordagens_fila`
+
+Fila das abordagens iniciadas pelo bot ([doc 20](./20-modelos-e-fluxos-completos.md) B0) — evento → fluxo, com horário, dedupe e resultado.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | INT PK | — |
+| whatsapp_id | VARCHAR(32) | Telefone, só dígitos |
+| evento | VARCHAR(50) | `indicacao_registrada`, `pedido_concluido`, … |
+| fluxo_id | INT | Fluxo a iniciar |
+| variaveis | JSON | Variáveis iniciais do fluxo |
+| referencia | VARCHAR(80) | Chave de dedupe (ex.: `pedido:123`) — UNIQUE com `evento` |
+| agendado_para / expira_em | DATETIME | Quando pode iniciar / até quando vale |
+| status | ENUM | pendente, iniciado, descartado, erro |
+| motivo / tentativas | — | Por que adiou/descartou e quantas vezes tentou |
+| criado_em / processado_em | — | — |
+
+> `contatos` ganhou `opt_out` / `opt_out_em`: contato que pediu para não receber mais mensagens iniciadas pelo bot.
+
 ### `webhook_eventos`
 
 Captura crua de webhooks de sistemas externos para estudo dos payloads (hoje: Multipedidos — ver [doc 17](./17-integracao-multipedidos.md)).
@@ -313,6 +332,7 @@ Pedidos completos com total, taxa_entrega, bairro, detalhes, status_pedido, etc.
 | `migrations/metas.js` | `metas`, `contato_metas` + seeds |
 | `migrations/2026-09-20-webhook-eventos.js` | `webhook_eventos` |
 | `migrations/2026-09-21-multipedidos-cupons.js` | `multipedidos_cupons` |
+| `migrations/2026-09-22-abordagem-ativa.js` | `abordagens_fila` + colunas `contatos.opt_out` / `opt_out_em` (doc 20 B0) |
 | `migrations/2026-09-22-canais-fluxo-id.js` | coluna `canais.fluxo_id` (fluxo que o canal inicia — doc 20 A0) |
 | `migrations/2026-09-22-multipedidos-cupons-pedido-desconto.js` | coluna `multipedidos_cupons.pedido_desconto` (nome com data posterior de propósito: precisa rodar **depois** da migração que cria a tabela) |
 | `migrations/2026-09-21-integracao-multipedidos-configs.js` | linhas em `configuracoes` (categoria `integracoes`): `multipedidos_webhook_ativo`, `multipedidos_api_ativa`, `multipedidos_cupom_max_percent`, `multipedidos_cupom_max_valor_fixo`, `multipedidos_cupom_max_validade_dias`, `multipedidos_cupom_prefixo` |

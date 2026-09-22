@@ -17,8 +17,18 @@ async function setupDatabase() {
       throw new Error('Não foi possível conectar ao MySQL. Verifique se o serviço está rodando.');
     }
 
-    // Sincroniza as tabelas
-    await sequelize.sync({ alter: true });
+    // Cria as tabelas que ainda não existem. NUNCA use { alter: true } aqui.
+    //
+    // O `alter` compara o modelo com a tabela e, para cada coluna `unique: true`, não reconhece o
+    // índice que ele mesmo criou antes: adiciona outro, a cada arranque. MySQL e MariaDB aceitam no
+    // máximo 64 índices por tabela, então depois de algumas dezenas de reinícios o setup passa a
+    // falhar com "Too many keys specified" e o servidor não sobe. Aconteceu em 22/09/2026, com as
+    // tabelas de configuracoes, gatilhos, grupos, prompts, provedores e requisições.
+    //
+    // Mudança de esquema neste projeto é migração: crie um arquivo em database/migrations/ e rode
+    // `node database/migrate.js`. Para limpar índices repetidos que já existam, use
+    // `node scripts/limpar-indices-duplicados.js`.
+    await sequelize.sync();
     console.log('✅ Tabelas sincronizadas');
 
     // Logs de execução de fluxos por contato (auditoria/debug)

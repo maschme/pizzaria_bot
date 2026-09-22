@@ -713,6 +713,18 @@ async function iniciarServidor() {
     });
   } catch (error) {
     console.error('❌ Erro ao iniciar servidor:', error.message);
+
+    // Causas conhecidas: sem isto o processo entra em laço de reinício com o PM2 e a mensagem
+    // sozinha não diz o que fazer. Aconteceu em 22/09/2026, com 83 reinícios até alguém notar.
+    if (/Too many keys specified/i.test(error.message)) {
+      console.error('\n   Alguma tabela chegou ao limite de 64 índices. O antigo sync({ alter: true })');
+      console.error('   criava uma cópia do índice único a cada arranque. Para limpar:');
+      console.error('       node scripts/limpar-indices-duplicados.js            (mostra o que faria)');
+      console.error('       node scripts/limpar-indices-duplicados.js --aplicar  (executa)\n');
+    } else if (error.code === 'ECONNREFUSED' || /connect ECONNREFUSED|Access denied/i.test(error.message)) {
+      console.error('\n   O MySQL não respondeu ou recusou as credenciais. Confira o serviço e o .env.\n');
+    }
+
     process.exit(1);
   }
 }

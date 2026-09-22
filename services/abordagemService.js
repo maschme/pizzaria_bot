@@ -264,7 +264,8 @@ async function registrarCiclo() {
 function iniciarScheduler(client) {
   clientWhats = client;
   if (timer) return;
-  timer = setInterval(async () => {
+
+  const ciclo = async () => {
     if (processando) return;
     processando = true;
     try {
@@ -275,10 +276,16 @@ function iniciarScheduler(client) {
     } finally {
       processando = false;
     }
-  }, INTERVALO_MS);
+  };
+
+  timer = setInterval(ciclo, INTERVALO_MS);
   if (timer.unref) timer.unref();
-  registrarCiclo();
   console.log('📣 Scheduler de abordagem ativa ligado (a cada 60 s).');
+
+  // Primeiro ciclo imediato: o que estava na fila enquanto o processo esteve fora sai agora, sem
+  // esperar um minuto. E só marca o sinal de vida depois de um ciclo de verdade — marcar ao ligar
+  // faria o diagnóstico dizer "OK" mesmo com o intervalo nunca tendo rodado.
+  ciclo();
 }
 
 function pararScheduler() {

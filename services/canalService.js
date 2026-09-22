@@ -45,7 +45,12 @@ function montarLink(numeroBot, mensagemEntrada) {
 async function listarCanais() {
   const conn = await mysql.createConnection(mysql2Config);
   try {
-    const [canais] = await conn.execute('SELECT * FROM canais ORDER BY criado_em DESC');
+    // Junta o fluxo apontado (nome/ativo) para a tela mostrar "fluxo inativo" e o nome na lista
+    const [canais] = await conn.execute(
+      `SELECT c.*, f.nome AS fluxo_nome, f.ativo AS fluxo_ativo
+         FROM canais c LEFT JOIN fluxos f ON f.id = c.fluxo_id
+        ORDER BY c.criado_em DESC`
+    );
     // Contagem de contatos atribuídos por canal
     let contagens = [];
     try {
@@ -63,7 +68,12 @@ async function listarCanais() {
   }
 }
 
-async function criarCanal({ nome, slug, tipo, mensagem_entrada, ativo = true }) {
+function fluxoIdOuNull(v) {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+async function criarCanal({ nome, slug, tipo, mensagem_entrada, fluxo_id, ativo = true }) {
   if (!nome || !mensagem_entrada) throw new Error('nome e mensagem_entrada são obrigatórios');
   const slugFinal = normalizar(slug || nome)
     .normalize('NFD').replace(/[̀-ͯ]/g, '')  // remove acentos
@@ -73,8 +83,8 @@ async function criarCanal({ nome, slug, tipo, mensagem_entrada, ativo = true }) 
   const conn = await mysql.createConnection(mysql2Config);
   try {
     const [r] = await conn.execute(
-      `INSERT INTO canais (nome, slug, tipo, mensagem_entrada, ativo) VALUES (?, ?, ?, ?, ?)`,
-      [nome.trim(), slugFinal, tipo || 'outro', mensagem_entrada.trim(), ativo ? 1 : 0]
+      `INSERT INTO canais (nome, slug, tipo, mensagem_entrada, fluxo_id, ativo) VALUES (?, ?, ?, ?, ?, ?)`,
+      [nome.trim(), slugFinal, tipo || 'outro', mensagem_entrada.trim(), fluxoIdOuNull(fluxo_id), ativo ? 1 : 0]
     );
     invalidarCache();
     return { id: r.insertId, slug: slugFinal };
@@ -83,12 +93,12 @@ async function criarCanal({ nome, slug, tipo, mensagem_entrada, ativo = true }) 
   }
 }
 
-async function atualizarCanal(id, { nome, tipo, mensagem_entrada, ativo }) {
+async function atualizarCanal(id, { nome, tipo, mensagem_entrada, fluxo_id, ativo }) {
   const conn = await mysql.createConnection(mysql2Config);
   try {
     await conn.execute(
-      `UPDATE canais SET nome = ?, tipo = ?, mensagem_entrada = ?, ativo = ? WHERE id = ?`,
-      [String(nome || '').trim(), tipo || 'outro', String(mensagem_entrada || '').trim(), ativo ? 1 : 0, Number(id)]
+      `UPDATE canais SET nome = ?, tipo = ?, mensagem_entrada = ?, fluxo_id = ?, ativo = ? WHERE id = ?`,
+      [String(nome || '').trim(), tipo || 'outro', String(mensagem_entrada || '').trim(), fluxoIdOuNull(fluxo_id), ativo ? 1 : 0, Number(id)]
     );
     invalidarCache();
     return { atualizado: true };
@@ -136,8 +146,8 @@ async function canaisAtivos() {
   if (cacheCanaisAtivos && Date.now() - cacheCanaisEm < 60000) return cacheCanaisAtivos;
   const conn = await mysql.createConnection(mysql2Config);
   try {
-    const [rows] = await conn.execute('SELECT id, mensagem_entrada FROM canais WHERE ativo = 1');
-    cacheCanaisAtivos = rows.map((c) => ({ id: c.id, mensagemNorm: normalizar(c.mensagem_entrada) }));
+    const [rows] = await conn.execute('SELECT id, slug, nome, mensagem_entrada, fluxo_id FROM canais WHERE ativo = 1');
+    cacheCanaisAtivos = rows.map((c) => ({ id: c.id, slug: c.slug, nome: c.nome, fluxoId: c.fluxo_id || null, mensagemNorm: normalizar(c.mensagem_entrada) }));
     cacheCanaisEm = Date.now();
     return cacheCanaisAtivos;
   } catch (e) {
@@ -150,9 +160,10 @@ async function canaisAtivos() {
 
 /**
  * Se a mensagem casa com um canal ativo, marca o contato (cria se não existir).
- * Nunca sobrescreve atribuição existente. Fire-and-forget: erros só logam.
+ * Nunca sobrescreve atribuição existente. Erros só logam.
  * @param {string} chatId - ex.: 5547...@c.us
  * @param {string} texto  - primeira mensagem recebida
+ * @returns {{ id, slug, nome, fluxoId }|null} o canal que casou (fluxoId = fluxo que ele inicia, ou null)
  */
 async function atribuirCanalSeCorresponder(chatId, texto) {
   try {
@@ -169,7 +180,7 @@ async function atribuirCanalSeCorresponder(chatId, texto) {
     if (wid.length < 8) return null;
 
     await marcarContatoComCanal(wid, canal.id);
-    return canal.id;
+    return { id: canal.id, slug: canal.slug, nome: canal.nome, fluxoId: canal.fluxoId };
   } catch (e) {
     console.warn('⚠️ Atribuição de canal falhou:', e.message);
     return null;

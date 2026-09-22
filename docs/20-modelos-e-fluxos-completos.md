@@ -30,6 +30,8 @@ Ordem proposta: **A → B → C → D**, porque A é a base para publicar B e C 
 - Variáveis iniciais: o fluxo iniciado por canal recebe `{{canalSlug}}` e `{{canalNome}}` — permite um mesmo modelo se adaptar ("vi que você veio do panfleto…").
 - Tela de canais: coluna "Fluxo" na lista; contagem de contatos por canal continua igual.
 
+**Feito em 22/09/2026**: migração `2026-09-22-canais-fluxo-id.js`, `canalService` (CRUD, cache e atribuição devolvem o fluxo), despacho em `BotIApizzaria.js`, `iniciarFluxo(..., variaveisIniciais)`, select e coluna Fluxo no dashboard. Validado na tela (criar/editar/listar) e por teste do serviço (casa, não casa, fluxo inexistente, fluxo_id vazio → NULL).
+
 Peça pequena (migração + select + 10 linhas no bot), mas é **pré-requisito prático da biblioteca de modelos**: quem instancia um modelo precisa de um jeito claro de ligá-lo a uma porta de entrada — e o jeito é "crie um canal e escolha este fluxo".
 
 ## A. Biblioteca de modelos de fluxo
@@ -206,7 +208,7 @@ Com a missão 2 (aguardar contatos) e a 3 dentro do fluxo visual, o callback `se
 ## Ordem de execução e dependências
 
 ```
-A0. Canal aponta o fluxo (canais.fluxo_id + select + ordem no bot)             — sem dependência
+A0. Canal aponta o fluxo (canais.fluxo_id + select + ordem no bot)             — ✅ feito em 22/09/2026
 A.  Modelos (tela + rotas + 1º modelo: campanha atual migrada)                 — depende de A0 (porta de entrada)
 B0. Base de abordagem ativa: início de fluxo por evento, opt-out, horário,
     nós iniciar_fluxo / listar_ofertas, participacaoService                      — base de B e C

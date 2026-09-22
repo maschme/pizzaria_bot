@@ -879,8 +879,13 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
 }
 
 // Funções exportadas
-async function iniciarFluxo(client, chatId, fluxo) {
+/**
+ * @param {Object} [variaveisIniciais] - entram em executor.variaveis antes do 1º nó (ex.: canalSlug/canalNome
+ *   quando o fluxo é iniciado por um canal de aquisição — docs/20 A0).
+ */
+async function iniciarFluxo(client, chatId, fluxo, variaveisIniciais = null) {
   const executor = new FluxoExecutor(client, chatId, fluxo);
+  if (variaveisIniciais && typeof variaveisIniciais === 'object') Object.assign(executor.variaveis, variaveisIniciais);
   executor.resolvedIdentity = await whatsappIdentityService.resolverIdentidadeCliente(client, chatId);
   registrarSessaoFluxo(executor);
   await executor.start();

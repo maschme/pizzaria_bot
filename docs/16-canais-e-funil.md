@@ -4,6 +4,8 @@ Definido com o operador em 20/09/2026. Problema: o fluxo de indicação (cerne d
 
 **Decisão**: fluxo permanece **único**; a origem é rastreada na **porta de entrada** (Opção B — canais como entidade). Duplicar fluxos por canal foi descartado (manutenção multiplicada).
 
+**Atualização (22/09/2026, [doc 20](./20-modelos-e-fluxos-completos.md) A0)**: o canal passou a poder **apontar o fluxo que inicia** (`canais.fluxo_id`). Quando a 1ª mensagem casa com um canal que aponta um fluxo ativo, o bot marca a origem **e inicia esse fluxo** (com `{{canalSlug}}` e `{{canalNome}}` nas variáveis), com prioridade sobre o gatilho de texto. Canal sem fluxo (ou com fluxo inativo/apagado) continua só marcando a origem e a mensagem cai no gatilho como antes. A mensagem do canal segue sendo o identificador da origem, mas deixou de precisar coincidir com uma frase de gatilho.
+
 ---
 
 ## 1. Como funciona
@@ -22,7 +24,8 @@ Pós-venda ─┘ (marcado no envio)                sessões, metas, indicaçõe
 
 ```
 canais   (id, nome, slug UNIQUE, tipo ENUM[qr_caixa, panfleto, ifood, pos_venda,
-          trafego_pago, outro], mensagem_entrada UNIQUE, ativo, criado_em)
+          trafego_pago, outro], mensagem_entrada UNIQUE, fluxo_id NULL, ativo, criado_em)
+          -- fluxo_id (22/09/2026, doc 20 A0): fluxo iniciado quando o canal casa; NULL = só rastreia a origem
 contatos + canal_id INT NULL (FK lógica), canal_atribuido_em TIMESTAMP NULL
 ```
 

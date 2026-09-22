@@ -747,8 +747,19 @@ client.on('message', async (msg) => {
 
   const texto = msg.body.trim();
 
-  // 📍 Atribuição de canal de aquisição (1º contato; fire-and-forget)
-  canalService.atribuirCanalSeCorresponder(numero, texto).catch(() => {});
+  // 📍 Canal de aquisição (docs/16 e docs/20 A0): marca a origem no 1º contato e, se o canal aponta um fluxo,
+  // inicia esse fluxo — tem prioridade sobre o gatilho de texto (a mesma frase pode iniciar fluxos diferentes
+  // conforme o canal). Canal sem fluxo (ou fluxo inativo) cai no gatilho de texto, como antes.
+  const canal = await canalService.atribuirCanalSeCorresponder(numero, texto).catch(() => null);
+  if (canal && canal.fluxoId && !fluxoExecutor.temFluxoAtivo(numero)) {
+    const fluxoCanal = await fluxoService.getFluxoPorId(canal.fluxoId).catch(() => null);
+    if (fluxoCanal && fluxoCanal.ativo) {
+      console.log(`🔀 Fluxo iniciado pelo canal "${canal.nome}": ${fluxoCanal.nome}`);
+      await fluxoExecutor.iniciarFluxo(client, numero, fluxoCanal, { canalSlug: canal.slug, canalNome: canal.nome });
+      return;
+    }
+    console.warn(`⚠️ Canal "${canal.nome}" aponta o fluxo #${canal.fluxoId}, que não existe ou está inativo — seguindo pelo gatilho de texto.`);
+  }
 
   // Gatilhos e início de fluxo: processados na hora (sem debounce)
   const fluxoVisual = await fluxoService.buscarFluxoPorGatilho(texto);

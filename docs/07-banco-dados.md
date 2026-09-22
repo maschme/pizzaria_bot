@@ -313,6 +313,7 @@ Pedidos completos com total, taxa_entrega, bairro, detalhes, status_pedido, etc.
 | `migrations/metas.js` | `metas`, `contato_metas` + seeds |
 | `migrations/2026-09-20-webhook-eventos.js` | `webhook_eventos` |
 | `migrations/2026-09-21-multipedidos-cupons.js` | `multipedidos_cupons` |
+| `migrations/2026-09-22-canais-fluxo-id.js` | coluna `canais.fluxo_id` (fluxo que o canal inicia — doc 20 A0) |
 | `migrations/2026-09-22-multipedidos-cupons-pedido-desconto.js` | coluna `multipedidos_cupons.pedido_desconto` (nome com data posterior de propósito: precisa rodar **depois** da migração que cria a tabela) |
 | `migrations/2026-09-21-integracao-multipedidos-configs.js` | linhas em `configuracoes` (categoria `integracoes`): `multipedidos_webhook_ativo`, `multipedidos_api_ativa`, `multipedidos_cupom_max_percent`, `multipedidos_cupom_max_valor_fixo`, `multipedidos_cupom_max_validade_dias`, `multipedidos_cupom_prefixo` |
 

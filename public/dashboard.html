@@ -771,7 +771,7 @@
               <h5 class="mb-0 fw-bold">Canais de aquisição</h5>
               <button class="btn btn-sm btn-danger btn-modern" id="btnNovoCanal"><i class="bi bi-plus-lg"></i> Novo canal</button>
             </div>
-            <p class="text-secondary small mb-4">Cada canal gera um link/QR com mensagem única — quem chegar por ele é marcado automaticamente no primeiro contato. Um único fluxo atende todos os canais.</p>
+            <p class="text-secondary small mb-4">Cada canal gera um link/QR com mensagem única — quem chegar por ele é marcado automaticamente no primeiro contato e, se o canal apontar um fluxo, já entra nele (sem depender da frase de gatilho).</p>
             <div class="table-responsive">
               <table class="table table-modern">
                 <thead>
@@ -779,13 +779,14 @@
                     <th>Nome</th>
                     <th>Tipo</th>
                     <th>Mensagem de entrada</th>
+                    <th>Fluxo</th>
                     <th>Contatos</th>
                     <th>Ativo</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody id="tabelaCanais">
-                  <tr><td colspan="6" class="text-center py-4 text-secondary">Carregando...</td></tr>
+                  <tr><td colspan="7" class="text-center py-4 text-secondary">Carregando...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -940,7 +941,14 @@
             <div class="mb-3">
               <label class="form-label">Mensagem de entrada (única por canal)</label>
               <input type="text" class="form-control form-control-modern" name="mensagem_entrada" placeholder="ex.: Quero meu desconto! 🍕 caixa" required>
-              <small class="text-secondary">É o texto pré-preenchido do link/QR. Dica: comece igual à frase do gatilho da campanha e acrescente uma marca curta do canal no final.</small>
+              <small class="text-secondary">É o texto pré-preenchido do link/QR — identifica o canal na 1ª mensagem. Se o canal apontar um fluxo abaixo, o texto pode ser qualquer um; se não apontar, ele precisa casar com a frase de gatilho de algum fluxo.</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Fluxo que inicia</label>
+              <select class="form-select form-select-modern" name="fluxo_id" id="selFluxoCanal">
+                <option value="">Nenhum — só rastrear a origem</option>
+              </select>
+              <small class="text-secondary">Quem chegar por este canal entra direto neste fluxo. O fluxo recebe {{canalSlug}} e {{canalNome}}.</small>
             </div>
             <div class="form-check form-switch mb-2">
               <input class="form-check-input" type="checkbox" name="ativo" id="chkCanalAtivo" checked>
@@ -1811,15 +1819,15 @@
     async function carregarCanais() {
       canaisIniciarCache = null; // canais mudaram: seletor do chat será repopulado
       const tbody = document.getElementById('tabelaCanais');
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="loading"></div> Carregando...</td></tr>';
       const data = await api('/canais');
       if (!data.success) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">' + (data.error || 'Erro') + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">' + (data.error || 'Erro') + '</td></tr>';
         return;
       }
       canaisCache = data.data || [];
       if (!canaisCache.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-secondary">Nenhum canal. Crie o primeiro para gerar link e QR.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">Nenhum canal. Crie o primeiro para gerar link e QR.</td></tr>';
         return;
       }
       const escC = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -1828,6 +1836,9 @@
           <td>${escC(c.nome)}<br><small class="text-secondary">${escC(c.slug)}</small></td>
           <td><small>${tiposCanal[c.tipo] || c.tipo}</small></td>
           <td><small>${escC(c.mensagem_entrada)}</small></td>
+          <td><small>${c.fluxo_id
+            ? (c.fluxo_nome ? escC(c.fluxo_nome) + (c.fluxo_ativo ? '' : ' <span class="badge-modern badge-inativo" title="O fluxo está desativado: o canal só marca a origem">fluxo inativo</span>') : '<span class="text-danger">fluxo #' + c.fluxo_id + ' não existe</span>')
+            : '<span class="text-secondary">— só rastreia origem</span>'}</small></td>
           <td><span class="badge-modern badge-ativo">${c.contatos}</span></td>
           <td><span class="badge-modern ${c.ativo ? 'badge-ativo' : 'badge-inativo'}">${c.ativo ? 'Sim' : 'Não'}</span></td>
           <td class="d-flex gap-1">
@@ -1838,9 +1849,22 @@
         </tr>`).join('');
     }
 
-    document.getElementById('btnNovoCanal').addEventListener('click', () => {
+    async function popularSelectFluxoCanal(selecionado) {
+      const sel = document.getElementById('selFluxoCanal');
+      const fluxos = await carregarFluxosChat();
+      const atual = selecionado ? String(selecionado) : '';
+      sel.innerHTML = '<option value="">Nenhum — só rastrear a origem</option>'
+        + fluxos.map(f => `<option value="${f.id}" ${String(f.id) === atual ? 'selected' : ''}>${escHtml(f.nome)}</option>`).join('');
+      // Fluxo apontado que não está mais ativo: mantém selecionado, com aviso, para não perder o vínculo ao salvar
+      if (atual && !fluxos.some(f => String(f.id) === atual)) {
+        sel.insertAdjacentHTML('beforeend', `<option value="${atual}" selected>fluxo #${atual} (inativo)</option>`);
+      }
+    }
+
+    document.getElementById('btnNovoCanal').addEventListener('click', async () => {
       const f = document.getElementById('formCanal');
       f.reset(); f.id.value = ''; f.ativo.checked = true;
+      await popularSelectFluxoCanal('');
       document.getElementById('tituloModalCanal').textContent = 'Novo canal';
       new bootstrap.Modal(document.getElementById('modalCanal')).show();
     });
@@ -1851,13 +1875,14 @@
       const f = document.getElementById('formCanal');
       f.id.value = c.id; f.nome.value = c.nome; f.tipo.value = c.tipo;
       f.mensagem_entrada.value = c.mensagem_entrada; f.ativo.checked = !!c.ativo;
+      popularSelectFluxoCanal(c.fluxo_id || '');
       document.getElementById('tituloModalCanal').textContent = 'Editar: ' + c.nome;
       new bootstrap.Modal(document.getElementById('modalCanal')).show();
     };
 
     document.getElementById('btnSalvarCanal').addEventListener('click', async () => {
       const f = document.getElementById('formCanal');
-      const body = { nome: f.nome.value.trim(), tipo: f.tipo.value, mensagem_entrada: f.mensagem_entrada.value.trim(), ativo: f.ativo.checked };
+      const body = { nome: f.nome.value.trim(), tipo: f.tipo.value, mensagem_entrada: f.mensagem_entrada.value.trim(), fluxo_id: f.fluxo_id.value || null, ativo: f.ativo.checked };
       if (!body.nome || !body.mensagem_entrada) { showToast('Preencha nome e mensagem', 'warning'); return; }
       const id = f.id.value;
       const data = id

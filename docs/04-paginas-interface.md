@@ -104,6 +104,10 @@ Formulário agrupado por **categoria** (atendimento, campanha, horário, mensage
 
 **Modal de logs:** histórico de `fluxo_exec_logs` por contato.
 
+### View: Canais (`viewCanais`)
+
+CRUD de canais de aquisição ([doc 16](./16-canais-e-funil.md)): nome, tipo, mensagem de entrada (texto do link/QR), **fluxo que inicia** (select com os fluxos ativos; "nenhum" = só rastrear origem — [doc 20](./20-modelos-e-fluxos-completos.md) A0), ativo. Lista com a coluna **Fluxo** (selo "fluxo inativo" quando o apontado foi desativado), contagem de contatos, link/QR para impressão.
+
 ### View: Integrações (`viewIntegracoes`)
 
 **Função:** ligar/desligar integrações com sistemas externos e ver o estado delas. Hoje: **Multipedidos** ([doc 18](./18-cupons-multipedidos.md) §1).

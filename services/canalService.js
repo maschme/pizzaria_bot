@@ -318,8 +318,11 @@ async function obterFunil(opts = {}) {
         SUM(CASE WHEN c.cam_indicacoes = 1 THEN 1 ELSE 0 END) AS missao2,
         SUM(CASE WHEN cm.id IS NOT NULL THEN 1 ELSE 0 END) AS converteu
       FROM contatos c
-      LEFT JOIN sessoes_campanha s ON s.numero = CONCAT(c.whatsapp_id, '@c.us')
-      LEFT JOIN contato_metas cm ON cm.whatsapp_id = c.whatsapp_id AND cm.concluido = 1
+      LEFT JOIN sessoes_campanha s
+        ON ${telefone.sqlFormaCurta("SUBSTRING_INDEX(s.numero, '@', 1)")} = ${telefone.sqlFormaCurta('c.whatsapp_id')}
+      LEFT JOIN contato_metas cm
+        ON ${telefone.sqlFormaCurta('cm.whatsapp_id')} = ${telefone.sqlFormaCurta('c.whatsapp_id')}
+        AND cm.concluido = 1
         AND cm.meta_id = (SELECT id FROM metas WHERE nome = 'cupom_30_resgatado' LIMIT 1)
       ${whereSql}
       GROUP BY c.canal_id`;

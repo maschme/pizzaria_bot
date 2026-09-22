@@ -1,30 +1,36 @@
 const { Op } = require('sequelize');
 const Pedidos = require('../Models/PedidosModel');
+const telefone = require('./telefoneService');
 
-
+/**
+ * Último pedido do cliente no cadastro legado, pelo identificador do WhatsApp.
+ *
+ * Mesma lógica de [clienteService](./clienteService.js): a coluna `telefone` vem com máscara, então
+ * o LIKE usa os últimos 8 dígitos (com o hífen no meio, como o cadastro grava) e a confirmação
+ * compara o número inteiro, para não entregar o pedido de um cliente de outro DDD.
+ */
 async function getUltimoPedidoClientePorWhatsID(whatsId) {
-  // Extrai apenas os números do WhatsApp ID (remove @c.us e tudo que não for dígito)
-  const numeros = whatsId.replace(/\D/g, '');
-
-  // Pega os últimos 8 dígitos
+  const numeros = String(whatsId || '').replace(/\D/g, '');
   const ultimos8 = numeros.slice(-8);
+  if (ultimos8.length < 8) return null;
 
-// Divide em duas partes para colocar hífen
-  const parte1 = ultimos8.slice(0, 4);  // '8450'
-  const parte2 = ultimos8.slice(4);     // '9046'
+  const parte1 = ultimos8.slice(0, 4);
+  const parte2 = ultimos8.slice(4);
 
-  // Monta o padrão com hífen para busca
-  const telefoneFormatado = `%${parte1}-%${parte2}%`; // '%8450-%9046%'
-  
-  // Faz a busca usando LIKE nos últimos 8 dígitos
-  return await Pedidos.findOne({
-    where: {
-      telefone: {
-        [Op.like]: `%${telefoneFormatado}`
-      }
-    },
-    order: [['data', 'DESC']]
+  const candidatos = await Pedidos.findAll({
+    where: { telefone: { [Op.like]: `%${parte1}-%${parte2}%` } },
+    order: [['data', 'DESC']],
+    limit: 20
   });
+  if (!candidatos.length) return null;
+
+  const exato = candidatos.find((p) => telefone.mesmoNumero(p.telefone, whatsId));
+  if (exato) return exato;
+
+  // Telefone gravado sem DDD: com um candidato só, não há ambiguidade.
+  if (candidatos.length === 1) return candidatos[0];
+  console.warn(`⚠️ ${candidatos.length} pedidos terminam em ${ultimos8} e nenhum bate com ${numeros}.`);
+  return null;
 }
 
 module.exports = { getUltimoPedidoClientePorWhatsID };

@@ -252,7 +252,8 @@ async function listarIndicacoes(opts = {}) {
     const [countRows] = await conn.execute(
       `SELECT COUNT(*) AS total
          FROM indicacoes i
-         LEFT JOIN contatos c ON c.whatsapp_id = SUBSTRING_INDEX(i.indicador_whatsapp_id, '@', 1)
+         LEFT JOIN contatos c
+           ON ${telefone.sqlFormaCurta('c.whatsapp_id')} = ${telefone.sqlFormaCurta("SUBSTRING_INDEX(i.indicador_whatsapp_id, '@', 1)")}
         ${where}`,
       params
     );
@@ -262,7 +263,8 @@ async function listarIndicacoes(opts = {}) {
       `SELECT i.id, i.indicador_whatsapp_id, i.indicado_numero, i.indicado_nome, i.created_at,
               c.nome AS indicador_nome
          FROM indicacoes i
-         LEFT JOIN contatos c ON c.whatsapp_id = SUBSTRING_INDEX(i.indicador_whatsapp_id, '@', 1)
+         LEFT JOIN contatos c
+           ON ${telefone.sqlFormaCurta('c.whatsapp_id')} = ${telefone.sqlFormaCurta("SUBSTRING_INDEX(i.indicador_whatsapp_id, '@', 1)")}
         ${where}
         ORDER BY i.created_at DESC, i.id DESC
         LIMIT ${limit} OFFSET ${offset}`,

@@ -145,6 +145,24 @@ function clausulaIn(coluna, entrada) {
   return { sql: `${coluna} IN (${vals.map(() => '?').join(', ')})`, params: vals };
 }
 
+/**
+ * Expressão SQL que reduz um número à forma **sem** o 9º dígito.
+ *
+ * Serve para comparar duas colunas que podem estar em formatos diferentes, em JOIN ou GROUP BY,
+ * onde não dá para passar a lista de variantes como parâmetro. Aplique dos dois lados:
+ *
+ *   ON ${sqlFormaCurta('a.whatsapp_id')} = ${sqlFormaCurta('b.whatsapp_id')}
+ *
+ * Reduzir em vez de expandir mantém a comparação com um valor só de cada lado. O custo é não usar
+ * índice na coluna — aceitável em consulta de relatório, não em caminho de mensagem.
+ *
+ * @param {string} expr - nome de coluna ou expressão SQL que resulta em dígitos
+ */
+function sqlFormaCurta(expr) {
+  return `IF(CHAR_LENGTH(${expr}) = 13 AND SUBSTRING(${expr}, 1, 2) = '${DDI_BR}' AND SUBSTRING(${expr}, 5, 1) = '9', `
+    + `CONCAT(LEFT(${expr}, 4), SUBSTRING(${expr}, 6)), ${expr})`;
+}
+
 module.exports = {
   digitos,
   ehLid,
@@ -155,5 +173,6 @@ module.exports = {
   chatId,
   chatIdsPossiveis,
   clausulaIn,
+  sqlFormaCurta,
   DDI_BR
 };

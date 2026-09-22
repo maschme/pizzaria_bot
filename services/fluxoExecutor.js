@@ -9,6 +9,7 @@ const arquivoService = require('./arquivoService');
 const metaService = require('./metaService');
 const fluxoLogService = require('./fluxoLogService');
 const whatsappIdentityService = require('./whatsappIdentityService');
+const telefone = require('./telefoneService');
 const multipedidosCupomService = require('./multipedidosCupomService');
 const abordagemService = require('./abordagemService');
 const participacaoService = require('./participacaoService');
@@ -115,7 +116,7 @@ function registrarSessaoFluxo(executor) {
   // contato com 12 (ou o contrário). Sem as duas chaves, a resposta não acha a sessão.
   for (const base of [executor.chatId, ident.chatIdCanonicoCUs]) {
     if (!base || !String(base).endsWith('@c.us')) continue;
-    for (const digitos of whatsappIdentityService.variantesTelefoneBr(base)) juntar(`${digitos}@c.us`);
+    for (const digitos of telefone.variantes(base)) juntar(`${digitos}@c.us`);
   }
 
   executor._sessionKeys = keys;
@@ -135,7 +136,7 @@ async function alinharIdentidadeComBanco(ident) {
   if (!ident) return ident;
   const wid = ident.widDigitosTelefone || String(ident.chatIdOriginal || '').replace(/\D/g, '');
   if (!wid || wid.length < 10) return ident;
-  const variantes = whatsappIdentityService.variantesTelefoneBr(wid);
+  const variantes = telefone.variantes(wid);
   if (variantes.length < 1) return ident;
   let conn;
   try {

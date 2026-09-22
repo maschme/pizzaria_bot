@@ -45,7 +45,29 @@ if (!alvo || alvo.length < 12) {
 
   const noHorario = await abordagemService.dentroDoHorario();
   if (!noHorario) {
-    console.log('⏰ Fora do horário de funcionamento: o item fica na fila e sai quando a loja abrir.');
+    const configService = require('../services/configuracaoService');
+    const ini = await configService.getConfiguracao('horario_funcionamento_inicio').catch(() => '?');
+    const fim = await configService.getConfiguracao('horario_funcionamento_fim').catch(() => '?');
+    const agora = new Date();
+    const [h, m] = String(ini).split(':').map(Number);
+    const faltam = Number.isFinite(h)
+      ? Math.round((h * 60 + (m || 0)) - (agora.getHours() * 60 + agora.getMinutes()))
+      : null;
+
+    console.log('');
+    console.log('  ┌──────────────────────────────────────────────────────────────┐');
+    console.log('  │  ATENÇÃO: FORA DO HORÁRIO DE FUNCIONAMENTO                   │');
+    console.log('  └──────────────────────────────────────────────────────────────┘');
+    console.log(`  A loja atende das ${ini} às ${fim} e agora são ${agora.toLocaleTimeString('pt-BR')}.`);
+    console.log('  A abordagem VAI PARA A FILA, mas a mensagem NÃO SERÁ ENVIADA agora.');
+    if (faltam !== null && faltam > 0) {
+      const hh = Math.floor(faltam / 60);
+      const mm = faltam % 60;
+      console.log(`  Ela sai quando a loja abrir, daqui a ${hh ? hh + ' h e ' : ''}${mm} min.`);
+    }
+    console.log('  Para testar agora, amplie o horário em Dashboard → Whats → Configurações');
+    console.log('  (horario_funcionamento_inicio) e devolva o valor depois do teste.');
+    console.log('');
   }
 
   const conn = await mysql.createConnection({

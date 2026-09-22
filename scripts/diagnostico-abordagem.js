@@ -15,6 +15,7 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('../services/telefoneService');
 
 const alvo = String(process.argv[2] || '').replace(/\D/g, '');
 const resposta = process.argv[3] != null ? String(process.argv[3]) : '1';
@@ -25,6 +26,20 @@ if (!alvo) {
 }
 
 const titulo = (s) => console.log(`\n=== ${s} ===`);
+
+async function valorConfig(conn, chave, padrao) {
+  try {
+    const [rows] = await conn.execute('SELECT valor FROM configuracoes WHERE chave = ? LIMIT 1', [chave]);
+    return (rows[0] && rows[0].valor) || padrao;
+  } catch (_) {
+    return padrao;
+  }
+}
+
+function emMinutos(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
 
 (async () => {
   const conn = await mysql.createConnection({
@@ -74,12 +89,34 @@ const titulo = (s) => console.log(`\n=== ${s} ===`);
     }
 
     titulo('fila de abordagem');
-    const fila = await consultar(
-      `SELECT id, evento, status, motivo, agendado_para, processado_em
-         FROM abordagens_fila WHERE whatsapp_id = ? ORDER BY id DESC LIMIT 5`, [alvo]);
-    if (!fila.length) console.log('  nenhum item');
+    const alvoFila = telefone.clausulaIn('whatsapp_id', alvo);
+    const fila = alvoFila ? await consultar(
+      `SELECT id, evento, status, motivo, tentativas, agendado_para, processado_em
+         FROM abordagens_fila WHERE ${alvoFila.sql} ORDER BY id DESC LIMIT 5`, alvoFila.params) : [];
+    if (!fila.length) console.log('  nenhum item: a abordagem nem chegou a ser enfileirada');
     for (const f of fila) {
-      console.log(`  #${f.id} ${f.evento} ${f.status}${f.motivo ? ' (' + f.motivo + ')' : ''} agendado=${f.agendado_para} processado=${f.processado_em || '-'}`);
+      console.log(`  #${f.id} ${f.evento} ${f.status}${f.motivo ? ' (' + f.motivo + ')' : ''}`
+        + ` tentativas=${f.tentativas} agendado=${f.agendado_para} processado=${f.processado_em || '-'}`);
+    }
+    const pendente = fila.find((f) => f.status === 'pendente');
+
+    titulo('o bot consegue enviar agora?');
+    const ini = await valorConfig(conn, 'horario_funcionamento_inicio', '00:00');
+    const fim = await valorConfig(conn, 'horario_funcionamento_fim', '23:59');
+    const agora = new Date();
+    const minutos = agora.getHours() * 60 + agora.getMinutes();
+    const dentro = minutos >= emMinutos(ini) && minutos <= emMinutos(fim);
+    console.log(`  horário de funcionamento: ${ini} às ${fim}`);
+    console.log(`  agora: ${agora.toLocaleTimeString('pt-BR')} -> ${dentro ? 'DENTRO' : 'FORA (a abordagem espera a loja abrir)'}`);
+
+    const fluxos = await consultar(
+      "SELECT id, nome, ativo FROM fluxos WHERE gatilho LIKE '%pedido_concluido%' ORDER BY ativo DESC, id");
+    console.log('  fluxo de pós-venda: ' + (fluxos.length
+      ? fluxos.map((f) => `#${f.id} "${f.nome}" ${f.ativo ? 'ATIVO' : 'inativo'}`).join(' | ')
+      : 'nenhum cadastrado'));
+
+    if (pendente && !dentro) {
+      console.log('\n  >>> item PENDENTE e fora do horário: é só esperar a loja abrir.');
     }
 
     titulo(`a resposta "${resposta}" dispara algum gatilho de texto?`);

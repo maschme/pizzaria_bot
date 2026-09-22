@@ -97,7 +97,18 @@ async function processarEvento(req, body) {
   // Pós-venda (docs/20 frente C): pedido concluído → oferece as campanhas elegíveis, dentro de 24 h.
   try {
     const pv = await posVendaService.avaliarPedido(pedido);
-    if (pv.enfileirado) console.log(`🛎️ Pós-venda enfileirado para o pedido ${pedido.order_no || pedido.id}`);
+    const ref = pedido.order_no || pedido.id;
+    if (pv.enfileirado) {
+      console.log(`🛎️ Pós-venda enfileirado para o pedido ${ref}`);
+    } else {
+      // O motivo era calculado e descartado: quando o pós-venda não saía, o log não dizia nada e
+      // só sobrava adivinhar. "pedido não concluído" é o caso comum (todo status que não é
+      // DONE/OVER passa por aqui), por isso fica em nível mais baixo.
+      const rotina = pv.motivo === 'pedido não concluído';
+      const linha = `🛎️ Pós-venda NÃO enfileirado para o pedido ${ref} (${pedido.order_status}): ${pv.motivo}`;
+      if (rotina) console.log(linha);
+      else console.warn(linha);
+    }
   } catch (e) {
     console.warn('⚠️ Pós-venda:', e.message);
   }

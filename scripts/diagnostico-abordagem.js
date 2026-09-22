@@ -17,11 +17,15 @@ const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
 const telefone = require('../services/telefoneService');
 
-const alvo = String(process.argv[2] || '').replace(/\D/g, '');
-const resposta = process.argv[3] != null ? String(process.argv[3]) : '1';
+const args = process.argv.slice(2);
+const recente = args.includes('--recente');
+const posicionais = args.filter((a) => !a.startsWith('--'));
+const alvo = String(posicionais[0] || '').replace(/\D/g, '');
+const resposta = posicionais[1] != null ? String(posicionais[1]) : '1';
 
-if (!alvo) {
+if (!alvo && !recente) {
   console.error('Informe o telefone com DDI e DDD. Ex.: node scripts/diagnostico-abordagem.js 5547999998888');
+  console.error('Ou, para um panorama dos últimos pedidos: node scripts/diagnostico-abordagem.js --recente');
   process.exit(1);
 }
 
@@ -41,6 +45,102 @@ function emMinutos(hhmm) {
   return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
+/** Últimos dígitos, para cruzar com a fila sem imprimir telefone de cliente. */
+function mascarar(tel) {
+  const d = String(tel || '').replace(/\D/g, '');
+  return d.length >= 4 ? `…${d.slice(-4)}` : '(sem telefone)';
+}
+
+/**
+ * Panorama dos últimos pedidos que chegaram pelo webhook e do que o pós-venda fez com cada um.
+ *
+ * Existe para quando o pedido é real e não se quer passar o telefone do cliente adiante: mostra
+ * só o status, se havia telefone e se virou abordagem. Nenhum dado pessoal é impresso.
+ */
+async function panoramaRecente(conn, consultar) {
+  const posVendaService = require('../services/posVendaService');
+
+  titulo('últimos pedidos recebidos pelo webhook');
+  const eventos = await consultar(
+    `SELECT id, recebido_em, query_string, body
+       FROM webhook_eventos
+      WHERE origem = 'multipedidos' AND metodo = 'POST' AND body_json_valido = 1
+      ORDER BY id DESC LIMIT 15`);
+
+  if (!eventos.length) {
+    console.log('  nenhum evento — o webhook não está chegando.');
+  }
+
+  const vistos = new Map();
+  for (const ev of eventos.reverse()) {
+    let p = null;
+    try { p = JSON.parse(ev.body); } catch (_) { continue; }
+    if (!p || !p.id) continue;
+    const tel = posVendaService.telefoneDoPedido(p);
+    const linha = {
+      quando: new Date(ev.recebido_em).toLocaleString('pt-BR'),
+      pedido: p.order_no || p.id,
+      id: p.id,
+      status: p.order_status || '?',
+      tel
+    };
+    vistos.set(`${p.id}:${p.order_status}`, linha);
+    const conclui = ['OVER', 'DONE'].includes(String(p.order_status).toUpperCase());
+    console.log(`  ${linha.quando} | pedido ${linha.pedido} | ${linha.status}`
+      + `${conclui ? ' (conclui)' : ''} | telefone ${tel ? mascarar(tel) : 'AUSENTE'}`);
+  }
+
+  titulo('o pós-venda agiu sobre esses pedidos?');
+  const refs = [...new Set([...vistos.values()].map((l) => `pedido:${l.id}`))];
+  if (!refs.length) {
+    console.log('  nenhum pedido para cruzar.');
+  } else {
+    const fila = await consultar(
+      `SELECT whatsapp_id, referencia, status, motivo, agendado_para, processado_em
+         FROM abordagens_fila
+        WHERE evento = 'pedido_concluido' AND referencia IN (${refs.map(() => '?').join(',')})
+        ORDER BY id`, refs);
+    const porRef = new Map(fila.map((f) => [f.referencia, f]));
+    const concluidos = [...vistos.values()].filter((l) => ['OVER', 'DONE'].includes(String(l.status).toUpperCase()));
+    if (!concluidos.length) {
+      console.log('  Nenhum pedido recente chegou a "Pronto" ou "Finalizado".');
+      console.log('  >>> o pós-venda só dispara nesses dois status. Conclua o pedido no gestor.');
+    }
+
+    for (const l of vistos.values()) {
+      const conclui = ['OVER', 'DONE'].includes(String(l.status).toUpperCase());
+      if (!conclui) continue;
+      const f = porRef.get(`pedido:${l.id}`);
+      if (f) {
+        console.log(`  pedido ${l.pedido}: ${f.status}${f.motivo ? ' (' + f.motivo + ')' : ''}`
+          + ` | agendado ${f.agendado_para} | contato ${mascarar(f.whatsapp_id)}`);
+      } else if (!l.tel) {
+        console.log(`  pedido ${l.pedido}: sem telefone (mesa/balcão) — não há quem abordar`);
+      } else {
+        console.log(`  pedido ${l.pedido}: NÃO virou abordagem. Veja o motivo no log:`);
+        console.log('      sudo pm2 logs pizzaria-crm --nostream --lines 200 | grep -i "pós-venda"');
+      }
+    }
+  }
+
+  titulo('estado geral');
+  const ciclo = await valorConfig(conn, 'abordagem_ultimo_ciclo', null);
+  console.log('  scheduler: ' + (ciclo
+    ? `último ciclo em ${ciclo} (há ${Math.round((Date.now() - new Date(String(ciclo).replace(' ', 'T')).getTime()) / 1000)} s)`
+    : 'NUNCA registrou um ciclo'));
+
+  const fluxos = await consultar(
+    "SELECT id, nome, ativo FROM fluxos WHERE gatilho LIKE '%pedido_concluido%' ORDER BY ativo DESC, id");
+  console.log('  fluxo de pós-venda: ' + (fluxos.length
+    ? fluxos.map((f) => `#${f.id} "${f.nome}" ${f.ativo ? 'ATIVO' : 'inativo'}`).join(' | ')
+    : 'nenhum cadastrado'));
+
+  const atraso = await valorConfig(conn, 'pos_venda_atraso_min', '40');
+  const repetir = await valorConfig(conn, 'pos_venda_repetir_dias', '7');
+  console.log(`  atraso após o pedido: ${atraso} min | não repetir por: ${repetir} dias`);
+  console.log('\n  Para o detalhe de um cliente: node scripts/diagnostico-abordagem.js <telefone>\n');
+}
+
 (async () => {
   const conn = await mysql.createConnection({
     host: dbConfig.host, port: dbConfig.port || 3306, user: dbConfig.username,
@@ -58,6 +158,11 @@ function emMinutos(hhmm) {
   };
 
   try {
+    if (recente) {
+      await panoramaRecente(conn, consultar);
+      return;
+    }
+
     titulo('identidade do contato');
     const alvoContato = telefone.clausulaIn('whatsapp_id', alvo);
     const contatos = alvoContato ? await consultar(

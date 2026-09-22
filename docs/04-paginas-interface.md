@@ -106,7 +106,7 @@ Formulário agrupado por **categoria** (atendimento, campanha, horário, mensage
 
 ### View: Canais (`viewCanais`)
 
-CRUD de canais de aquisição ([doc 16](./16-canais-e-funil.md)): nome, tipo, mensagem de entrada (texto do link/QR), **fluxo que inicia** (select com os fluxos ativos; "nenhum" = só rastrear origem — [doc 20](./20-modelos-e-fluxos-completos.md) A0), ativo. Lista com a coluna **Fluxo** (selo "fluxo inativo" quando o apontado foi desativado), contagem de contatos, link/QR para impressão.
+CRUD de canais de aquisição ([doc 16](./16-canais-e-funil.md)). O campo "Como o cliente chega" escolhe entre **por link/QR** (mensagem de entrada + fluxo que inicia) e **por ação do bot** (evento: indicação ou pós-venda — sem frase, sem QR). Demais campos: nome, tipo, mensagem de entrada (texto do link/QR), **fluxo que inicia** (select com os fluxos ativos; "nenhum" = só rastrear origem — [doc 20](./20-modelos-e-fluxos-completos.md) A0), ativo. Lista com a coluna **Fluxo** (selo "fluxo inativo" quando o apontado foi desativado), contagem de contatos, link/QR para impressão.
 
 ### View: Integrações (`viewIntegracoes`)
 

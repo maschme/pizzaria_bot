@@ -20,6 +20,7 @@ const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
 const configService = require('./configuracaoService');
 const fluxoService = require('./fluxoService');
+const canalService = require('./canalService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -202,7 +203,18 @@ async function processarFila(client, agora = new Date()) {
       }
       let variaveis = null;
       try { variaveis = item.variaveis ? (typeof item.variaveis === 'string' ? JSON.parse(item.variaveis) : item.variaveis) : null; } catch (_) { variaveis = null; }
-      await fluxoExecutor.iniciarFluxo(client, chatId, fluxo, { ...(variaveis || {}), eventoOrigem: item.evento });
+      // Origem no funil: quem o bot aborda não manda a frase do canal, então o canal vem do evento.
+      let canal = null;
+      try {
+        canal = await canalService.atribuirCanalPorEvento(chatId, item.evento);
+      } catch (e) {
+        console.warn('⚠️ Canal por evento:', e.message);
+      }
+      await fluxoExecutor.iniciarFluxo(client, chatId, fluxo, {
+        ...(variaveis || {}),
+        eventoOrigem: item.evento,
+        ...(canal ? { canalSlug: canal.slug, canalNome: canal.nome } : {})
+      });
       await marcar(item.id, 'iniciado', null, tentativas);
       resumo.iniciados++;
       console.log(`📣 Abordagem ativa: fluxo "${fluxo.nome}" iniciado para ${item.whatsapp_id} (evento ${item.evento})`);

@@ -83,6 +83,17 @@ Hoje os canais só marcam a origem; a mensagem deles precisa coincidir com a fra
 
 **Rollback:** volte o campo para "Nenhum — só rastrear a origem". O canal passa a depender do gatilho de texto, como antes.
 
+### 2.1 Canais para quem o bot aborda
+
+Quem o bot aborda (indicado, pós-venda) nunca manda a frase do canal — sem isso, essas pessoas ficam sem origem no funil. Crie um canal para cada evento:
+
+1. **Canais → Novo canal**
+   - Nome: `Indicação` · Tipo: `Outro` · Como o cliente chega: **Por ação do bot** · Quando: **Cliente foi indicado por alguém**
+2. Repita para o pós-venda: nome `Pós-venda`, evento **Cliente acabou de fazer um pedido**
+3. [ ] Na lista, os dois aparecem com o selo da origem e "— fluxo do evento" na coluna Fluxo (sem botão de QR, que aqui não faz sentido)
+
+Quem já tinha origem (QR, panfleto) **mantém a original** — o canal de evento só marca quem ainda não tinha.
+
 ---
 
 ## Fase 3 — Pós-venda

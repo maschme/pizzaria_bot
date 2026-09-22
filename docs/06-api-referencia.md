@@ -117,7 +117,7 @@ Router: `routes/dashboardRoutes.js`
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/api/dashboard/canais` | Lista com contagem de contatos, `link` wa.me e, se apontar fluxo, `fluxo_nome`/`fluxo_ativo` |
-| POST | `/api/dashboard/canais` | `{ nome, slug?, tipo, mensagem_entrada, fluxo_id?, ativo }` — `fluxo_id` = fluxo iniciado quando o canal casa (null = só rastreia) |
+| POST | `/api/dashboard/canais` | `{ nome, slug?, tipo, mensagem_entrada, evento?, fluxo_id?, ativo }` — canal por link/QR (`mensagem_entrada` + `fluxo_id` opcional) **ou** por evento do bot (`evento` = `indicacao_registrada` \| `pedido_concluido`, e os outros dois ficam nulos) |
 | PUT | `/api/dashboard/canais/:id` | Mesmos campos |
 | DELETE | `/api/dashboard/canais/:id` | Remove (contatos do canal voltam a orgânico) |
 | GET | `/api/dashboard/canais/:id/qr` | Link e QR (PNG base64) |

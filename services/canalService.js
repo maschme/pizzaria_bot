@@ -68,13 +68,23 @@ async function listarCanais() {
   }
 }
 
+/** Eventos que podem atribuir canal — os mesmos do gatilho por evento (docs/20 B0). */
+const EVENTOS_CANAL = ['indicacao_registrada', 'pedido_concluido'];
+
+function eventoOuNull(v) {
+  const e = String(v || '').trim();
+  return EVENTOS_CANAL.includes(e) ? e : null;
+}
+
 function fluxoIdOuNull(v) {
   const n = parseInt(v, 10);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-async function criarCanal({ nome, slug, tipo, mensagem_entrada, fluxo_id, ativo = true }) {
-  if (!nome || !mensagem_entrada) throw new Error('nome e mensagem_entrada são obrigatórios');
+async function criarCanal({ nome, slug, tipo, mensagem_entrada, evento, fluxo_id, ativo = true }) {
+  const eventoFinal = eventoOuNull(evento);
+  // Canal de evento (indicado, pós-venda) não tem frase de entrada: o bot é quem inicia a conversa.
+  if (!nome || (!mensagem_entrada && !eventoFinal)) throw new Error('nome e (mensagem de entrada ou evento) são obrigatórios');
   const slugFinal = normalizar(slug || nome)
     .normalize('NFD').replace(/[̀-ͯ]/g, '')  // remove acentos
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
@@ -83,8 +93,9 @@ async function criarCanal({ nome, slug, tipo, mensagem_entrada, fluxo_id, ativo 
   const conn = await mysql.createConnection(mysql2Config);
   try {
     const [r] = await conn.execute(
-      `INSERT INTO canais (nome, slug, tipo, mensagem_entrada, fluxo_id, ativo) VALUES (?, ?, ?, ?, ?, ?)`,
-      [nome.trim(), slugFinal, tipo || 'outro', mensagem_entrada.trim(), fluxoIdOuNull(fluxo_id), ativo ? 1 : 0]
+      `INSERT INTO canais (nome, slug, tipo, mensagem_entrada, evento, fluxo_id, ativo) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [nome.trim(), slugFinal, tipo || 'outro', eventoFinal ? null : mensagem_entrada.trim(), eventoFinal,
+        eventoFinal ? null : fluxoIdOuNull(fluxo_id), ativo ? 1 : 0]
     );
     invalidarCache();
     return { id: r.insertId, slug: slugFinal };
@@ -93,12 +104,14 @@ async function criarCanal({ nome, slug, tipo, mensagem_entrada, fluxo_id, ativo 
   }
 }
 
-async function atualizarCanal(id, { nome, tipo, mensagem_entrada, fluxo_id, ativo }) {
+async function atualizarCanal(id, { nome, tipo, mensagem_entrada, evento, fluxo_id, ativo }) {
+  const eventoFinal = eventoOuNull(evento);
   const conn = await mysql.createConnection(mysql2Config);
   try {
     await conn.execute(
-      `UPDATE canais SET nome = ?, tipo = ?, mensagem_entrada = ?, fluxo_id = ?, ativo = ? WHERE id = ?`,
-      [String(nome || '').trim(), tipo || 'outro', String(mensagem_entrada || '').trim(), fluxoIdOuNull(fluxo_id), ativo ? 1 : 0, Number(id)]
+      `UPDATE canais SET nome = ?, tipo = ?, mensagem_entrada = ?, evento = ?, fluxo_id = ?, ativo = ? WHERE id = ?`,
+      [String(nome || '').trim(), tipo || 'outro', eventoFinal ? null : String(mensagem_entrada || '').trim(), eventoFinal,
+        eventoFinal ? null : fluxoIdOuNull(fluxo_id), ativo ? 1 : 0, Number(id)]
     );
     invalidarCache();
     return { atualizado: true };
@@ -146,7 +159,7 @@ async function canaisAtivos() {
   if (cacheCanaisAtivos && Date.now() - cacheCanaisEm < 60000) return cacheCanaisAtivos;
   const conn = await mysql.createConnection(mysql2Config);
   try {
-    const [rows] = await conn.execute('SELECT id, slug, nome, mensagem_entrada, fluxo_id FROM canais WHERE ativo = 1');
+    const [rows] = await conn.execute('SELECT id, slug, nome, mensagem_entrada, fluxo_id FROM canais WHERE ativo = 1 AND mensagem_entrada IS NOT NULL');
     cacheCanaisAtivos = rows.map((c) => ({ id: c.id, slug: c.slug, nome: c.nome, fluxoId: c.fluxo_id || null, mensagemNorm: normalizar(c.mensagem_entrada) }));
     cacheCanaisEm = Date.now();
     return cacheCanaisAtivos;
@@ -185,6 +198,41 @@ async function atribuirCanalSeCorresponder(chatId, texto) {
     console.warn('⚠️ Atribuição de canal falhou:', e.message);
     return null;
   }
+}
+
+/**
+ * Atribui ao contato o canal daquele evento do sistema (ex.: 'indicacao_registrada'), se houver um
+ * canal ativo configurado. É o par do casamento por mensagem: quem o bot aborda nunca manda a frase
+ * do canal, então a origem viria vazia no funil. Nunca sobrescreve atribuição existente.
+ * @returns {{ id, slug, nome }|null}
+ */
+async function atribuirCanalPorEvento(chatId, evento) {
+  const nomeEvento = eventoOuNull(evento);
+  if (!nomeEvento) return null;
+  const wid = apenasDigitos(chatId);
+  if (wid.length < 8) return null;
+
+  let canal = null;
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    const [rows] = await conn.execute(
+      'SELECT id, slug, nome FROM canais WHERE evento = ? AND ativo = 1 LIMIT 1',
+      [nomeEvento]
+    );
+    canal = rows[0] || null;
+  } catch (e) {
+    // Migração do canal por evento ainda não rodou nesta instância: segue sem atribuir.
+    if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') {
+      console.warn('⚠️ Canal por evento:', e.message);
+    }
+    return null;
+  } finally {
+    await conn.end();
+  }
+
+  if (!canal) return null;
+  await marcarContatoComCanal(wid, canal.id);
+  return canal;
 }
 
 /** Upsert do contato com canal — nunca sobrescreve atribuição existente. */
@@ -337,5 +385,7 @@ module.exports = {
   gerarQrCanal,
   montarLink,
   atribuirCanalSeCorresponder,
+  atribuirCanalPorEvento,
+  EVENTOS_CANAL,
   invalidarCache
 };

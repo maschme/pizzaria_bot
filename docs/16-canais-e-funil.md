@@ -6,6 +6,16 @@ Definido com o operador em 20/09/2026. Problema: o fluxo de indicação (cerne d
 
 **Atualização (22/09/2026, [doc 20](./20-modelos-e-fluxos-completos.md) A0)**: o canal passou a poder **apontar o fluxo que inicia** (`canais.fluxo_id`). Quando a 1ª mensagem casa com um canal que aponta um fluxo ativo, o bot marca a origem **e inicia esse fluxo** (com `{{canalSlug}}` e `{{canalNome}}` nas variáveis), com prioridade sobre o gatilho de texto. Canal sem fluxo (ou com fluxo inativo/apagado) continua só marcando a origem e a mensagem cai no gatilho como antes. A mensagem do canal segue sendo o identificador da origem, mas deixou de precisar coincidir com uma frase de gatilho.
 
+**Canal por evento (22/09/2026)**: até aqui a origem só era atribuída quando o cliente mandava a mensagem do canal — quem o **bot** aborda (indicado, pós-venda) nunca manda essa frase e ficava fora do funil. Agora um canal pode ser de **evento**: no cadastro, "Como o cliente chega" → *Por ação do bot*, e escolhe-se o evento (`indicacao_registrada`, `pedido_concluido`). Quando a abordagem ativa (doc 20 B0) inicia o fluxo daquele evento, o contato é marcado com esse canal e o fluxo recebe `{{canalNome}}`/`{{canalSlug}}`.
+
+| Regra | Comportamento |
+|-------|---------------|
+| Canal de evento não tem frase nem QR | `mensagem_entrada` e `fluxo_id` ficam nulos (o fluxo é o do evento); a tela esconde esses campos e o botão de QR |
+| Um evento, um canal | `UNIQUE` em `canais.evento` — um segundo canal para o mesmo evento é recusado |
+| Nunca sobrescreve | Quem já veio por QR/panfleto mantém a origem original |
+| Canal inativo | Não atribui |
+| Sem canal para o evento | A abordagem acontece normalmente, só sem origem no funil |
+
 ---
 
 ## 1. Como funciona
@@ -26,6 +36,8 @@ Pós-venda ─┘ (marcado no envio)                sessões, metas, indicaçõe
 canais   (id, nome, slug UNIQUE, tipo ENUM[qr_caixa, panfleto, ifood, pos_venda,
           trafego_pago, outro], mensagem_entrada UNIQUE, fluxo_id NULL, ativo, criado_em)
           -- fluxo_id (22/09/2026, doc 20 A0): fluxo iniciado quando o canal casa; NULL = só rastreia a origem
+          -- evento  (22/09/2026): canal atribuído quando o BOT aborda por esse evento; então
+          --                       mensagem_entrada e fluxo_id ficam NULL (UNIQUE por evento)
 contatos + canal_id INT NULL (FK lógica), canal_atribuido_em TIMESTAMP NULL
 ```
 

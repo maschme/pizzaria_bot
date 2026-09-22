@@ -939,11 +939,26 @@
               </select>
             </div>
             <div class="mb-3">
+              <label class="form-label">Como o cliente chega por este canal</label>
+              <select class="form-select form-select-modern" name="origem" id="selOrigemCanal" onchange="alternarOrigemCanal()">
+                <option value="mensagem">Por link ou QR (o cliente manda a mensagem)</option>
+                <option value="evento">Por ação do bot (o bot inicia a conversa)</option>
+              </select>
+            </div>
+            <div class="mb-3" id="blocoEventoCanal" style="display:none;">
+              <label class="form-label">Quando o bot aborda</label>
+              <select class="form-select form-select-modern" name="evento" id="selEventoCanal">
+                <option value="indicacao_registrada">Cliente foi indicado por alguém</option>
+                <option value="pedido_concluido">Cliente acabou de fazer um pedido (pós-venda)</option>
+              </select>
+              <small class="text-secondary">Quem o bot abordar por esse motivo entra no funil com este canal. O fluxo é o que estiver configurado para o evento (Fluxos → gatilho "Iniciado pelo sistema"). Um evento tem um canal só.</small>
+            </div>
+            <div class="mb-3" id="blocoMensagemCanal">
               <label class="form-label">Mensagem de entrada (única por canal)</label>
               <input type="text" class="form-control form-control-modern" name="mensagem_entrada" placeholder="ex.: Quero meu desconto! 🍕 caixa" required>
               <small class="text-secondary">É o texto pré-preenchido do link/QR — identifica o canal na 1ª mensagem. Se o canal apontar um fluxo abaixo, o texto pode ser qualquer um; se não apontar, ele precisa casar com a frase de gatilho de algum fluxo.</small>
             </div>
-            <div class="mb-3">
+            <div class="mb-3" id="blocoFluxoCanal">
               <label class="form-label">Fluxo que inicia</label>
               <select class="form-select form-select-modern" name="fluxo_id" id="selFluxoCanal">
                 <option value="">Nenhum — só rastrear a origem</option>
@@ -1091,6 +1106,8 @@
     // ============================================================
     // Integrações — Multipedidos (docs/18-cupons-multipedidos.md §1)
     // ============================================================
+    const rotuloEventoCanal = { indicacao_registrada: 'Indicação', pedido_concluido: 'Pós-venda' };
+
     const INTEGRACAO_MP = '/api/integracoes/multipedidos';
 
     async function apiIntegracaoMp(caminho, options = {}) {
@@ -1835,18 +1852,30 @@
         <tr>
           <td>${escC(c.nome)}<br><small class="text-secondary">${escC(c.slug)}</small></td>
           <td><small>${tiposCanal[c.tipo] || c.tipo}</small></td>
-          <td><small>${escC(c.mensagem_entrada)}</small></td>
-          <td><small>${c.fluxo_id
+          <td><small>${c.evento
+            ? '<span class="badge bg-info text-dark">' + (rotuloEventoCanal[c.evento] || c.evento) + '</span>'
+            : escC(c.mensagem_entrada)}</small></td>
+          <td><small>${c.evento
+            ? '<span class="text-secondary">— fluxo do evento</span>'
+            : c.fluxo_id
             ? (c.fluxo_nome ? escC(c.fluxo_nome) + (c.fluxo_ativo ? '' : ' <span class="badge-modern badge-inativo" title="O fluxo está desativado: o canal só marca a origem">fluxo inativo</span>') : '<span class="text-danger">fluxo #' + c.fluxo_id + ' não existe</span>')
             : '<span class="text-secondary">— só rastreia origem</span>'}</small></td>
           <td><span class="badge-modern badge-ativo">${c.contatos}</span></td>
           <td><span class="badge-modern ${c.ativo ? 'badge-ativo' : 'badge-inativo'}">${c.ativo ? 'Sim' : 'Não'}</span></td>
           <td class="d-flex gap-1">
-            <button class="btn btn-sm btn-outline-success" onclick="abrirQrCanal(${c.id})" title="Link e QR"><i class="bi bi-qr-code"></i></button>
+            ${c.evento ? '' : `<button class="btn btn-sm btn-outline-success" onclick="abrirQrCanal(${c.id})" title="Link e QR"><i class="bi bi-qr-code"></i></button>`}
             <button class="btn btn-sm btn-outline-info" onclick="editarCanal(${c.id})" title="Editar"><i class="bi bi-pencil"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="excluirCanal(${c.id})" title="Excluir"><i class="bi bi-trash"></i></button>
           </td>
         </tr>`).join('');
+    }
+
+    function alternarOrigemCanal() {
+      const porEvento = document.getElementById('selOrigemCanal').value === 'evento';
+      document.getElementById('blocoEventoCanal').style.display = porEvento ? '' : 'none';
+      document.getElementById('blocoMensagemCanal').style.display = porEvento ? 'none' : '';
+      document.getElementById('blocoFluxoCanal').style.display = porEvento ? 'none' : '';
+      document.querySelector('#formCanal [name=mensagem_entrada]').required = !porEvento;
     }
 
     async function popularSelectFluxoCanal(selecionado) {
@@ -1864,6 +1893,7 @@
     document.getElementById('btnNovoCanal').addEventListener('click', async () => {
       const f = document.getElementById('formCanal');
       f.reset(); f.id.value = ''; f.ativo.checked = true;
+      f.origem.value = 'mensagem'; alternarOrigemCanal();
       await popularSelectFluxoCanal('');
       document.getElementById('tituloModalCanal').textContent = 'Novo canal';
       new bootstrap.Modal(document.getElementById('modalCanal')).show();
@@ -1874,7 +1904,10 @@
       if (!c) return;
       const f = document.getElementById('formCanal');
       f.id.value = c.id; f.nome.value = c.nome; f.tipo.value = c.tipo;
-      f.mensagem_entrada.value = c.mensagem_entrada; f.ativo.checked = !!c.ativo;
+      f.mensagem_entrada.value = c.mensagem_entrada || ''; f.ativo.checked = !!c.ativo;
+      f.origem.value = c.evento ? 'evento' : 'mensagem';
+      if (c.evento) f.evento.value = c.evento;
+      alternarOrigemCanal();
       popularSelectFluxoCanal(c.fluxo_id || '');
       document.getElementById('tituloModalCanal').textContent = 'Editar: ' + c.nome;
       new bootstrap.Modal(document.getElementById('modalCanal')).show();
@@ -1882,8 +1915,16 @@
 
     document.getElementById('btnSalvarCanal').addEventListener('click', async () => {
       const f = document.getElementById('formCanal');
-      const body = { nome: f.nome.value.trim(), tipo: f.tipo.value, mensagem_entrada: f.mensagem_entrada.value.trim(), fluxo_id: f.fluxo_id.value || null, ativo: f.ativo.checked };
-      if (!body.nome || !body.mensagem_entrada) { showToast('Preencha nome e mensagem', 'warning'); return; }
+      const porEvento = f.origem.value === 'evento';
+      const body = {
+        nome: f.nome.value.trim(),
+        tipo: f.tipo.value,
+        mensagem_entrada: porEvento ? '' : f.mensagem_entrada.value.trim(),
+        evento: porEvento ? f.evento.value : null,
+        fluxo_id: porEvento ? null : (f.fluxo_id.value || null),
+        ativo: f.ativo.checked
+      };
+      if (!body.nome || (!porEvento && !body.mensagem_entrada)) { showToast('Preencha nome e mensagem de entrada', 'warning'); return; }
       const id = f.id.value;
       const data = id
         ? await api('/canais/' + id, { method: 'PUT', body: JSON.stringify(body) })

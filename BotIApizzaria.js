@@ -30,6 +30,7 @@ const abordagemService = require('./services/abordagemService');
 const fluxoService = require('./services/fluxoService');
 const fluxoExecutor = require('./services/fluxoExecutor');
 const indicacaoService = require('./services/indicacaoService');
+const telefone = require('./services/telefoneService');
 const metaService = require('./services/metaService');
 const whatsappIdentityService = require('./services/whatsappIdentityService');
 const sessaoCampanhaService = require('./services/sessaoCampanhaService');
@@ -488,12 +489,11 @@ app.post('/send-message', async (req, res) => {
     }
 
     try {
-        number = number.toString();
-        if (!number.includes("@c.us")) {
-            number = number + "@c.us";
+        // Padroniza: aceita '+55 (47) 98450-9046', '47984509046', '...@c.us' e '...@lid'.
+        const chatId = telefone.chatId(number);
+        if (!chatId) {
+            return res.status(400).json({ error: 'Número inválido: ' + number });
         }
-        // Garante que o número está no formato com @c.us
-        const chatId = number;
 
         await client.sendMessage(chatId, message);
         // Envio ativo externo: canal opcional (id ou slug) marca a origem do contato
@@ -614,8 +614,8 @@ app.get('/campanha/sessoes', (req, res) => {
 // GET /campanha/sessao/:numero - Detalhes de uma sessão específica
 app.get('/campanha/sessao/:numero', (req, res) => {
   let { numero } = req.params;
-  if (!numero.includes('@c.us')) numero = numero + '@c.us';
-  
+  numero = telefone.chatId(numero) || numero;
+
   const sessao = sessaoCampanhaService.get(numero);
   if (!sessao) {
     return res.status(404).json({ error: 'Sessão não encontrada' });
@@ -626,8 +626,8 @@ app.get('/campanha/sessao/:numero', (req, res) => {
 // DELETE /campanha/sessao/:numero - Remove uma sessão (para testes)
 app.delete('/campanha/sessao/:numero', (req, res) => {
   let { numero } = req.params;
-  if (!numero.includes('@c.us')) numero = numero + '@c.us';
-  
+  numero = telefone.chatId(numero) || numero;
+
   if (sessaoCampanhaService.has(numero)) {
     sessaoCampanhaService.delete(numero);
     res.json({ success: true, mensagem: `Sessão ${numero} removida` });
@@ -1615,8 +1615,12 @@ client.on('group_join', async (notification) => {
       // ============================================================
       // 📊 ATUALIZAÇÃO NO BANCO DE DADOS (CRM)
       // ============================================================
-      const sql = `UPDATE contatos SET cam_grupo = 1 WHERE whatsapp_id = ?`;
-      const [result] = await connection.execute(sql, [numeroReal]);
+      // Por variantes: o WhatsApp entrega o número do participante às vezes sem o 9º dígito,
+      // enquanto o contato foi cadastrado com ele (ou o contrário). Comparar exato não encontrava.
+      const alvoGrupo = telefone.clausulaIn('whatsapp_id', numeroReal);
+      const [result] = alvoGrupo
+        ? await connection.execute(`UPDATE contatos SET cam_grupo = 1 WHERE ${alvoGrupo.sql}`, alvoGrupo.params)
+        : [{ affectedRows: 0 }];
 
       if (result.affectedRows > 0) {
         console.log(`✅ SUCESSO: Lead ${numeroReal} marcado como entrou no grupo.`);
@@ -1627,8 +1631,8 @@ client.on('group_join', async (notification) => {
         }
         // Busca o id_negociacao do contato para mover no funil
         const [rows] = await connection.execute(
-          'SELECT id_negociacao FROM contatos WHERE whatsapp_id = ?', 
-          [numeroReal]
+          `SELECT id_negociacao FROM contatos WHERE ${alvoGrupo.sql} AND id_negociacao IS NOT NULL LIMIT 1`,
+          alvoGrupo.params
         );
         
         if (rows.length > 0 && rows[0].id_negociacao) {

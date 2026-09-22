@@ -2,6 +2,8 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
+const contatoIdService = require('./contatoIdService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -53,8 +55,10 @@ async function getMetaPorNomeOuId(nomeOuId) {
 async function marcarConcluido(whatsappId, metaNomeOuId) {
   const meta = await getMetaPorNomeOuId(metaNomeOuId);
   if (!meta) return { ok: false, erro: 'Meta não encontrada' };
-  const wid = normalizarWhatsappId(whatsappId);
-  if (!wid) return { ok: false, erro: 'whatsapp_id inválido' };
+  const bruto = normalizarWhatsappId(whatsappId);
+  if (!bruto) return { ok: false, erro: 'whatsapp_id inválido' };
+  // Grava na forma em que o contato já existe, para a meta não cair num segundo registro.
+  const wid = (await contatoIdService.resolverIdGravavel(bruto)) || bruto;
 
   const conn = await mysql.createConnection(mysql2Config);
   try {
@@ -83,9 +87,12 @@ async function verificarConcluido(whatsappId, metaNomeOuId) {
 
   const conn = await mysql.createConnection(mysql2Config);
   try {
+    // Variantes do 9º dígito: a meta pode ter sido gravada com o contato no outro formato.
+    const alvo = telefone.clausulaIn('whatsapp_id', wid);
+    if (!alvo) return false;
     const [rows] = await conn.execute(
-      'SELECT 1 FROM contato_metas WHERE whatsapp_id = ? AND meta_id = ? AND concluido = 1 LIMIT 1',
-      [wid, meta.id]
+      `SELECT 1 FROM contato_metas WHERE ${alvo.sql} AND meta_id = ? AND concluido = 1 LIMIT 1`,
+      [...alvo.params, meta.id]
     );
     return rows.length > 0;
   } catch (e) {
@@ -102,6 +109,8 @@ async function verificarConcluido(whatsappId, metaNomeOuId) {
 async function listarMetasConcluidasPorContato(whatsappId) {
   const wid = normalizarWhatsappId(whatsappId);
   if (!wid) return [];
+  const alvo = telefone.clausulaIn('cm.whatsapp_id', wid);
+  if (!alvo) return [];
 
   const conn = await mysql.createConnection(mysql2Config);
   try {
@@ -109,9 +118,9 @@ async function listarMetasConcluidasPorContato(whatsappId) {
       `SELECT m.nome, m.descricao, cm.concluido_em
        FROM contato_metas cm
        JOIN metas m ON m.id = cm.meta_id
-       WHERE cm.whatsapp_id = ? AND cm.concluido = 1
+       WHERE ${alvo.sql} AND cm.concluido = 1
        ORDER BY cm.concluido_em DESC`,
-      [wid]
+      alvo.params
     );
     return rows;
   } catch (e) {

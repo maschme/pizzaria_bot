@@ -8,6 +8,8 @@
 const mysql = require('mysql2/promise');
 const QRCode = require('qrcode');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
+const contatoIdService = require('./contatoIdService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -189,8 +191,8 @@ async function atribuirCanalSeCorresponder(chatId, texto) {
     const canal = canais.find((c) => c.mensagemNorm && msgNorm.startsWith(c.mensagemNorm));
     if (!canal) return null;
 
-    const wid = apenasDigitos(chatId);
-    if (wid.length < 8) return null;
+    const wid = await contatoIdService.resolverIdGravavel(chatId);
+    if (!wid) return null; // conta @lid ou número inválido: não vira whatsapp_id
 
     await marcarContatoComCanal(wid, canal.id);
     return { id: canal.id, slug: canal.slug, nome: canal.nome, fluxoId: canal.fluxoId };
@@ -209,8 +211,8 @@ async function atribuirCanalSeCorresponder(chatId, texto) {
 async function atribuirCanalPorEvento(chatId, evento) {
   const nomeEvento = eventoOuNull(evento);
   if (!nomeEvento) return null;
-  const wid = apenasDigitos(chatId);
-  if (wid.length < 8) return null;
+  const wid = await contatoIdService.resolverIdGravavel(chatId);
+  if (!wid) return null;
 
   let canal = null;
   const conn = await mysql.createConnection(mysql2Config);
@@ -262,8 +264,9 @@ async function marcarContatoComCanal(widDigitos, canalId) {
  */
 async function marcarCanal(chatId, canalRef) {
   try {
-    const wid = apenasDigitos(chatId);
-    if (wid.length < 8 || !canalRef) return null;
+    if (!canalRef) return null;
+    const wid = await contatoIdService.resolverIdGravavel(chatId);
+    if (!wid) return null;
 
     const conn = await mysql.createConnection(mysql2Config);
     let canal;

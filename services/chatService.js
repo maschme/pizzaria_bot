@@ -2,6 +2,7 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
 const whatsappIdentityService = require('./whatsappIdentityService');
 const fluxoExecutor = require('./fluxoExecutor');
 const fluxoService = require('./fluxoService');
@@ -150,21 +151,21 @@ async function carregarMapaContatos() {
 function acharContatoRapido(maps, chatId) {
   const raw = String(chatId || '');
   if (raw.includes('@lid') && maps.mapByLid.has(raw)) return maps.mapByLid.get(raw);
+  // Todas as formas do mesmo número (9º dígito, DDI): o contato pode estar gravado na outra.
+  for (const d of telefone.variantes(raw)) {
+    if (maps.mapByWid.has(d)) return maps.mapByWid.get(d);
+  }
   const digs = normalizarDigitos(raw);
   if (digs && maps.mapByWid.has(digs)) return maps.mapByWid.get(digs);
   return null;
 }
 
 function chatEmFluxo(chatId, chatIdsEmFluxo) {
-  const d = normalizarDigitos(chatId);
-  return chatIdsEmFluxo.some((ch) => {
-    if (ch === chatId) return true;
-    return d.length >= 8 && normalizarDigitos(ch) === d;
-  });
+  return chatIdsEmFluxo.some((ch) => ch === chatId || telefone.mesmoNumero(ch, chatId));
 }
 
 function acharSessaoFluxo(chatId) {
-  const keys = [chatId];
+  const keys = [chatId, ...telefone.chatIdsPossiveis(chatId), ...telefone.variantes(chatId)];
   const digs = normalizarDigitos(chatId);
   if (digs.length >= 8) {
     keys.push(`${digs}@c.us`, digs);

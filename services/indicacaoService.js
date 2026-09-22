@@ -2,6 +2,7 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
 const { parseVcards } = require('../utils/vcardParser');
 const fluxoService = require('./fluxoService');
 const abordagemService = require('./abordagemService');
@@ -47,8 +48,10 @@ async function registrarIndicacoes(indicadorWhatsappId, indicados, telefoneIndic
 
     const novos = [];
     for (const { numero, nome } of indicados) {
-      if (!numero || !numero.replace(/\D/g, '')) continue;
-      const numNorm = numero.replace(/\D/g, '');
+      // Canônico: o vCard chega sem DDI, com máscara e às vezes sem o 9º dígito. Se gravássemos
+      // cru, a conversão (que busca com o telefone do pedido, completo) nunca encontraria.
+      const numNorm = telefone.canonico(numero);
+      if (!numNorm || numNorm.length < 12) continue;
       try {
         const [result] = await conn.execute(
           `INSERT INTO indicacoes (indicador_whatsapp_id, indicado_numero, indicado_nome)
@@ -115,12 +118,16 @@ async function abordarIndicados(indicadorWhatsappId, novos) {
   try {
     let indicadorNome = '';
     try {
-      const [rows] = await conn.execute('SELECT nome FROM contatos WHERE whatsapp_id = ? LIMIT 1', [indicadorWhatsappId]);
-      indicadorNome = (rows[0] && rows[0].nome) || '';
+      const alvoInd = telefone.clausulaIn('whatsapp_id', indicadorWhatsappId);
+      if (alvoInd) {
+        const [rows] = await conn.execute(
+          `SELECT nome FROM contatos WHERE ${alvoInd.sql} AND nome IS NOT NULL LIMIT 1`, alvoInd.params);
+        indicadorNome = (rows[0] && rows[0].nome) || '';
+      }
     } catch (_) { /* contatos pode não existir */ }
 
     for (const { numero, nome } of novos) {
-      if (numero === indicadorWhatsappId) continue; // não aborda quem indicou a si mesmo
+      if (telefone.mesmoNumero(numero, indicadorWhatsappId)) continue; // não aborda quem indicou a si mesmo
       const r = await abordagemService.enfileirar({
         whatsappId: numero,
         evento: 'indicacao_registrada',
@@ -158,9 +165,13 @@ async function marcarConversaoIndicado(indicadoWhatsappId, { pedidoId = null, pe
   if (num.length < 10) return { convertido: false };
   const conn = await mysql.createConnection(mysql2Config);
   try {
+    // Indicações antigas foram gravadas no formato cru do vCard: procura por todas as variantes.
+    const alvo = telefone.clausulaIn('indicado_numero', num);
+    if (!alvo) return { convertido: false };
     const [rows] = await conn.execute(
-      'SELECT id, indicador_whatsapp_id FROM indicacoes WHERE indicado_numero = ? AND convertido_em IS NULL ORDER BY id LIMIT 1',
-      [num]
+      `SELECT id, indicador_whatsapp_id FROM indicacoes
+        WHERE ${alvo.sql} AND convertido_em IS NULL ORDER BY id LIMIT 1`,
+      alvo.params
     );
     if (!rows.length) return { convertido: false };
     await conn.execute(
@@ -202,10 +213,11 @@ async function obterQtIndicados(indicadorWhatsappId) {
 async function completouMissaoIndicacoes(whatsappId) {
   const conn = await mysql.createConnection(mysql2Config);
   try {
-    const id = normalizarWhatsappId(whatsappId);
+    const alvo = telefone.clausulaIn('whatsapp_id', normalizarWhatsappId(whatsappId));
+    if (!alvo) return false;
     const [rows] = await conn.execute(
-      'SELECT cam_indicacoes FROM contatos WHERE whatsapp_id = ? LIMIT 1',
-      [id]
+      `SELECT cam_indicacoes FROM contatos WHERE ${alvo.sql} LIMIT 1`,
+      alvo.params
     );
     return rows[0] ? Boolean(rows[0].cam_indicacoes) : false;
   } catch (e) {

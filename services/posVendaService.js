@@ -12,6 +12,7 @@
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
 const configService = require('./configuracaoService');
+const telefone = require('./telefoneService');
 const fluxoService = require('./fluxoService');
 const abordagemService = require('./abordagemService');
 
@@ -46,8 +47,9 @@ async function numeroConfig(chave, padrao) {
 function telefoneDoPedido(pedido) {
   const cand = [pedido && pedido.client && pedido.client.phone, pedido && pedido.phone];
   for (const c of cand) {
-    const d = apenasDigitos(c);
-    if (d.length >= 10) return d.length === 10 || d.length === 11 ? `55${d}` : d;
+    // canonico() completa o DDI e padroniza o 9º dígito; devolve '' para "0" e vazio.
+    const d = telefone.canonico(c);
+    if (d && d.length >= 12) return d;
   }
   return null;
 }
@@ -58,11 +60,14 @@ function telefoneDoPedido(pedido) {
 async function abordadoRecentemente(whatsappId, dias) {
   const conn = await mysql.createConnection(mysql2Config);
   try {
+    // Por variantes: se o mesmo cliente já foi abordado com o número no outro formato, não repete.
+    const alvo = telefone.clausulaIn('whatsapp_id', whatsappId);
+    if (!alvo) return false;
     const [rows] = await conn.execute(
       `SELECT 1 FROM abordagens_fila
-        WHERE whatsapp_id = ? AND evento = 'pedido_concluido' AND status IN ('pendente','iniciado')
+        WHERE ${alvo.sql} AND evento = 'pedido_concluido' AND status IN ('pendente','iniciado')
           AND criado_em >= NOW() - INTERVAL ? DAY LIMIT 1`,
-      [whatsappId, dias]
+      [...alvo.params, dias]
     );
     return rows.length > 0;
   } catch (e) {
@@ -84,11 +89,12 @@ async function avaliarPedido(pedido) {
   const fluxo = await fluxoService.buscarFluxoPorEvento('pedido_concluido');
   if (!fluxo) return { enfileirado: false, motivo: 'nenhum fluxo de pós-venda ativo' };
 
-  const telefone = telefoneDoPedido(pedido);
-  if (!telefone) return { enfileirado: false, motivo: 'pedido sem telefone (mesa/balcão)' };
+  // Nome distinto do módulo `telefone` importado acima: não sombrear.
+  const telefoneCliente = telefoneDoPedido(pedido);
+  if (!telefoneCliente) return { enfileirado: false, motivo: 'pedido sem telefone (mesa/balcão)' };
 
   const dias = await numeroConfig('pos_venda_repetir_dias', 7);
-  if (dias > 0 && await abordadoRecentemente(telefone, dias)) {
+  if (dias > 0 && await abordadoRecentemente(telefoneCliente, dias)) {
     return { enfileirado: false, motivo: `já abordado nos últimos ${dias} dias` };
   }
 
@@ -99,7 +105,7 @@ async function avaliarPedido(pedido) {
   if (horasRestantes <= 0) return { enfileirado: false, motivo: 'pedido com mais de 24 h' };
 
   const r = await abordagemService.enfileirar({
-    whatsappId: telefone,
+    whatsappId: telefoneCliente,
     evento: 'pedido_concluido',
     fluxoId: fluxo.id,
     referencia: `pedido:${pedido.id}`,

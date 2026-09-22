@@ -5,6 +5,7 @@ const configService = require('../services/configuracaoService');
 const grupoService = require('../services/grupoWhatsappService');
 const gatilhoService = require('../services/gatilhoService');
 const contatoService = require('../services/contatoService');
+const telefone = require('../services/telefoneService');
 const indicacaoService = require('../services/indicacaoService');
 const canalService = require('../services/canalService');
 const chatService = require('../services/chatService');
@@ -368,11 +369,11 @@ router.get('/contatos', async (req, res) => {
     const contatosPage = await contatoService.listarContatos({ page, limit });
     const contatos = contatosPage.rows || [];
     const chatIdsEmFluxo = fluxoExecutor.getChatIdsEmFluxo ? fluxoExecutor.getChatIdsEmFluxo() : [];
-    const normalizar = (id) => String(id || '').replace(/\D/g, '');
     const data = contatos.map((c) => ({
       ...c,
       em_fluxo: chatIdsEmFluxo.some((ch) => {
-        if (normalizar(ch) === normalizar(c.whatsapp_id)) return true;
+        // mesmoNumero cobre as formas com e sem o 9º dígito.
+        if (telefone.mesmoNumero(ch, c.whatsapp_id)) return true;
         if (c.whatsapp_lid && String(ch).trim() === String(c.whatsapp_lid).trim()) return true;
         return false;
       })

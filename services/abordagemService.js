@@ -18,6 +18,8 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
+const contatoIdService = require('./contatoIdService');
 const configService = require('./configuracaoService');
 const fluxoService = require('./fluxoService');
 const canalService = require('./canalService');
@@ -84,18 +86,24 @@ async function dentroDoHorario(agora = new Date()) {
 // ============================================================
 
 async function marcarOptOut(whatsappId, valor = true) {
-  const wid = apenasDigitos(whatsappId);
-  if (wid.length < 8) return false;
+  const bruto = apenasDigitos(whatsappId);
+  if (bruto.length < 8) return false;
+  const wid = (await contatoIdService.resolverIdGravavel(bruto)) || bruto;
   await comConexao((conn) => conn.execute(
     `INSERT INTO contatos (whatsapp_id, opt_out, opt_out_em) VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE opt_out = VALUES(opt_out), opt_out_em = VALUES(opt_out_em)`,
     [wid, valor ? 1 : 0, valor ? formatarDataHora(new Date()) : null]
   ));
   if (valor) {
-    await comConexao((conn) => conn.execute(
-      `UPDATE abordagens_fila SET status = 'descartado', motivo = 'opt-out', processado_em = NOW() WHERE whatsapp_id = ? AND status = 'pendente'`,
-      [wid]
-    ));
+    // Quem pediu para não receber mais não pode continuar na fila por causa do formato do número.
+    const alvo = telefone.clausulaIn('whatsapp_id', bruto);
+    if (alvo) {
+      await comConexao((conn) => conn.execute(
+        `UPDATE abordagens_fila SET status = 'descartado', motivo = 'opt-out', processado_em = NOW()
+          WHERE ${alvo.sql} AND status = 'pendente'`,
+        alvo.params
+      ));
+    }
   }
   return true;
 }
@@ -105,7 +113,10 @@ async function temOptOut(whatsappId) {
   if (wid.length < 8) return false;
   try {
     return await comConexao(async (conn) => {
-      const [rows] = await conn.execute('SELECT opt_out FROM contatos WHERE whatsapp_id = ? LIMIT 1', [wid]);
+      const alvo = telefone.clausulaIn('whatsapp_id', wid);
+      if (!alvo) return false;
+      const [rows] = await conn.execute(
+        `SELECT opt_out FROM contatos WHERE ${alvo.sql} AND opt_out = 1 LIMIT 1`, alvo.params);
       return !!(rows[0] && rows[0].opt_out);
     });
   } catch (e) {
@@ -130,8 +141,10 @@ async function temOptOut(whatsappId) {
  * @returns {{ enfileirado: boolean, id?: number, motivo?: string }}
  */
 async function enfileirar({ whatsappId, evento, fluxoId, variaveis = null, referencia = null, atrasoMin = 0, validadeHoras = 24 }) {
-  const wid = apenasDigitos(whatsappId);
-  if (wid.length < 10) return { enfileirado: false, motivo: 'telefone inválido' };
+  // Canônico na entrada da fila: o vCard de uma indicação chega sem DDI e sem o 9º dígito, e mais
+  // adiante o destinatário é montado a partir daqui. Número torto vira mensagem que nunca chega.
+  const wid = telefone.canonico(whatsappId);
+  if (!wid || wid.length < 12) return { enfileirado: false, motivo: 'telefone inválido' };
   if (!evento || !fluxoId) return { enfileirado: false, motivo: 'evento/fluxo ausente' };
   if (await temOptOut(wid)) return { enfileirado: false, motivo: 'opt-out' };
 
@@ -191,7 +204,7 @@ async function processarFila(client, agora = new Date()) {
       if (await temOptOut(item.whatsapp_id)) {
         await marcar(item.id, 'descartado', 'opt-out', tentativas); resumo.descartados++; continue;
       }
-      const chatId = `${item.whatsapp_id}@c.us`;
+      const chatId = telefone.chatId(item.whatsapp_id);
       if (fluxoExecutor.temFluxoAtivo(chatId)) {
         if (tentativas >= MAX_TENTATIVAS) { await marcar(item.id, 'descartado', 'contato ficou em outro fluxo', tentativas); resumo.descartados++; }
         else { await marcar(item.id, 'pendente', 'contato em outro fluxo — aguardando', tentativas); resumo.adiados++; }

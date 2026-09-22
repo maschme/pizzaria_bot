@@ -12,6 +12,7 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -36,6 +37,9 @@ async function historicoDoContato(whatsappId, { fluxoIdEmAberto = null } = {}) {
   const wid = apenasDigitos(whatsappId);
   const resultado = {};
   if (wid.length < 8) return resultado;
+  // Procura por todas as formas do mesmo número (9º dígito), senão o histórico "some".
+  const alvo = telefone.clausulaIn('whatsapp_id', wid);
+  if (!alvo) return resultado;
 
   const conn = await mysql.createConnection(mysql2Config);
   try {
@@ -45,9 +49,9 @@ async function historicoDoContato(whatsappId, { fluxoIdEmAberto = null } = {}) {
               MAX(CASE WHEN evento = 'fluxo_start' THEN created_at END) AS ultimo_inicio,
               MAX(CASE WHEN evento = 'fluxo_end' THEN created_at END) AS ultimo_fim
          FROM fluxo_exec_logs
-        WHERE whatsapp_id = ? AND fluxo_id IS NOT NULL AND evento IN ('fluxo_start','fluxo_end')
+        WHERE ${alvo.sql} AND fluxo_id IS NOT NULL AND evento IN ('fluxo_start','fluxo_end')
         GROUP BY fluxo_id`,
-      [wid]
+      alvo.params
     );
     const agora = Date.now();
     for (const r of rows) {

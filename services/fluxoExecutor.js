@@ -160,6 +160,25 @@ async function alinharIdentidadeComBanco(ident) {
       const lid = String(achado.whatsapp_lid || '').trim();
       if (lid && !ident.whatsappLid) ident.whatsappLid = lid;
     }
+
+    // Segunda fonte para o @lid: o histórico de execução. `contatos.whatsapp_lid` só é preenchido
+    // desde que passamos a gravá-lo, mas quem conversou por @lid antes disso deixou o rastro em
+    // `fluxo_exec_logs.chat_id`. Sem isso, a sessão não responderia por esse identificador e a
+    // resposta do cliente se perderia — exatamente o problema que originou esta função.
+    if (!ident.whatsappLid) {
+      const [antigos] = await conn.execute(
+        `SELECT chat_id FROM fluxo_exec_logs
+          WHERE whatsapp_id IN (${variantes.map(() => '?').join(',')})
+            AND chat_id LIKE '%@lid'
+          ORDER BY id DESC LIMIT 1`,
+        variantes
+      );
+      const lidAntigo = antigos[0] && String(antigos[0].chat_id || '').trim();
+      if (lidAntigo) {
+        ident.whatsappLid = lidAntigo;
+        console.log(`🔎 @lid recuperado do histórico para ${ident.widDigitosTelefone || wid}: ${lidAntigo}`);
+      }
+    }
   } catch (e) {
     if (e.code !== 'ER_BAD_FIELD_ERROR' && e.code !== 'ER_NO_SUCH_TABLE') {
       console.warn('⚠️ Não foi possível alinhar a identidade pelo banco:', e.message);

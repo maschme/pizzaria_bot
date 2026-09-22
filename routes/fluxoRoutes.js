@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const fluxoService = require('../services/fluxoService');
+const fluxoModeloService = require('../services/fluxoModeloService');
 const automacaoExecutor = require('../services/automacaoExecutor');
 const fluxoExecutor = require('../services/fluxoExecutor');
 
@@ -43,6 +44,25 @@ router.post('/import', async (req, res) => {
     res.json({ success: true, data: fluxo });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Biblioteca de modelos (docs/20 frente A) — antes de /:id
+router.get('/modelos', (req, res) => {
+  try {
+    res.json({ success: true, data: fluxoModeloService.listar() });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/fluxos/modelos/:slug/instanciar — { nome, variaveis: { CHAVE: valor } } → fluxo novo (inativo)
+router.post('/modelos/:slug/instanciar', async (req, res) => {
+  try {
+    const data = await fluxoModeloService.instanciar(req.params.slug, req.body || {});
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error.message === 'Modelo não encontrado' ? 404 : 400).json({ success: false, error: error.message });
   }
 });
 

@@ -1,0 +1,190 @@
+{
+  "modelo": {
+    "slug": "teste-cupom-multipedidos",
+    "titulo": "Teste: cupom único da Multipedidos",
+    "descricao": "Valida a integração numa instância: cria um cupom de R$ 1 para quem mandar a frase do gatilho e, após uma resposta, promove para R$ 2. Desative depois de testar.",
+    "categoria": "teste",
+    "requer": [
+      "multipedidos_api"
+    ],
+    "variaveis": []
+  },
+  "schemaVersion": 1,
+  "nome": "TESTE cupom Multipedidos",
+  "descricao": "Fluxo de validação dos nós Multipedidos (docs/18-cupons-multipedidos.md). Cria um cupom de R$ 1 para quem enviar a frase do gatilho, espera uma resposta e promove para R$ 2. Desative depois de testar.",
+  "tipo": "campanha",
+  "gatilho": {
+    "tipo": "mensagem_exata",
+    "valor": "teste cupom multipedidos",
+    "palavras": []
+  },
+  "viewport": {
+    "x": 80,
+    "y": 40,
+    "zoom": 0.8
+  },
+  "nodes": [
+    {
+      "id": "node_1",
+      "type": "trigger",
+      "x": 0,
+      "y": 0,
+      "data": {
+        "tipo": "mensagem_exata",
+        "valor": "teste cupom multipedidos",
+        "palavras": []
+      }
+    },
+    {
+      "id": "node_2",
+      "type": "action",
+      "x": 0,
+      "y": 140,
+      "data": {
+        "tipo": "multipedidos_criar_cupom",
+        "promptCupom": "criar cupom de R$ 1 válido por 2 dias a partir de hoje",
+        "campanha": "teste-cupom-multipedidos",
+        "prefixoCodigo": "TESTE",
+        "metaAoResgatar": ""
+      }
+    },
+    {
+      "id": "node_3",
+      "type": "condition_var",
+      "x": 0,
+      "y": 300,
+      "data": {
+        "variavelNome": "cupomStatus",
+        "operador": "igual",
+        "valorComparacao": "erro"
+      }
+    },
+    {
+      "id": "node_4",
+      "type": "message",
+      "x": -320,
+      "y": 460,
+      "data": {
+        "delay": 300,
+        "texto": "⚠️ Teste: não consegui gerar o cupom.\nMotivo: {{cupomErro}}"
+      }
+    },
+    {
+      "id": "node_5",
+      "type": "end",
+      "x": -320,
+      "y": 620,
+      "data": {
+        "mensagemFinal": ""
+      }
+    },
+    {
+      "id": "node_6",
+      "type": "message",
+      "x": 320,
+      "y": 460,
+      "data": {
+        "delay": 300,
+        "texto": "🎟️ Teste etapa 1/2 — cupom *{{cupomStatus}}*\nCódigo: *{{cupomCodigo}}*\nDesconto: {{cupomDesconto}}\nVálido até: {{cupomValidade}}\n\nResponda qualquer coisa para eu promover o cupom."
+      }
+    },
+    {
+      "id": "node_7",
+      "type": "wait",
+      "x": 320,
+      "y": 640,
+      "data": {
+        "timeout": 600000
+      }
+    },
+    {
+      "id": "node_8",
+      "type": "action",
+      "x": 320,
+      "y": 780,
+      "data": {
+        "tipo": "multipedidos_alterar_cupom",
+        "promptCupom": "subir para R$ 2 e renovar a validade",
+        "campanha": "teste-cupom-multipedidos",
+        "seJaUsado": "criar_novo",
+        "seNaoExiste": "criar_novo",
+        "metaAoResgatar": ""
+      }
+    },
+    {
+      "id": "node_9",
+      "type": "message",
+      "x": 320,
+      "y": 940,
+      "data": {
+        "delay": 300,
+        "texto": "🎟️ Teste etapa 2/2 — cupom *{{cupomStatus}}*\nCódigo: *{{cupomCodigo}}* (o mesmo)\nDesconto agora: {{cupomDesconto}}\nVálido até: {{cupomValidade}}\n{{cupomErro}}"
+      }
+    },
+    {
+      "id": "node_10",
+      "type": "end",
+      "x": 320,
+      "y": 1100,
+      "data": {
+        "mensagemFinal": ""
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "node_1",
+      "target": "node_2",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e2",
+      "source": "node_2",
+      "target": "node_3",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e3",
+      "source": "node_3",
+      "target": "node_4",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "e4",
+      "source": "node_4",
+      "target": "node_5",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e5",
+      "source": "node_3",
+      "target": "node_6",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "e6",
+      "source": "node_6",
+      "target": "node_7",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e7",
+      "source": "node_7",
+      "target": "node_8",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e8",
+      "source": "node_8",
+      "target": "node_9",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e9",
+      "source": "node_9",
+      "target": "node_10",
+      "sourceHandle": "output"
+    }
+  ]
+}

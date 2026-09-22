@@ -75,14 +75,18 @@ Em `fluxos.html`, botão **Modelos** na toolbar (ao lado de Importar): modal com
 | GET | `/api/fluxos/modelos` | Lista (lê `fluxos-modelos/*.json`, devolve só o bloco `modelo`) |
 | POST | `/api/fluxos/modelos/:slug/instanciar` | `{ nome, variaveis }` → cria o fluxo (reaproveita `importarFluxoDeExport`) |
 
+**Feito em 22/09/2026**: `services/fluxoModeloService.js` (lista, obtém, instancia; substitui só as variáveis declaradas em `modelo.variaveis` — as de execução, como `{{cupomCodigo}}`, ficam intactas; variável obrigatória vazia → erro "Preencha: …"; opcional vazia → placeholder preservado para o operador editar), rotas `GET /api/fluxos/modelos` e `POST /api/fluxos/modelos/:slug/instanciar`, botão **Modelos** + modal em `fluxos.html` (cards com selos de `requer` — "desligada" quando a API da Multipedidos está inativa — e formulário de nome + variáveis). Modelos publicados: `campanha-indicacao` (a campanha atual migrada para cupom único, com `LINK_CARDAPIO` obrigatório e `LINK_AVALIACAO` opcional, e o aviso da política do Google) e `teste-cupom-multipedidos`. Validado no navegador: listagem, erro de obrigatório, instância criada inativa com os links substituídos.
+
 **Publicar um modelo** = exportar o fluxo pronto, acrescentar o bloco `modelo`, colocar em `fluxos-modelos/` e commitar. Sem tela de "cadastro de modelo" nesta rodada: é tarefa de quem desenvolve o produto, não do cliente. (Quando o painel central multi-empresa existir, ele pode listar os mesmos arquivos.)
 
 ### A.4 Modelos da primeira leva
 
-1. `campanha-indicacao` — a campanha atual já com cupom único (resultado da migração do doc 18) e, depois da frente D, com a missão 3
+1. `campanha-indicacao` ✅ — a campanha atual já com cupom único (resultado da migração do doc 18) e, depois da frente D, com a missão 3
 2. `fluxo-indicado` — frente B
 3. `pos-venda` — frente C
-4. `teste-cupom-multipedidos` — o de `docs/exemplos/` (útil para validar a integração numa instância nova)
+4. `teste-cupom-multipedidos` ✅ — o de `docs/exemplos/` (útil para validar a integração numa instância nova)
+
+(1 e 4 publicados em 22/09/2026.)
 
 ---
 
@@ -209,7 +213,7 @@ Com a missão 2 (aguardar contatos) e a 3 dentro do fluxo visual, o callback `se
 
 ```
 A0. Canal aponta o fluxo (canais.fluxo_id + select + ordem no bot)             — ✅ feito em 22/09/2026
-A.  Modelos (tela + rotas + 1º modelo: campanha atual migrada)                 — depende de A0 (porta de entrada)
+A.  Modelos (tela + rotas + 1º modelo: campanha atual migrada)                 — ✅ feito em 22/09/2026
 B0. Base de abordagem ativa: início de fluxo por evento, opt-out, horário,
     nós iniciar_fluxo / listar_ofertas, participacaoService                      — base de B e C
 B.  Indicado ativo (evento indicacao_registrada + modelo fluxo-indicado)         — depende de A e B0

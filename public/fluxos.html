@@ -502,6 +502,9 @@
         <i class="bi bi-upload"></i> Importar
       </button>
       <input type="file" id="importFluxoFile" accept=".json,application/json" style="display:none" />
+      <button class="btn btn-sm btn-outline-warning" onclick="abrirModelos()" title="Começar a partir de um modelo pronto">
+        <i class="bi bi-collection"></i> Modelos
+      </button>
       <button class="btn btn-sm btn-outline-primary" onclick="salvarFluxo()">
         <i class="bi bi-save"></i> Salvar
       </button>
@@ -647,6 +650,23 @@
 
   <!-- Toast Container -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Modal: biblioteca de modelos (docs/20 frente A) -->
+  <div class="modal fade" id="modalModelos" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content" style="background:#1a1d2e; color:#e5e7eb; border:1px solid rgba(255,255,255,.12);">
+        <div class="modal-header" style="border-color: rgba(255,255,255,.12);">
+          <h5 class="modal-title"><i class="bi bi-collection me-2"></i>Modelos de fluxo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="help-text" style="margin-bottom:12px;">Escolha um modelo para criar uma cópia editável (o fluxo nasce <strong>inativo</strong>). Para ligá-lo a uma porta de entrada, crie um canal em Dashboard → Canais e escolha este fluxo, ou ajuste o gatilho.</p>
+          <div id="modelosLista"><div class="help-text">Carregando…</div></div>
+          <div id="modelosForm" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -2002,6 +2022,87 @@ Depois de entrar, me avise aqui que eu confirmo! 😉`,
           + (d.cacheavel ? '' : '<br><span style="opacity:.7;">Comando com variáveis da conversa: é interpretado a cada execução.</span>');
       } catch (e) {
         saida.innerHTML = '<span style="color:#e74c3c;">Erro de conexão ao interpretar.</span>';
+      }
+    }
+
+    // ============================================================
+    // MODELOS DE FLUXO (docs/20 frente A)
+    // ============================================================
+    let modelosCache = [];
+    const rotuloRequer = { multipedidos_api: 'API da Multipedidos', avaliacoes_google: 'Conferência de avaliações Google' };
+
+    async function abrirModelos() {
+      document.getElementById('modelosForm').style.display = 'none';
+      const lista = document.getElementById('modelosLista');
+      lista.style.display = '';
+      lista.innerHTML = '<div class="help-text">Carregando…</div>';
+      new bootstrap.Modal(document.getElementById('modalModelos')).show();
+      try {
+        const r = await api('/modelos');
+        if (!r.success) { lista.innerHTML = `<div class="help-text" style="color:#e74c3c;">${escAttr(r.error)}</div>`; return; }
+        modelosCache = r.data || [];
+        if (!modelosCache.length) { lista.innerHTML = '<div class="help-text">Nenhum modelo disponível.</div>'; return; }
+        lista.innerHTML = modelosCache.map((m) => {
+          const requer = m.requer.map((k) => {
+            const ok = k !== 'multipedidos_api' || multipedidosApiAtiva;
+            return `<span class="badge ${ok ? 'bg-success' : 'bg-warning text-dark'}" title="${ok ? 'integração ativa' : 'ative em Dashboard → Integrações'}">${escAttr(rotuloRequer[k] || k)}${ok ? '' : ' (desligada)'}</span>`;
+          }).join(' ');
+          return `
+            <div class="d-flex justify-content-between align-items-start gap-3 p-3 mb-2" style="border:1px solid rgba(255,255,255,.12); border-radius:8px;">
+              <div>
+                <div style="font-weight:600;">${escAttr(m.titulo)} <span class="badge bg-secondary ms-1">${escAttr(m.categoria)}</span></div>
+                <div class="help-text" style="margin-top:4px;">${escAttr(m.descricao)}</div>
+                <div style="margin-top:6px;">${requer}<span class="help-text ms-2">${m.nos} nós</span></div>
+                ${m.aviso ? `<div class="help-text" style="margin-top:6px; color:#f0ad4e;">⚠️ ${escAttr(m.aviso)}</div>` : ''}
+              </div>
+              <button class="btn btn-sm btn-warning" style="white-space:nowrap;" onclick="usarModelo('${escAttr(m.slug)}')">Usar modelo</button>
+            </div>`;
+        }).join('');
+      } catch (e) {
+        lista.innerHTML = '<div class="help-text" style="color:#e74c3c;">Erro de conexão.</div>';
+      }
+    }
+
+    function usarModelo(slug) {
+      const m = modelosCache.find((x) => x.slug === slug);
+      if (!m) return;
+      document.getElementById('modelosLista').style.display = 'none';
+      const form = document.getElementById('modelosForm');
+      form.style.display = '';
+      form.innerHTML = `
+        <div style="font-weight:600; margin-bottom:10px;">${escAttr(m.titulo)}</div>
+        <div class="form-group">
+          <label>Nome do fluxo</label>
+          <input type="text" id="modeloNome" value="${escAttr(m.titulo)}">
+        </div>
+        ${m.variaveis.map((v) => `
+          <div class="form-group">
+            <label>${escAttr(v.rotulo || v.chave)}${v.obrigatoria === false ? ' <span class="help-text">(opcional)</span>' : ''}</label>
+            <input type="text" data-var="${escAttr(v.chave)}" placeholder="${escAttr(v.exemplo || '')}">
+            ${v.ajuda ? `<div class="help-text">${escAttr(v.ajuda)}</div>` : ''}
+          </div>`).join('')}
+        <div class="d-flex gap-2" style="margin-top:12px;">
+          <button class="btn btn-warning" onclick="instanciarModelo('${escAttr(m.slug)}')">Criar fluxo</button>
+          <button class="btn btn-secondary" onclick="abrirModelos()">Voltar</button>
+        </div>
+        <div id="modeloErro" class="help-text" style="margin-top:8px; color:#e74c3c;"></div>`;
+    }
+
+    async function instanciarModelo(slug) {
+      const variaveis = {};
+      document.querySelectorAll('#modelosForm [data-var]').forEach((i) => { variaveis[i.dataset.var] = i.value.trim(); });
+      const nome = document.getElementById('modeloNome').value.trim();
+      const erro = document.getElementById('modeloErro');
+      erro.textContent = '';
+      try {
+        const r = await api(`/modelos/${encodeURIComponent(slug)}/instanciar`, { method: 'POST', body: JSON.stringify({ nome, variaveis }) });
+        if (!r.success) { erro.textContent = r.error || 'Não foi possível criar o fluxo.'; return; }
+        bootstrap.Modal.getInstance(document.getElementById('modalModelos')).hide();
+        showToast('Fluxo criado a partir do modelo (inativo). Revise, salve e ative.');
+        await carregarFluxos();
+        await carregarFluxo(r.data.id);
+      } catch (e) {
+        erro.textContent = 'Erro de conexão.';
       }
     }
 

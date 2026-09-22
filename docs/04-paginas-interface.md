@@ -134,6 +134,7 @@ Segredos nunca aparecem na tela (ficam no `.env`). Interruptor que não pode ser
 | Criar exemplo | Fluxo de demonstração |
 | Exportar | Download JSON |
 | Importar | Upload JSON |
+| Modelos | Biblioteca de fluxos prontos: escolhe, preenche as variáveis da empresa e cria uma cópia inativa ([doc 20](./20-modelos-e-fluxos-completos.md)) |
 | Salvar | Persiste no banco |
 | Ativar/Desativar | Toggle execução |
 

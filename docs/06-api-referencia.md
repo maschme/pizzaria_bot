@@ -202,6 +202,8 @@ Router: `routes/fluxoRoutes.js`
 | PUT | `/api/fluxos/:id` | Atualiza |
 | DELETE | `/api/fluxos/:id` | Remove |
 | GET | `/api/fluxos/export/:id` | Download JSON |
+| GET | `/api/fluxos/modelos` | Lista os modelos de `fluxos-modelos/` (bloco `modelo` + nº de nós) — [doc 20](./20-modelos-e-fluxos-completos.md) |
+| POST | `/api/fluxos/modelos/:slug/instanciar` | `{ nome, variaveis }` → cria fluxo inativo a partir do modelo; 400 com "Preencha: …" se faltar variável obrigatória; 404 se o slug não existe |
 | POST | `/api/fluxos/import` | Importa JSON |
 | POST | `/api/fluxos/:id/duplicar` | Duplica |
 | POST | `/api/fluxos/:id/ativar` | Ativa |

@@ -188,6 +188,26 @@ Serviço: `fluxoLogService.js`
 
 ---
 
+## Modelos de fluxo
+
+Biblioteca de fluxos prontos ([doc 20](./20-modelos-e-fluxos-completos.md) frente A): botão **Modelos** no editor abre os cards; "Usar modelo" pede o nome e as variáveis da empresa (ex.: link do cardápio) e cria uma cópia **inativa** para revisar e ativar. Os modelos são JSONs em `fluxos-modelos/` no formato do export mais um bloco `modelo`:
+
+```json
+{ "modelo": { "slug": "campanha-indicacao", "titulo": "…", "descricao": "…", "categoria": "campanha",
+              "requer": ["multipedidos_api"], "aviso": "…",
+              "variaveis": [ { "chave": "LINK_CARDAPIO", "rotulo": "Link do cardápio", "exemplo": "https://…", "obrigatoria": true } ] },
+  "schemaVersion": 1, "nome": "…", "tipo": "campanha", "gatilho": {}, "nodes": [], "edges": [], "viewport": {} }
+```
+
+- `variaveis`: `{{CHAVE}}` é substituído nos textos ao instanciar; só as chaves declaradas são tocadas (variáveis de execução como `{{cupomCodigo}}` ficam). Obrigatória vazia → erro; opcional vazia → fica o placeholder para editar.
+- `requer`: integrações que o modelo usa; o modal mostra "(desligada)" quando a API da Multipedidos está inativa.
+- Publicar um modelo: exportar o fluxo, acrescentar o bloco `modelo`, salvar em `fluxos-modelos/` e commitar — versionado em git, sem tabela.
+- Rotas: `GET /api/fluxos/modelos` (lista) e `POST /api/fluxos/modelos/:slug/instanciar` (`{ nome, variaveis }`).
+
+Modelos publicados: `campanha-indicacao`, `teste-cupom-multipedidos`.
+
+---
+
 ## Import / Export
 
 Formato JSON exportável entre ambientes:

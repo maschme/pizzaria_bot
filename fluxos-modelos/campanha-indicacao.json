@@ -1,0 +1,511 @@
+{
+  "modelo": {
+    "slug": "campanha-indicacao",
+    "titulo": "Campanha de indicação (até 30% em 3 missões)",
+    "descricao": "Missão 1: entrar no grupo do bairro (+10%). Missão 2: indicar 10 contatos (+10%). Missão 3: avaliação. Cupom único por cliente, promovido a cada missão; se a API da Multipedidos falhar, cai no cupom de arquivo.",
+    "categoria": "campanha",
+    "requer": [
+      "multipedidos_api"
+    ],
+    "aviso": "A missão 3 pede avaliação no Google. A política do Google proíbe oferecer recompensa em troca de avaliação — revise o texto dessa etapa e decida se quer condicionar o desconto a ela.",
+    "variaveis": [
+      {
+        "chave": "LINK_CARDAPIO",
+        "rotulo": "Link do cardápio / pedidos",
+        "exemplo": "https://pedir.delivery/app/minhaloja",
+        "ajuda": "Aparece nas mensagens de cupom."
+      },
+      {
+        "chave": "LINK_AVALIACAO",
+        "rotulo": "Link de avaliação no Google",
+        "exemplo": "https://g.page/r/XXXX/review",
+        "obrigatoria": false
+      }
+    ]
+  },
+  "schemaVersion": 1,
+  "nome": "Campanha de indicação",
+  "tipo": "campanha",
+  "descricao": "Campanha em 3 missões (grupo do bairro → 10 indicações → avaliação), com cupom único por cliente na Multipedidos e fallback de cupom de arquivo.",
+  "gatilho": {
+    "valor": "Quero saber mais sobre a campanha de até 30% de desconto.",
+    "palavras": [
+      "desconto",
+      "30%",
+      "promocao",
+      "campanha"
+    ],
+    "tipo": "mensagem_exata"
+  },
+  "nodes": [
+    {
+      "y": 606.4805233037655,
+      "data": {
+        "valor": "Quero saber mais sobre a campanha de até 30% de desconto.",
+        "palavras": [
+          "desconto",
+          "30%",
+          "promocao",
+          "campanha"
+        ],
+        "tipo": "mensagem_exata"
+      },
+      "id": "node_1",
+      "type": "trigger",
+      "x": -28.517525851652408
+    },
+    {
+      "y": 61.36937686349545,
+      "data": {
+        "delay": 500,
+        "texto": "Ola! Vi que voce quer liberar os seus *30% de desconto*! Vamos la?\n\nSão 3 missões rápidas e a pizza sai quase de graça!\n\nPara começarmos, preciso saber: *qual é o seu bairro?*"
+      },
+      "id": "node_2",
+      "type": "message",
+      "x": 186.99760054870097
+    },
+    {
+      "y": 205.37454211957956,
+      "data": {
+        "variavelResposta": "respostaBairro",
+        "timeout": 300000
+      },
+      "id": "node_3",
+      "type": "wait",
+      "x": 429.4019917565832
+    },
+    {
+      "y": 107.9089773812876,
+      "data": {
+        "instrucao": "Extraia APENAS o nome do bairro da mensagem. Se nao conseguir identificar, responda NAO_IDENTIFICADO. Exemplos: moro no centro -> Centro | meu bairro e gloria -> Gloria",
+        "variavelSaida": "bairro"
+      },
+      "id": "node_4",
+      "type": "ia",
+      "x": 707.8179697180157
+    },
+    {
+      "y": 140.09906002591572,
+      "data": {
+        "requisicaoTipo": "gruposdewhats",
+        "tipo": "requisicao"
+      },
+      "id": "node_5",
+      "type": "action",
+      "x": 1033.0796777069963
+    },
+    {
+      "y": 78.37323153575804,
+      "data": {
+        "delay": 1000,
+        "texto": "Encontrei! o seu bairro é o  *{{bairro}}*\n\n*MISSÃO 1* - Entre no nosso grupo de Promoções:\n\n{{linkGrupo}}\n\nNão se preocupe, o grupo é silenciado e enviamos promoções e informações exporadicamente!!"
+      },
+      "id": "node_6",
+      "type": "message",
+      "x": 1346.7967202977638
+    },
+    {
+      "y": 200,
+      "data": {
+        "variavelResposta": "confirmacaoGrupo",
+        "timeout": 600000
+      },
+      "id": "node_7",
+      "type": "wait",
+      "x": 1670
+    },
+    {
+      "y": 200,
+      "data": {
+        "pergunta": "O cliente confirmou que entrou no grupo de WhatsApp? (respondeu entrei, pronto, feito, ja entrei, etc)"
+      },
+      "id": "node_8",
+      "type": "condition",
+      "x": 1940
+    },
+    {
+      "y": 80,
+      "data": {
+        "delay": 500,
+        "texto": "Parabéns!!!\n\nVoce liberou *+10% de desconto*!\n\n *Seu progresso:*\n\n Desconto atual: *10%*\n Missoes: *1/3 concluidas*"
+      },
+      "id": "node_9",
+      "type": "message",
+      "x": 2250
+    },
+    {
+      "y": 350,
+      "data": {
+        "delay": 500,
+        "texto": "Hmm, nao consegui confirmar sua entrada no grupo ??\n\nPor favor, entre no grupo pelo link e depois me avise:\n?? {{linkGrupo}}\n\nQualquer duvida, estou aqui! ??"
+      },
+      "id": "node_10",
+      "type": "message",
+      "x": 2250
+    },
+    {
+      "y": 1106.2343188755126,
+      "data": {
+        "mensagemFinal": ""
+      },
+      "id": "node_11",
+      "type": "end",
+      "x": 11477.060364990002
+    },
+    {
+      "y": 350,
+      "data": {
+        "mensagemFinal": ""
+      },
+      "id": "node_12",
+      "type": "end",
+      "x": 2550
+    },
+    {
+      "id": "node_13",
+      "type": "wait_contacts",
+      "x": 2645.8824838957407,
+      "y": 41.43842062760359,
+      "data": {
+        "meta": 10,
+        "mensagemConvite": "Agora que tal escolher 10 amigos para  beneficiar  com um cupom de 10% de desconto? \n\nE ainda aumentar o seu desconto para 20%.\n\n\nPois é essa sua missão para conquistar seus 20% de desconto. Envie 10 contatos aqui.\nEles receberam um cupom de 10%. \nE vc garante o seu de 20%!",
+        "mensagemProgresso": "✅ Total: {{qtIndicados}}/{{metaIndicados}} indicações. Continue enviando!",
+        "variavelResposta": "qtIndicados"
+      }
+    },
+    {
+      "id": "node_14",
+      "type": "action",
+      "x": 2956.853623913967,
+      "y": 351.8481718154794,
+      "data": {
+        "tipo": "enviar_cupom",
+        "requisicaoTipo": "",
+        "funcao": "",
+        "parametros": {},
+        "arquivoCupons": "cupons_desconto",
+        "promptCupom": "encontre  e envie um cupom de desconto de 20% com validade para este mês, a data  de hoje é {{dataatual}}, envie junto o link para efetuar o pedido!  {{LINK_CARDAPIO}}"
+      }
+    },
+    {
+      "id": "node_15",
+      "type": "message",
+      "x": 2974.0997759094,
+      "y": 33.79293671103051,
+      "data": {
+        "texto": "Parabéns!!!\n\nVoce liberou *+20% de desconto*!\n\n *Seu progresso:*\n\n Desconto atual: *20%*\n Missoes: *2/3 concluidas*",
+        "delay": 10
+      }
+    },
+    {
+      "id": "node_16",
+      "type": "action",
+      "x": 2227.084066532836,
+      "y": 527.1067023026317,
+      "data": {
+        "tipo": "enviar_cupom",
+        "requisicaoTipo": "",
+        "funcao": "",
+        "parametros": {},
+        "arquivoCupons": "cupons_desconto",
+        "promptCupom": "encontre  e envie um cupom de desconto de 10% com validade para este mês, data de hoje é {{dataatual}}, envie junto o link para efetuar o pedido!  {{LINK_CARDAPIO}}"
+      }
+    },
+    {
+      "id": "node_17",
+      "type": "condition_var",
+      "x": 90.4489597581395,
+      "y": 277.73706070436833,
+      "data": {
+        "variavelNome": "cam_grupo",
+        "operador": "igual",
+        "valorComparacao": "1"
+      }
+    },
+    {
+      "id": "node_18",
+      "type": "message",
+      "x": 425.9004381043543,
+      "y": 347.6325745472502,
+      "data": {
+        "texto": "vc já participou desta campanha!",
+        "delay": 0
+      }
+    },
+    {
+      "id": "node_19",
+      "type": "action",
+      "x": 2.687061157440283,
+      "y": 442.36891885257245,
+      "data": {
+        "tipo": "ler_contato",
+        "requisicaoTipo": "",
+        "funcao": "",
+        "parametros": {},
+        "arquivoCupons": "cupons_desconto",
+        "promptCupom": "",
+        "metaNome": "",
+        "variavelSaidaMeta": "",
+        "campoContato": "cam_grupo",
+        "variavelSaidaContato": "cam_grupo"
+      }
+    },
+    {
+      "id": "node_21",
+      "type": "message",
+      "x": 3577.441528592813,
+      "y": 119.73105542517666,
+      "data": {
+        "texto": "A última missão chegou! 🏁\n\nQuer ganhar 30% de desconto agora?\n\nBasta nos avaliar no Google. É a forma mais valiosa de você nos ajudar, e por isso, a recompensa é a maior de todas! Sabemos o valor do seu tempo e agradecemos demais por essa parceria.\n\n🔗 Link para avaliar: [{{LINK_AVALIACAO}}]\n\nAssim que terminar, me avisa aqui para eu te enviar o código do seu presente! 🎁",
+        "delay": 15
+      }
+    },
+    {
+      "id": "node_22",
+      "type": "end",
+      "x": 4069.2497039313525,
+      "y": 10.660524600399569,
+      "data": {
+        "mensagemFinal": ""
+      }
+    },
+    {
+      "id": "node_23",
+      "type": "action",
+      "x": 2567.084066532836,
+      "y": 207.10670230263167,
+      "data": {
+        "tipo": "multipedidos_criar_cupom",
+        "promptCupom": "criar cupom de 10% válido por 15 dias a partir de hoje",
+        "campanha": "campanha-30",
+        "prefixoCodigo": "",
+        "metaAoResgatar": ""
+      }
+    },
+    {
+      "id": "node_24",
+      "type": "condition_var",
+      "x": 2567.084066532836,
+      "y": 367.1067023026317,
+      "data": {
+        "variavelNome": "cupomStatus",
+        "operador": "igual",
+        "valorComparacao": "erro"
+      }
+    },
+    {
+      "id": "node_25",
+      "type": "message",
+      "x": 2907.084066532836,
+      "y": 527.1067023026317,
+      "data": {
+        "delay": 500,
+        "texto": "🎟️ *Seu cupom de {{cupomDesconto}} de desconto:* {{cupomCodigo}}\n\nÉ só seu e vale para 1 pedido até o dia {{cupomValidade}}. 🍕\n\nFaça seu pedido no link abaixo e informe o cupom no final:\n{{LINK_CARDAPIO}}"
+      }
+    },
+    {
+      "id": "node_26",
+      "type": "action",
+      "x": 3296.853623913967,
+      "y": 31.848171815479418,
+      "data": {
+        "tipo": "multipedidos_alterar_cupom",
+        "promptCupom": "subir para 20% e renovar a validade por 15 dias",
+        "campanha": "campanha-30",
+        "seJaUsado": "criar_novo",
+        "seNaoExiste": "criar_novo",
+        "metaAoResgatar": ""
+      }
+    },
+    {
+      "id": "node_27",
+      "type": "condition_var",
+      "x": 3296.853623913967,
+      "y": 191.84817181547942,
+      "data": {
+        "variavelNome": "cupomStatus",
+        "operador": "igual",
+        "valorComparacao": "erro"
+      }
+    },
+    {
+      "id": "node_28",
+      "type": "message",
+      "x": 3636.853623913967,
+      "y": 351.8481718154794,
+      "data": {
+        "delay": 500,
+        "texto": "🎟️ *Seu cupom de {{cupomDesconto}} de desconto:* {{cupomCodigo}}\n\nÉ só seu e vale para 1 pedido até o dia {{cupomValidade}}. 🍕\n\nÉ o mesmo código de antes — agora valendo mais!\n\nFaça seu pedido no link abaixo e informe o cupom no final:\n{{LINK_CARDAPIO}}"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "target": "node_3",
+      "source": "node_2",
+      "id": "e2",
+      "sourceHandle": "output"
+    },
+    {
+      "target": "node_4",
+      "source": "node_3",
+      "id": "e3",
+      "sourceHandle": "output"
+    },
+    {
+      "target": "node_5",
+      "source": "node_4",
+      "id": "e4",
+      "sourceHandle": "output"
+    },
+    {
+      "target": "node_6",
+      "source": "node_5",
+      "id": "e5",
+      "sourceHandle": "output"
+    },
+    {
+      "target": "node_7",
+      "source": "node_6",
+      "id": "e6",
+      "sourceHandle": "output"
+    },
+    {
+      "target": "node_8",
+      "source": "node_7",
+      "id": "e7",
+      "sourceHandle": "output"
+    },
+    {
+      "target": "node_9",
+      "source": "node_8",
+      "id": "e8",
+      "sourceHandle": "output-true"
+    },
+    {
+      "target": "node_10",
+      "source": "node_8",
+      "id": "e9",
+      "sourceHandle": "output-false"
+    },
+    {
+      "target": "node_12",
+      "source": "node_10",
+      "id": "e11",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1773082238652",
+      "source": "node_13",
+      "target": "node_15",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1773082240676",
+      "source": "node_15",
+      "target": "node_26",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1773085916983",
+      "source": "node_9",
+      "target": "node_23",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1773085919983",
+      "source": "node_16",
+      "target": "node_13",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1773237838012",
+      "source": "node_17",
+      "target": "node_2",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "edge_1773237979500",
+      "source": "node_17",
+      "target": "node_18",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "edge_1773239286539",
+      "source": "node_1",
+      "target": "node_19",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1773239289762",
+      "source": "node_19",
+      "target": "node_17",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1775129521205",
+      "source": "node_14",
+      "target": "node_21",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_1775129525421",
+      "source": "node_21",
+      "target": "node_22",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_mp_node_23_node_24",
+      "source": "node_23",
+      "target": "node_24",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_mp_node_24_node_16",
+      "source": "node_24",
+      "target": "node_16",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "edge_mp_node_24_node_25",
+      "source": "node_24",
+      "target": "node_25",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "edge_mp_node_25_node_13",
+      "source": "node_25",
+      "target": "node_13",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_mp_node_26_node_27",
+      "source": "node_26",
+      "target": "node_27",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "edge_mp_node_27_node_14",
+      "source": "node_27",
+      "target": "node_14",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "edge_mp_node_27_node_28",
+      "source": "node_27",
+      "target": "node_28",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "edge_mp_node_28_node_21",
+      "source": "node_28",
+      "target": "node_21",
+      "sourceHandle": "output"
+    }
+  ],
+  "viewport": {
+    "y": -207.02926823028724,
+    "zoom": 0.9699999999999999,
+    "x": 119.79461875436482
+  }
+}

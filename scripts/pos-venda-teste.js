@@ -13,6 +13,12 @@
  * Uso:
  *   node scripts/pos-venda-teste.js 5547999998888
  *   node scripts/pos-venda-teste.js 5547999998888 "Marcos"
+ *   node scripts/pos-venda-teste.js 5547999998888 --limpar          # zera antes e dispara de novo
+ *   node scripts/pos-venda-teste.js 5547999998888 --so-limpar       # só zera, não dispara
+ *
+ * `--limpar` marca como descartadas as abordagens de pós-venda que ainda estão pendentes ou
+ * iniciadas para esse número, deixando o terreno limpo para um teste do zero. Não apaga linha nem
+ * histórico: só muda o status, e o motivo fica registrado.
  */
 
 const mysql = require('mysql2/promise');
@@ -22,15 +28,59 @@ const fluxoService = require('../services/fluxoService');
 const abordagemService = require('../services/abordagemService');
 const posVendaService = require('../services/posVendaService');
 
-const alvo = telefone.canonico(process.argv[2] || '');
-const nome = String(process.argv[3] || '').trim();
+const args = process.argv.slice(2);
+const limpar = args.includes('--limpar') || args.includes('--so-limpar');
+const soLimpar = args.includes('--so-limpar');
+const posicionais = args.filter((a) => !a.startsWith('--'));
+
+const alvo = telefone.canonico(posicionais[0] || '');
+const nome = String(posicionais[1] || '').trim();
 
 if (!alvo || alvo.length < 12) {
   console.error('Informe o telefone com DDI e DDD. Ex.: node scripts/pos-venda-teste.js 5547999998888');
   process.exit(1);
 }
 
+/** Descarta as abordagens de pós-venda ainda abertas para o número, em qualquer formato. */
+async function limparFila() {
+  const alvoSql = telefone.clausulaIn('whatsapp_id', alvo);
+  if (!alvoSql) return;
+
+  const conn = await mysql.createConnection({
+    host: dbConfig.host, port: dbConfig.port || 3306, user: dbConfig.username,
+    password: dbConfig.password, database: dbConfig.database
+  });
+  try {
+    const [antes] = await conn.execute(
+      `SELECT id, status FROM abordagens_fila
+        WHERE ${alvoSql.sql} AND evento = 'pedido_concluido' AND status IN ('pendente','iniciado')`,
+      alvoSql.params
+    );
+    if (!antes.length) {
+      console.log('Nada a limpar: nenhuma abordagem de pós-venda aberta para este número.');
+      return;
+    }
+    const [r] = await conn.execute(
+      `UPDATE abordagens_fila
+          SET status = 'descartado', motivo = 'limpo para reteste', processado_em = NOW()
+        WHERE ${alvoSql.sql} AND evento = 'pedido_concluido' AND status IN ('pendente','iniciado')`,
+      alvoSql.params
+    );
+    console.log(`🧹 ${r.affectedRows} abordagem(ns) descartada(s): ${antes.map((a) => `#${a.id} (${a.status})`).join(', ')}`);
+    console.log('   A regra de não repetir em 7 dias deixa de contar essas.');
+  } finally {
+    await conn.end();
+  }
+}
+
 (async () => {
+  if (limpar) await limparFila();
+  if (soLimpar) {
+    console.log('\nPronto. Para disparar um novo pós-venda:');
+    console.log(`   node scripts/pos-venda-teste.js ${alvo}\n`);
+    return;
+  }
+
   const fluxo = await fluxoService.buscarFluxoPorEvento('pedido_concluido');
   if (!fluxo) {
     console.error('❌ Nenhum fluxo ATIVO com gatilho "pedido_concluido". Ative o fluxo de pós-venda e tente de novo.');

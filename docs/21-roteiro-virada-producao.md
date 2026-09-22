@@ -104,7 +104,13 @@ Aborda quem **acabou de pedir**, oferecendo as campanhas que ele ainda pode part
    - Título: `Ganhe até 30% indicando amigos` · Descrição: `3 missões rápidas` · Elegível: `Só quem nunca participou`
    - Salve (o fluxo pode continuar ativo)
 2. **Fluxos → Modelos → "Pós-venda" → Usar modelo** (nome da loja) → revise os textos → **Salve**
-3. **Teste com o seu número:**
+3. **Teste com o seu número.** O caminho rápido, sem fazer pedido e sem esperar o atraso:
+
+```bash
+node scripts/pos-venda-teste.js <seu telefone>
+```
+
+   Ele põe a abordagem na fila e o bot inicia o fluxo em até 60 s. Pula a regra de não repetir em 7 dias, então dá para repetir à vontade. Para o teste completo, com pedido de verdade:
    - Ative o fluxo de pós-venda
    - Ajuste o atraso para 1 minuto: Dashboard → Whats → Configurações → `pos_venda_atraso_min` = `1`
    - Faça um pedido de teste no cardápio com o **seu** telefone e conclua no gestor (status "Finalizado")

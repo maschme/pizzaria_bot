@@ -53,6 +53,22 @@ async function buscarFluxoPorGatilho(mensagem) {
   return null;
 }
 
+/**
+ * Fluxo ativo iniciado por um evento do sistema (gatilho.tipo = 'evento'), ex.: 'indicacao_registrada'.
+ * Se houver mais de um, usa o de id menor e avisa — ter dois é erro de configuração.
+ */
+async function buscarFluxoPorEvento(evento) {
+  const agora = Date.now();
+  if (!cacheTimestamp || (agora - cacheTimestamp) > CACHE_TTL) await carregarFluxos();
+  const achados = Object.values(cacheFluxos)
+    .filter((f) => f && f.gatilho && f.gatilho.tipo === 'evento' && f.gatilho.evento === evento)
+    .sort((a, b) => a.id - b.id);
+  if (achados.length > 1) {
+    console.warn(`⚠️ ${achados.length} fluxos ativos para o evento "${evento}" — usando "${achados[0].nome}" (#${achados[0].id}).`);
+  }
+  return achados[0] || null;
+}
+
 async function listarFluxos(filtros = {}) {
   const where = {};
   if (filtros.tipo) where.tipo = filtros.tipo;
@@ -211,6 +227,7 @@ async function importarFluxoDeExport(body) {
 module.exports = {
   carregarFluxos,
   buscarFluxoPorGatilho,
+  buscarFluxoPorEvento,
   listarFluxos,
   getFluxoPorId,
   criarFluxo,

@@ -14,6 +14,7 @@ const configService = require('./configuracaoService');
 const provedorService = require('./provedorIAService');
 const multipedidosClient = require('./multipedidosClient');
 const metaService = require('./metaService');
+const indicacaoService = require('./indicacaoService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -632,6 +633,14 @@ async function registrarUsoPorPedido(pedido) {
     usado_em: parseDataHora(pedido.created_at) ? String(pedido.created_at).slice(0, 19) : formatarDataHora(new Date()),
     ...valores
   });
+
+  // Se esse contato foi indicado por alguém, a compra fecha o ciclo da indicação (docs/20 B).
+  try {
+    const r = await indicacaoService.marcarConversaoIndicado(linha.whatsapp_id, { pedidoId, pedidoValor: valores.pedido_valor });
+    if (r.convertido) console.log(`🤝 Indicação convertida: ${linha.whatsapp_id} comprou (indicado por ${r.indicador})`);
+  } catch (e) {
+    console.warn('⚠️ Conversão de indicação:', e.message);
+  }
 
   let meta = null;
   if (linha.meta_ao_resgatar) {

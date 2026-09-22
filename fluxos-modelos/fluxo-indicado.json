@@ -1,0 +1,59 @@
+{
+  "modelo": {
+    "slug": "fluxo-indicado",
+    "titulo": "Cliente indicado (abordagem com consentimento)",
+    "descricao": "Quando alguém indica um amigo, o bot manda UMA mensagem dizendo quem o escolheu e pergunta se ele quer o cupom de 10%. Só emite o cupom depois do sim. Tem opção de não receber mais mensagens.",
+    "categoria": "indicacao",
+    "requer": ["multipedidos_api"],
+    "aviso": "Este fluxo manda mensagem para quem nunca falou com a loja. Mantenha a mensagem curta, diga quem indicou e preserve a opção 3 (não receber mais) — é o que evita denúncia de spam.",
+    "variaveis": [
+      { "chave": "NOME_LOJA", "rotulo": "Nome da loja", "exemplo": "Pizzaria Exemplo" },
+      { "chave": "LINK_CARDAPIO", "rotulo": "Link do cardápio / pedidos", "exemplo": "https://pedir.delivery/app/minhaloja" }
+    ]
+  },
+  "schemaVersion": 1,
+  "nome": "Cliente indicado",
+  "tipo": "campanha",
+  "descricao": "Abordagem do indicado com consentimento: pergunta antes de enviar o cupom (docs/20 frente B).",
+  "gatilho": { "tipo": "evento", "evento": "indicacao_registrada" },
+  "viewport": { "x": 80, "y": 40, "zoom": 0.8 },
+  "nodes": [
+    { "id": "node_1", "type": "trigger", "x": 0, "y": 0, "data": { "tipo": "evento", "evento": "indicacao_registrada" } },
+    { "id": "node_2", "type": "message", "x": 0, "y": 150, "data": { "delay": 500, "texto": "Oi! Tudo bem? 🍕\n\n*{{indicadorNome}}* escolheu você para ganhar *10% de desconto* no primeiro pedido na {{NOME_LOJA}}.\n\nQuer receber o seu cupom?\n\n*1* - Sim, quero!\n*2* - Agora não\n*3* - Não quero mais receber mensagens" } },
+    { "id": "node_3", "type": "wait", "x": 0, "y": 300, "data": { "timeout": 86400000 } },
+    { "id": "node_4", "type": "ia", "x": 0, "y": 450, "data": { "instrucao": "A pessoa respondeu a uma oferta de cupom com 3 opções (1 = sim/quero, 2 = agora não/depois, 3 = não quero mais receber mensagens/pare/descadastrar). Classifique a resposta dela e responda SOMENTE com uma destas palavras: sim, agora_nao, opt_out. Se a resposta for positiva de qualquer forma (quero, claro, manda, aceito, pode mandar), responda sim. Se pedir para parar de receber mensagens, bloquear ou reclamar de spam, responda opt_out. Se for evasiva ou pedir depois, responda agora_nao.", "variavelSaida": "escolha" } },
+    { "id": "node_5", "type": "condition_var", "x": 0, "y": 600, "data": { "variavelNome": "escolha", "operador": "contem", "valorComparacao": "opt_out" } },
+    { "id": "node_6", "type": "action", "x": -420, "y": 760, "data": { "tipo": "opt_out" } },
+    { "id": "node_7", "type": "message", "x": -420, "y": 900, "data": { "delay": 300, "texto": "Combinado! Não vamos mais te escrever. 🙏\n\nSe um dia quiser pedir, é só chamar aqui." } },
+    { "id": "node_8", "type": "end", "x": -420, "y": 1040, "data": { "mensagemFinal": "" } },
+    { "id": "node_9", "type": "condition_var", "x": 300, "y": 760, "data": { "variavelNome": "escolha", "operador": "contem", "valorComparacao": "sim" } },
+    { "id": "node_10", "type": "message", "x": 0, "y": 920, "data": { "delay": 300, "texto": "Sem problema! 😉\n\nSe mudar de ideia, é só mandar *quero meu cupom* aqui." } },
+    { "id": "node_11", "type": "end", "x": 0, "y": 1060, "data": { "mensagemFinal": "" } },
+    { "id": "node_12", "type": "action", "x": 640, "y": 920, "data": { "tipo": "multipedidos_criar_cupom", "promptCupom": "criar cupom de 10% válido por 7 dias a partir de hoje", "campanha": "indicado", "prefixoCodigo": "", "metaAoResgatar": "" } },
+    { "id": "node_13", "type": "condition_var", "x": 640, "y": 1060, "data": { "variavelNome": "cupomStatus", "operador": "igual", "valorComparacao": "erro" } },
+    { "id": "node_14", "type": "message", "x": 420, "y": 1220, "data": { "delay": 300, "texto": "Opa, tive um problema para gerar seu cupom agora. 😕\n\nManda uma mensagem aqui daqui a pouco que a gente resolve!" } },
+    { "id": "node_15", "type": "end", "x": 420, "y": 1360, "data": { "mensagemFinal": "" } },
+    { "id": "node_16", "type": "message", "x": 860, "y": 1220, "data": { "delay": 300, "texto": "🎟️ *Seu cupom de {{cupomDesconto}} de desconto:* {{cupomCodigo}}\n\nÉ só seu e vale para 1 pedido até o dia {{cupomValidade}}. 🍕\n\nFaça seu pedido no link abaixo e informe o cupom no final:\n{{LINK_CARDAPIO}}" } },
+    { "id": "node_17", "type": "action", "x": 860, "y": 1360, "data": { "tipo": "marcar_meta", "metaNome": "indicado_aceitou" } },
+    { "id": "node_18", "type": "end", "x": 860, "y": 1500, "data": { "mensagemFinal": "" } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "node_1", "target": "node_2", "sourceHandle": "output" },
+    { "id": "e2", "source": "node_2", "target": "node_3", "sourceHandle": "output" },
+    { "id": "e3", "source": "node_3", "target": "node_4", "sourceHandle": "output" },
+    { "id": "e4", "source": "node_4", "target": "node_5", "sourceHandle": "output" },
+    { "id": "e5", "source": "node_5", "target": "node_6", "sourceHandle": "output-true" },
+    { "id": "e6", "source": "node_6", "target": "node_7", "sourceHandle": "output" },
+    { "id": "e7", "source": "node_7", "target": "node_8", "sourceHandle": "output" },
+    { "id": "e8", "source": "node_5", "target": "node_9", "sourceHandle": "output-false" },
+    { "id": "e9", "source": "node_9", "target": "node_10", "sourceHandle": "output-false" },
+    { "id": "e10", "source": "node_10", "target": "node_11", "sourceHandle": "output" },
+    { "id": "e11", "source": "node_9", "target": "node_12", "sourceHandle": "output-true" },
+    { "id": "e12", "source": "node_12", "target": "node_13", "sourceHandle": "output" },
+    { "id": "e13", "source": "node_13", "target": "node_14", "sourceHandle": "output-true" },
+    { "id": "e14", "source": "node_14", "target": "node_15", "sourceHandle": "output" },
+    { "id": "e15", "source": "node_13", "target": "node_16", "sourceHandle": "output-false" },
+    { "id": "e16", "source": "node_16", "target": "node_17", "sourceHandle": "output" },
+    { "id": "e17", "source": "node_17", "target": "node_18", "sourceHandle": "output" }
+  ]
+}

@@ -193,6 +193,8 @@ Registro de indicações da campanha.
 | indicador_whatsapp_id | VARCHAR | Quem indicou |
 | indicado_numero | VARCHAR | Número indicado |
 | indicado_nome | VARCHAR | Nome indicado |
+| abordado_em | DATETIME | Quando o bot enfileirou a abordagem ao indicado ([doc 20](./20-modelos-e-fluxos-completos.md) B) |
+| convertido_em / pedido_id / pedido_valor | — | Quando o indicado usou o cupom num pedido (preenchido pelo webhook) |
 | created_at | TIMESTAMP | — |
 
 Unique: `(indicador_whatsapp_id, indicado_numero)`
@@ -332,6 +334,8 @@ Pedidos completos com total, taxa_entrega, bairro, detalhes, status_pedido, etc.
 | `migrations/metas.js` | `metas`, `contato_metas` + seeds |
 | `migrations/2026-09-20-webhook-eventos.js` | `webhook_eventos` |
 | `migrations/2026-09-21-multipedidos-cupons.js` | `multipedidos_cupons` |
+| `migrations/2026-09-22-indicacoes-ciclo.js` | colunas de abordagem/conversão em `indicacoes` (doc 20 B) |
+| `migrations/2026-09-23-metas-indicado.js` | metas `indicado_aceitou` e `indicado_comprou` |
 | `migrations/2026-09-22-abordagem-ativa.js` | `abordagens_fila` + colunas `contatos.opt_out` / `opt_out_em` (doc 20 B0) |
 | `migrations/2026-09-22-canais-fluxo-id.js` | coluna `canais.fluxo_id` (fluxo que o canal inicia — doc 20 A0) |
 | `migrations/2026-09-22-multipedidos-cupons-pedido-desconto.js` | coluna `multipedidos_cupons.pedido_desconto` (nome com data posterior de propósito: precisa rodar **depois** da migração que cria a tabela) |

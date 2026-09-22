@@ -123,6 +123,19 @@ evento indicacao_registrada (variáveis: {{indicadorNome}}, {{indicadorTelefone}
                → (opcional) convite para o grupo do bairro → fim
 ```
 
+**Feito em 22/09/2026**:
+
+| Peça | O que faz |
+|------|-----------|
+| `indicacaoService.registrarIndicacoes` | Ao gravar uma indicação **nova**, enfileira a abordagem do indicado (`evento: indicacao_registrada`, atraso de 2 min para o indicador terminar de mandar os contatos, validade de 48 h, dedupe por `indicacao:<indicador>:<indicado>`). Não aborda quem indicou a si mesmo. Fire-and-forget com conexão própria: falha aqui não derruba o registro da indicação |
+| `fluxoService.buscarFluxoPorEvento(evento)` | Acha o fluxo ativo com `gatilho.evento`; **sem fluxo ativo para o evento, nada é enfileirado** (o indicado não recebe nada, como antes) |
+| Migração `indicacoes` | `abordado_em`, `convertido_em`, `pedido_id`, `pedido_valor` + índice em `indicado_numero` |
+| `indicacaoService.marcarConversaoIndicado` | Chamado pelo webhook quando o cupom é usado: marca a indicação como convertida, com pedido e valor. Idempotente (só a 1ª vez) |
+| Modelo `fluxo-indicado` | Mensagem → Aguardar (24 h) → IA classifica em `sim` / `agora_nao` / `opt_out` → cupom de 10% (7 dias) e meta `indicado_aceitou`, ou convite para voltar, ou opt-out. Falha da API cai num ramo de erro que não deixa o cliente sem resposta |
+| Metas | `indicado_aceitou`, `indicado_comprou` (migração) |
+
+Validado com 13 casos: 3 indicações → 3 abordagens com o nome do indicador, dedupe, atraso respeitado, as três respostas, nenhum cupom antes do "sim", opt-out bloqueando novas abordagens e a conversão pelo uso do cupom (sem duplicar).
+
 O texto da mensagem, o desconto e a validade são do modelo — **cada cliente edita como quiser** (a mensagem "quem te escolheu" é o padrão porque é honesta sobre a origem do contato).
 
 - Quem indicou: guardado na `indicacoes` (já existe); o evento leva `indicador_whatsapp_id` e o nome vem de `contatos.nome` (ou do vCard).
@@ -230,7 +243,7 @@ A0. Canal aponta o fluxo (canais.fluxo_id + select + ordem no bot)             �
 A.  Modelos (tela + rotas + 1º modelo: campanha atual migrada)                 — ✅ feito em 22/09/2026
 B0. Base de abordagem ativa: início de fluxo por evento, opt-out, horário,
     nós iniciar_fluxo / listar_ofertas, participacaoService                      — ✅ feito em 22/09/2026
-B.  Indicado ativo (evento indicacao_registrada + modelo fluxo-indicado)         — depende de A e B0
+B.  Indicado ativo (evento indicacao_registrada + modelo fluxo-indicado)         — ✅ feito em 22/09/2026
 C.  Pós-venda (evento pedido_concluido, janela 24 h, bloco oferta, modelo)       — depende de B0; webhook já existe
 D.  Missão 3 no modelo (meta segundo_pedido + nós de avaliação)                  — depende do doc 19 etapas 1–3
 ```

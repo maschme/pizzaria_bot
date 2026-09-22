@@ -77,6 +77,15 @@ Além de mensagem exata / palavra-chave, o gatilho pode ser **"Iniciado pelo sis
 evento → abordagemService.enfileirar()  →  abordagens_fila  →  scheduler (60 s)  →  iniciarFluxo()
 ```
 
+Eventos que já enfileiram hoje:
+
+| Evento | Quem dispara | Variáveis iniciais |
+|--------|--------------|--------------------|
+| `indicacao_registrada` | `indicacaoService.registrarIndicacoes`, a cada indicação nova (atraso 2 min, validade 48 h) | `{{indicadorNome}}`, `{{indicadorTelefone}}`, `{{indicadoNome}}` |
+| `pedido_concluido` | (frente C, ainda não implementada) | — |
+
+**Só enfileira se existir um fluxo ativo com aquele gatilho de evento.** Sem fluxo configurado, nada acontece.
+
 O scheduler só inicia dentro do horário comercial (configs `horario_funcionamento_*`), para contato sem `opt_out`, que não esteja em outro fluxo, com o fluxo ativo e o item não expirado. A fila deduplica por `(evento, referencia)` — o mesmo pedido não gera duas abordagens.
 
 O gatilho também carrega o bloco **`oferta`** (checkbox "Oferecer este fluxo no pós-venda"): título, descrição, `elegivel_se` (`nunca_participou` | `nao_concluiu` | `sempre`) e prioridade. É isso que o nó **Listar ofertas elegíveis** lê.

@@ -3,6 +3,8 @@
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
 const { parseVcards } = require('../utils/vcardParser');
+const fluxoService = require('./fluxoService');
+const abordagemService = require('./abordagemService');
 
 const mysql2Config = {
   host: dbConfig.host,
@@ -43,6 +45,7 @@ async function registrarIndicacoes(indicadorWhatsappId, indicados, telefoneIndic
       normalizarWhatsappId(indicadorWhatsappId) ||
       String(indicadorWhatsappId || '').trim();
 
+    const novos = [];
     for (const { numero, nome } of indicados) {
       if (!numero || !numero.replace(/\D/g, '')) continue;
       const numNorm = numero.replace(/\D/g, '');
@@ -53,7 +56,10 @@ async function registrarIndicacoes(indicadorWhatsappId, indicados, telefoneIndic
            ON DUPLICATE KEY UPDATE indicado_nome = VALUES(indicado_nome)`,
           [indicadorNorm, numNorm, nome || null]
         );
-        if (result.affectedRows === 1) qtInseridos++;
+        if (result.affectedRows === 1) {
+          qtInseridos++;
+          novos.push({ numero: numNorm, nome: nome || null });
+        }
       } catch (e) {
         if (e.code !== 'ER_DUP_ENTRY') throw e;
       }
@@ -80,11 +86,91 @@ async function registrarIndicacoes(indicadorWhatsappId, indicados, telefoneIndic
       console.warn('⚠️ Tabela contatos não existe; qt_indicados/cam_indicacoes só em indicacoes.');
     }
 
+    // Abordagem ativa do indicado (docs/20 frente B): 1 mensagem perguntando se ele quer o cupom.
+    // Fire-and-forget: falha aqui não pode derrubar o registro da indicação.
+    if (novos.length) {
+      abordarIndicados(indicadorNorm, novos).catch((e) => console.warn('⚠️ Abordagem de indicados:', e.message));
+    }
+
     return {
       qtInseridos,
       qtTotal,
       completouMissao: qtTotal >= 10
     };
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Enfileira a abordagem ao indicado, se houver um fluxo ativo para o evento 'indicacao_registrada'.
+ * Sem fluxo configurado, não faz nada (comportamento anterior: o indicado não recebe mensagem).
+ */
+async function abordarIndicados(indicadorWhatsappId, novos) {
+  const fluxo = await fluxoService.buscarFluxoPorEvento('indicacao_registrada');
+  if (!fluxo) return;
+
+  // Conexão própria: isto roda depois que registrarIndicacoes já fechou a dele (fire-and-forget).
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    let indicadorNome = '';
+    try {
+      const [rows] = await conn.execute('SELECT nome FROM contatos WHERE whatsapp_id = ? LIMIT 1', [indicadorWhatsappId]);
+      indicadorNome = (rows[0] && rows[0].nome) || '';
+    } catch (_) { /* contatos pode não existir */ }
+
+    for (const { numero, nome } of novos) {
+      if (numero === indicadorWhatsappId) continue; // não aborda quem indicou a si mesmo
+      const r = await abordagemService.enfileirar({
+        whatsappId: numero,
+        evento: 'indicacao_registrada',
+        fluxoId: fluxo.id,
+        referencia: `indicacao:${indicadorWhatsappId}:${numero}`,
+        variaveis: {
+          indicadorNome: indicadorNome || 'Um amigo',
+          indicadorTelefone: indicadorWhatsappId,
+          indicadoNome: nome || ''
+        },
+        atrasoMin: 2,        // deixa o indicador terminar de enviar os contatos
+        validadeHoras: 48
+      });
+      if (!r.enfileirado) continue;
+      try {
+        await conn.execute(
+          'UPDATE indicacoes SET abordado_em = NOW() WHERE indicador_whatsapp_id = ? AND indicado_numero = ?',
+          [indicadorWhatsappId, numero]
+        );
+      } catch (e) {
+        if (e.code !== 'ER_BAD_FIELD_ERROR') throw e; // migração do ciclo ainda não rodou
+      }
+    }
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Marca que o indicado virou cliente (usou o cupom num pedido). Chamado pelo webhook da Multipedidos.
+ * @returns {{ convertido: boolean, indicador?: string }}
+ */
+async function marcarConversaoIndicado(indicadoWhatsappId, { pedidoId = null, pedidoValor = null } = {}) {
+  const num = String(indicadoWhatsappId || '').replace(/\D/g, '');
+  if (num.length < 10) return { convertido: false };
+  const conn = await mysql.createConnection(mysql2Config);
+  try {
+    const [rows] = await conn.execute(
+      'SELECT id, indicador_whatsapp_id FROM indicacoes WHERE indicado_numero = ? AND convertido_em IS NULL ORDER BY id LIMIT 1',
+      [num]
+    );
+    if (!rows.length) return { convertido: false };
+    await conn.execute(
+      'UPDATE indicacoes SET convertido_em = NOW(), pedido_id = ?, pedido_valor = ? WHERE id = ?',
+      [pedidoId, pedidoValor, rows[0].id]
+    );
+    return { convertido: true, indicador: rows[0].indicador_whatsapp_id };
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR' || e.code === 'ER_NO_SUCH_TABLE') return { convertido: false };
+    throw e;
   } finally {
     await conn.end();
   }
@@ -250,6 +336,7 @@ async function excluirIndicacoes(ids) {
 
 module.exports = {
   registrarIndicacoes,
+  marcarConversaoIndicado,
   obterQtIndicados,
   completouMissaoIndicacoes,
   listarIndicacoes,

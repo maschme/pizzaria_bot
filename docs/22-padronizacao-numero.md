@@ -76,3 +76,11 @@ node scripts/diagnostico-abordagem.js 5547999998888
 ```
 
 Mostra a identidade conhecida, a trilha de execução do fluxo, a fila de abordagem e se a resposta digitada casaria com algum gatilho de texto.
+
+Para ver o que ficou de duplicado antes desta mudança:
+
+```bash
+node scripts/contatos-duplicados.js
+```
+
+Só lê, não altera. O sistema já encontra o contato nas duas formas, então conviver com as duplicatas é seguro. Se quiser unificar, comece pelas que o script marca como "sem histórico" e apague sempre por id exato.

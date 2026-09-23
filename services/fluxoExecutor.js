@@ -918,13 +918,30 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
 
     const ehFluxoCampanha = this.fluxo.tipo === 'campanha' ||
       (this.fluxo.nome && String(this.fluxo.nome).toLowerCase().includes('campanha'));
-    const deveFazerHandoff = ehFluxoCampanha && typeof onCampanhaFlowEnd === 'function' && !this.fluxoCompletouCampanha;
+
+    // O handoff entrega o contato à campanha legada na Missão 2 ("mande 10 contatos"). Isso só faz
+    // sentido para quem ENTROU na campanha mandando a frase de gatilho. Fluxo que o BOT inicia
+    // (pós-venda, indicado) não pode cair aqui: todos os modelos são tipo "campanha", e o
+    // pós-venda ainda por cima tem "campanhas" no nome. Sem esta guarda, um cliente que só fez um
+    // pedido recebia "MISSÃO 1 CONCLUÍDA" do nada e ficava preso esperando indicações — foi o que
+    // aconteceu em 22/09/2026, quando o pós-venda encerrava em silêncio por não ter oferta.
+    const iniciadoPeloSistema = !!this.variaveis.eventoOrigem
+      || !!(this.fluxo.gatilho && this.fluxo.gatilho.tipo === 'evento');
+
+    const deveFazerHandoff = ehFluxoCampanha
+      && typeof onCampanhaFlowEnd === 'function'
+      && !this.fluxoCompletouCampanha
+      && !iniciadoPeloSistema;
+
     if (deveFazerHandoff) {
       try {
         await onCampanhaFlowEnd(this.client, this.chatId, this.fluxo);
       } catch (err) {
         console.error('❌ Erro no handoff campanha (após fim do fluxo):', err.message);
       }
+    } else if (ehFluxoCampanha && iniciadoPeloSistema && !this.fluxoCompletouCampanha) {
+      await this.logExec('handoff_ignorado',
+        'Fluxo iniciado pelo sistema: não entrega à campanha legada', node);
     }
     
     console.log(`✅ Fluxo "${this.fluxo.nome}" finalizado para ${this.chatId}`);

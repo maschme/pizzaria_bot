@@ -42,8 +42,8 @@ Interface drag-and-drop com canvas, zoom, import/export JSON.
 |------|---------|---------|-------|--------|
 | `trigger` | Gatilho | — | 1 | Início; palavra-chave, mensagem exata ou **evento do sistema** (ver abaixo) |
 | `message` | Mensagem | 1 | 1 | Envia texto WhatsApp |
-| `wait` | Aguardar | 1 | 1 | Pausa até resposta do usuário |
-| `wait_contacts` | Aguardar contatos | 1 | 1 | Pausa até receber vCards |
+| `wait` | Aguardar | 1 | 1 | Pausa até resposta do usuário. Com **Avançar quando entrar no grupo de demonstração** (`avancarAoEntrarNoGrupo: true`) também segue quando a pessoa entra num grupo marcado como demonstração, com `{{entradaGrupoDetectada}}` = `sim` |
+| `wait_contacts` | Aguardar contatos | 1 | 1 | Pausa até receber vCards. Com **Modo simulação** (`simulacao: true`) só conta os contatos na conversa: não grava indicações nem enfileira mensagem aos indicados — para fluxos de demonstração |
 | `condition` | Condição | 1 | 2 (sim/não) | Branch sobre resposta |
 | `condition_var` | Verificar variável | 1 | 2 (sim/não) | Branch sobre variável de sessão |
 | `ia` | IA | 1 | 1 | Chamada IA com prompt configurável |

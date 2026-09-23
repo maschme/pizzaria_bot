@@ -68,7 +68,7 @@ Grupos sincronizados do WhatsApp.
 | bairro | VARCHAR | Bairro mapeado |
 | linkConvite | TEXT | Link de convite |
 | participantes | INT | Quantidade |
-| tipo | VARCHAR | Tipo/categoria |
+| tipo | ENUM | campanha, promocao, suporte, outro, demonstracao (grupo do fluxo de demonstração: entrada só avança a demo, nunca a campanha) |
 | ativo | BOOLEAN | Participa da campanha |
 | isGrupoGeral | BOOLEAN | Fallback |
 | ultimaSincronizacao | DATETIME | — |

@@ -88,6 +88,12 @@ Em `fluxos.html`, botão **Modelos** na toolbar (ao lado de Importar): modal com
 
 (1 e 4 publicados em 22/09/2026.)
 
+5. `demo-campanha-30` ✅ (23/09/2026) — **demonstração para donos de delivery**. A pessoa manda *"Quero ver a demonstração da campanha de 30%"* e passa pela campanha como cliente (bairro com IA, Missão 1 num grupo real, Missão 2 com 2 contatos, Missão 3). Depois de cada etapa chega uma mensagem **🔧 Nos bastidores** explicando o que o bot fez e o que a versão real faz. Termina com o resumo e o `CONTATO_COMERCIAL`.
+   - **Sem efeito real**: cupom fictício fixo (`DEMO-XK42`), sem Multipedidos; sem checagem de "já participou" (pode repetir); nó de contatos em **modo simulação** (não grava indicações, ninguém recebe mensagem). O único registro é o mínimo que todo fluxo faz ao iniciar (linha em `contatos` com o número).
+   - **Nunca cai no bot legado**: `executeEnd` não faz o handoff da campanha quando o fluxo tem nó de contatos em modo simulação — sem essa guarda, por ser tipo "campanha" e não ter nó de cupom, a demo terminaria mandando "MISSÃO 1 CONCLUÍDA" e deixaria o contato esperando indicações de verdade.
+   - **Grupo da demo**: grupo real criado só para isso (`LINK_GRUPO_DEMO`) e **marcado como grupo de demonstração** na aba Grupos (botão com ícone de quadro; `grupos_whatsapp.tipo = 'demonstracao'`, fica inativo e fora da campanha).
+   - **Detecção da entrada**: quando alguém entra num grupo de demonstração, o `group_join` não mexe em campanha nem em cadastro — só chama `fluxoExecutor.sinalizarEntradaGrupo`, que acha a sessão da pessoa (pelo id do evento, pelas variantes do telefone ou pelo telefone do @lid). Se o fluxo estiver parado num nó **Aguardar** com `avancarAoEntrarNoGrupo`, grava `{{entradaGrupoDetectada}} = sim` e segue; o fluxo responde "🔧 Viu? Eu percebi sozinho que você entrou". Quem digitar "entrei" antes segue pelo caminho da IA, e a entrada que chegar depois é ignorada.
+
 ---
 
 ## B. Fluxo do cliente indicado

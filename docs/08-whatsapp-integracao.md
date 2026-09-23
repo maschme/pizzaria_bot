@@ -59,7 +59,9 @@ Cancela debounce quando usuário está digitando (evita resposta prematura).
 
 ### `group_join`
 
-Confirma **Missão 1** da campanha:
+**Grupo de demonstração** (`tipo = 'demonstracao'`): tratado antes de tudo e encerra ali. A entrada só avança o fluxo de demonstração da pessoa, se ele estiver esperando por isso (`fluxoExecutor.sinalizarEntradaGrupo`) — ver [modelo demo-campanha-30](./20-modelos-e-fluxos-completos.md#a4-modelos-da-primeira-leva).
+
+Nos demais grupos, confirma **Missão 1** da campanha:
 1. Identifica participante
 2. `UPDATE contatos SET cam_grupo = 1`
 3. Busca `id_negociacao` para mover no funil CRM

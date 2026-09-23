@@ -101,6 +101,7 @@ Router: `routes/dashboardRoutes.js`
 | POST | `/api/dashboard/grupos/:grupoId/ativar` | — | Ativa |
 | POST | `/api/dashboard/grupos/:grupoId/desativar` | — | Desativa |
 | POST | `/api/dashboard/grupos/:grupoId/definir-geral` | — | Marca como geral |
+| POST | `/api/dashboard/grupos/:grupoId/demonstracao` | `{ demonstracao: true\|false }` | Marca/desmarca grupo de demonstração |
 | GET | `/api/dashboard/grupos/:grupoId/participantes` | — | Participantes do grupo (JSON) |
 | GET | `/api/dashboard/grupos/:grupoId/participantes/csv` | — | Participantes em CSV (UTF-8 com BOM, para Excel) |
 

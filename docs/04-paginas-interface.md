@@ -70,6 +70,7 @@ Layout com **sidebar fixa** + área de conteúdo. Navegação interna via atribu
 | Sincronizar | Espelha os grupos do número conectado no DB: cria/atualiza os que vieram e remove os que não existem mais (ex.: grupos do número anterior) |
 | Ativar/Desativar | Controla se grupo participa da campanha |
 | Definir Geral | Marca grupo fallback quando bairro não encontrado |
+| Grupo de demonstração (ícone de quadro) | Marca/desmarca o grupo usado pelo fluxo de demonstração: sai da campanha e a entrada nele só avança a demo |
 | Editar link | Define link de convite por grupo |
 | Exportar participantes (CSV) | Baixa a lista de membros do grupo com número, @lid, admin e nomes — ver [Exportação de participantes](./08-whatsapp-integracao.md#exportação-de-participantes) |
 

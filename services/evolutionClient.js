@@ -493,6 +493,9 @@ class EvolutionClient extends EventEmitter {
         const pn = apenasDigitos(p.phoneNumber);
         return {
           id: { _serialized: pn ? `${pn}@c.us` : paraCUs(p.id) },
+          lid: String(p.id || '').endsWith('@lid') ? p.id : null,
+          // Nome de perfil (o "~Nome" da lista de membros) quando a Evolution o conhece
+          pushname: p.name || p.pushName || null,
           isAdmin: p.admin === 'admin' || p.admin === 'superadmin',
           isSuperAdmin: p.admin === 'superadmin'
         };
@@ -507,7 +510,36 @@ class EvolutionClient extends EventEmitter {
     }
   }
 
+  /**
+   * Nomes de perfil (pushName) que a Evolution guardou dos contatos, indexados
+   * por telefone (só dígitos) e por @lid. Só existe para quem já mandou alguma
+   * mensagem que a instância viu — quem nunca falou fica sem nome.
+   */
+  async nomesDeContatos() {
+    if (this._nomesCache && Date.now() - this._nomesCacheEm < 300000) return this._nomesCache;
+    const porNumero = new Map();
+    const porLid = new Map();
+    try {
+      const { data } = await this.http.post(this._instPath('/chat/findContacts'), {}, { timeout: 60000 });
+      const lista = Array.isArray(data) ? data : (data?.records || []);
+      for (const c of lista) {
+        const nome = String(c.pushName || '').trim();
+        const jid = String(c.remoteJid || c.id || '');
+        if (!nome || !jid) continue;
+        if (jid.endsWith('@lid')) porLid.set(jid, nome);
+        else if (jid.endsWith('@s.whatsapp.net')) porNumero.set(apenasDigitos(jid), nome);
+      }
+    } catch (e) {
+      console.warn('⚠️ [Evolution] findContacts:', e.response?.data?.response?.message || e.message);
+    }
+    this._nomesCache = { porNumero, porLid };
+    this._nomesCacheEm = Date.now();
+    return this._nomesCache;
+  }
+
   _limparCaches() {
+    this._nomesCache = null;
+    this._nomesCacheEm = 0;
     // Nova conexão (ou outro número): nada do que estava em cache vale mais.
     this._chatsCache = null;
     this._chatsCacheEm = 0;
@@ -590,13 +622,16 @@ class EvolutionClient extends EventEmitter {
 
     if (this._chatsCache) {
       const hit = this._chatsCache.find((c) => c.id._serialized === id);
-      if (hit) return hit;
+      // Grupo vindo de fetchAllGroups tem `participants` só como placeholder
+      // (Array(size), sem ids): aí busca a lista real abaixo.
+      if (hit && !(hit.isGroup && hit.participants.length && !hit.participants[0])) return hit;
     }
 
     // Fabrica chat mínimo (equivalente ao comportamento do wwebjs para DMs)
     if (id.endsWith('@g.us')) {
       const participants = await this._participantesGrupo(id);
-      return this._criarChatObj({ chatId: id, nome: id, participants });
+      const conhecido = (this._gruposCache || []).find((g) => g.id._serialized === id);
+      return this._criarChatObj({ chatId: id, nome: conhecido?.name || id, participants });
     }
     return this._criarChatObj({ chatId: paraCUs(id) });
   }

@@ -524,5 +524,7 @@ module.exports = {
   encerrarFluxoNoChat,
   invalidarCacheConversas,
   resolverChatId,
-  obterChatPorId
+  obterChatPorId,
+  carregarMapaContatos,
+  acharContatoRapido
 };

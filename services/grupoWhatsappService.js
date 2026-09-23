@@ -607,6 +607,29 @@ function formatarErroWhatsapp(error) {
  * @param {string} grupoId - ex.: 120363...@g.us
  * @returns {Promise<{ grupo: Object, participantes: Array }>}
  */
+// Lazy: chatService → fluxoExecutor → este módulo (evita require circular)
+const chatService = () => require('./chatService');
+
+/**
+ * Fontes de nome para a exportação de participantes: pushName guardado pela
+ * Evolution (quando o motor é Evolution) e a tabela `contatos`. Falha em uma
+ * fonte não impede a exportação — só sai sem aquele nome.
+ */
+async function carregarFontesDeNomes(client) {
+  let porNumero = new Map();
+  let porLid = new Map();
+  let mapasContatos = null;
+  if (typeof client.nomesDeContatos === 'function') {
+    ({ porNumero, porLid } = await client.nomesDeContatos());
+  }
+  try {
+    mapasContatos = await chatService().carregarMapaContatos();
+  } catch (e) {
+    console.warn('⚠️ Nomes da tabela contatos indisponíveis:', e.message);
+  }
+  return { porNumero, porLid, mapasContatos };
+}
+
 async function extrairParticipantesGrupo(client, grupoId) {
   if (!client?.info) throw new Error('WhatsApp não conectado');
   const id = decodeURIComponent(String(grupoId || '').trim());
@@ -642,16 +665,27 @@ async function extrairParticipantesGrupo(client, grupoId) {
     }
 
     const participantesRaw = chat.participants || [];
+    const { porNumero, porLid, mapasContatos } = await carregarFontesDeNomes(client);
     const participantes = [];
     for (const p of participantesRaw) {
       const contactId = p.id?._serialized || (typeof p.id === 'string' ? p.id : null);
-      let nome = '';
-      let pushname = '';
       let numero = '';
-      let whatsappLid = '';
+      let whatsappLid = p.lid || '';
       if (contactId) {
         if (String(contactId).includes('@lid')) whatsappLid = contactId;
         if (String(contactId).endsWith('@c.us')) numero = apenasDigitos(contactId);
+      }
+      // pushname: nome de perfil do WhatsApp (o "~Nome" da lista de membros);
+      // nome: como o contato está cadastrado na nossa tabela `contatos`.
+      const pushname = p.pushname
+        || (whatsappLid && porLid.get(whatsappLid))
+        || (numero && porNumero.get(numero))
+        || '';
+      let nome = '';
+      if (mapasContatos) {
+        const c = (whatsappLid && chatService().acharContatoRapido(mapasContatos, whatsappLid))
+          || (numero && chatService().acharContatoRapido(mapasContatos, `${numero}@c.us`));
+        nome = c?.nome || '';
       }
       participantes.push({
         whatsapp_id: contactId || '',
@@ -664,7 +698,13 @@ async function extrairParticipantesGrupo(client, grupoId) {
       });
     }
 
-    console.log(`✅ Extraídos ${participantes.length} participantes (fallback getChatById)`);
+    participantes.sort((a, b) => {
+      if (a.is_super_admin !== b.is_super_admin) return a.is_super_admin ? -1 : 1;
+      if (a.is_admin !== b.is_admin) return a.is_admin ? -1 : 1;
+      return (a.nome || a.pushname || a.numero || '').localeCompare(b.nome || b.pushname || b.numero || '', 'pt-BR');
+    });
+    const comNome = participantes.filter((x) => x.nome || x.pushname).length;
+    console.log(`✅ Extraídos ${participantes.length} participantes (fallback getChatById), ${comNome} com nome`);
     return {
       grupo: {
         grupoId: chat.id._serialized,

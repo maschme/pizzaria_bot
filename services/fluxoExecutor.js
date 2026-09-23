@@ -15,6 +15,16 @@ const abordagemService = require('./abordagemService');
 const participacaoService = require('./participacaoService');
 const posVendaService = require('./posVendaService');
 
+/**
+ * Ações que entregam o cupom ao cliente. Um fluxo que tem alguma delas conduz a campanha do começo
+ * ao fim sozinho, e por isso nunca entrega o contato ao bot legado.
+ */
+const ACOES_QUE_ENVIAM_CUPOM = new Set([
+  'enviar_cupom',
+  'multipedidos_criar_cupom',
+  'multipedidos_alterar_cupom'
+]);
+
 const CAMPOS_CONTATO_PERMITIDOS = ['cam_grupo', 'qt_indicados', 'cam_indicacoes', 'nome', 'id_negociacao'];
 
 /** Parse dd/mm/yyyy para Date (meia-noite). Retorna null se inválido. */
@@ -928,10 +938,21 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     const iniciadoPeloSistema = !!this.variaveis.eventoOrigem
       || !!(this.fluxo.gatilho && this.fluxo.gatilho.tipo === 'evento');
 
+    // O fluxo conduz a campanha inteira? Se ele TEM um nó de cupom em qualquer ramo, as Missões 2
+    // e 3 estão dentro dele e o bot legado não tem o que assumir.
+    //
+    // Olhar só `fluxoCompletouCampanha` (se passou pelo cupom NESTA execução) não bastava: no ramo
+    // de falha — "não consegui confirmar sua entrada no grupo" — o cliente chegava ao fim sem
+    // cupom e recebia "MISSÃO 1 CONCLUÍDA, você liberou +10%" logo em seguida, contradizendo a
+    // mensagem anterior e mandando-o juntar indicações que ele não tinha conquistado.
+    const fluxoConduzCampanhaInteira = (this.nodes || []).some((n) =>
+      n && n.type === 'action' && ACOES_QUE_ENVIAM_CUPOM.has((n.data || {}).tipo));
+
     const deveFazerHandoff = ehFluxoCampanha
       && typeof onCampanhaFlowEnd === 'function'
       && !this.fluxoCompletouCampanha
-      && !iniciadoPeloSistema;
+      && !iniciadoPeloSistema
+      && !fluxoConduzCampanhaInteira;
 
     if (deveFazerHandoff) {
       try {

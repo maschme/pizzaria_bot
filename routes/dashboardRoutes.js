@@ -200,7 +200,7 @@ router.post('/grupos/sincronizar', async (req, res) => {
       return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
     }
 
-    const resultado = await grupoService.sincronizarGrupos(whatsappClient);
+    const resultado = await grupoService.sincronizarGrupos(whatsappClient, { forcar: true });
     res.json({ success: true, data: resultado });
   } catch (error) {
     const msg = error?.message || String(error);

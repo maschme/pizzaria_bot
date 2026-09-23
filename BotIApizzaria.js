@@ -457,7 +457,16 @@ client.on('ready', async () => {
   // Sincroniza grupos automaticamente ao conectar
   try {
     console.log('🔄 Sincronizando grupos do WhatsApp...');
-    await grupoService.sincronizarGrupos(client);
+    const r = await grupoService.sincronizarGrupos(client);
+    // Evolution: logo após o pareamento os grupos ainda não foram baixados e a
+    // lista vem vazia — tenta de novo em 1 min, sem cache.
+    if (!r.total && !client.pupPage) {
+      setTimeout(() => {
+        if (!client.info) return;
+        grupoService.sincronizarGrupos(client, { forcar: true })
+          .catch((e) => console.error('⚠️ Erro ao re-sincronizar grupos:', e.message));
+      }, 60000);
+    }
   } catch (err) {
     console.error('⚠️ Erro ao sincronizar grupos:', err.message);
   }

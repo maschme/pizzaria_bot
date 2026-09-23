@@ -11,7 +11,19 @@ const CACHE_TTL = 30000; // 30 segundos
  * getChats() quebra em versões novas do WhatsApp Web (GroupMetadata.update undefined).
  * Fallback lê Store.Chat direto, sem forçar update de metadata.
  */
-async function listarGruposDoWhatsapp(client) {
+async function listarGruposDoWhatsapp(client, { forcar = false } = {}) {
+  // 0) Motor Evolution: busca só os grupos (getChats também baixa todas as
+  //    conversas, lento em conta grande) e, se `forcar`, sem cache.
+  if (typeof client._buscarGrupos === 'function') {
+    const chats = await client._buscarGrupos({ forcar });
+    return chats.map((c) => ({
+      grupoId: c.id._serialized,
+      nome: c.name || c.id._serialized,
+      participantes: c.participants?.length || 0,
+      chatObj: c
+    }));
+  }
+
   // 1) Tenta API oficial
   try {
     const chats = await client.getChats();
@@ -76,7 +88,7 @@ async function listarGruposDoWhatsapp(client) {
   }));
 }
 
-async function sincronizarGrupos(client) {
+async function sincronizarGrupos(client, { forcar = false } = {}) {
   console.log('🔄 Iniciando sincronização de grupos do WhatsApp...');
 
   try {
@@ -84,7 +96,7 @@ async function sincronizarGrupos(client) {
       throw new Error('WhatsApp não conectado ainda');
     }
 
-    const grupos = await listarGruposDoWhatsapp(client);
+    const grupos = await listarGruposDoWhatsapp(client, { forcar });
     console.log(`📋 Encontrados ${grupos.length} grupos`);
 
     let novos = 0;

@@ -177,6 +177,7 @@ class EvolutionClient extends EventEmitter {
 
     if (estado === 'open') {
       if (this._estadoAtual !== 'open') {
+        this._limparCaches();
         await this._carregarInfo();
         this._estadoAtual = 'open';
         this.emit('ready');
@@ -266,6 +267,7 @@ class EvolutionClient extends EventEmitter {
     const estado = data?.state || data?.connection || '';
     if (estado === 'open' && this._estadoAtual !== 'open') {
       this._estadoAtual = 'open';
+      this._limparCaches();
       this._carregarInfo().then(() => this.emit('ready'));
     } else if ((estado === 'close' || estado === 'connecting') && this._estadoAtual === 'open') {
       this._estadoAtual = estado;
@@ -505,16 +507,27 @@ class EvolutionClient extends EventEmitter {
     }
   }
 
-  async _buscarGrupos() {
+  _limparCaches() {
+    // Nova conexão (ou outro número): nada do que estava em cache vale mais.
+    this._chatsCache = null;
+    this._chatsCacheEm = 0;
+    this._gruposCache = null;
+    this._gruposCacheEm = 0;
+    this._participantesCache.clear();
+  }
+
+  async _buscarGrupos({ forcar = false } = {}) {
     // Grupos mudam pouco: cache de 5 min. Participantes NÃO são buscados aqui
     // (em conta grande isso levava minutos) — `participants` vira placeholder com
     // o tamanho certo (Array(size)), suficiente para contagens; a lista real vem
     // por getChatById(grupo) quando algum fluxo precisar (ex.: exportar CSV).
-    if (this._gruposCache && Date.now() - this._gruposCacheEm < 300000) return this._gruposCache;
+    // `forcar` (sincronização manual) ignora o cache e propaga o erro em vez de
+    // devolver lista vazia — senão o painel diz "concluída" sem ter lido nada.
+    if (!forcar && this._gruposCache && Date.now() - this._gruposCacheEm < 300000) return this._gruposCache;
     try {
       const { data } = await this.http.get(
         this._instPath('/group/fetchAllGroups') + '?getParticipants=false',
-        { timeout: 45000 }
+        { timeout: 90000 }
       );
       const grupos = (Array.isArray(data) ? data : []).map((g) => this._criarChatObj({
         chatId: g.id,
@@ -522,11 +535,17 @@ class EvolutionClient extends EventEmitter {
         participants: new Array(Number(g.size) || 0),
         timestamp: g.creation || 0
       }));
-      this._gruposCache = grupos;
-      this._gruposCacheEm = Date.now();
+      // Lista vazia não vai para o cache: logo após conectar a Evolution ainda não
+      // baixou os grupos, e cachear [] escondia os grupos por 5 min.
+      if (grupos.length) {
+        this._gruposCache = grupos;
+        this._gruposCacheEm = Date.now();
+      }
       return grupos;
     } catch (e) {
-      console.warn('⚠️ [Evolution] fetchAllGroups:', e.response?.data?.response?.message || e.message);
+      const msg = e.response?.data?.response?.message || e.message;
+      console.warn('⚠️ [Evolution] fetchAllGroups:', msg);
+      if (forcar) throw new Error(`Evolution fetchAllGroups: ${Array.isArray(msg) ? msg.join('; ') : msg}`);
       return this._gruposCache || [];
     }
   }

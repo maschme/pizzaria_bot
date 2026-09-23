@@ -45,6 +45,41 @@ const mysql2Config = {
   database: dbConfig.database
 };
 
+/**
+ * Texto que entrega o cliente à Missão 2 (as 10 indicações).
+ *
+ * É o mesmo momento visto de três caminhos diferentes, e por isso um texto só, editável no
+ * Dashboard → Whats → Configurações, em `campanha_missao2_mensagem`:
+ *   1. o fluxo visual da campanha termina  → handoff, logo abaixo
+ *   2. o cliente confirma por escrito que entrou no grupo
+ *   3. o bot detecta sozinho a entrada no grupo (evento group_join)
+ *
+ * Variáveis: {{desconto}} e {{contexto}}. Se a configuração estiver vazia ou o banco não responder,
+ * cai no texto padrão — o cliente nunca fica sem resposta.
+ */
+async function montarMensagemMissao2(sessao, contexto = '') {
+  const PADRAO = `🎉 *MISSÃO 1 CONCLUÍDA!* {{contexto}}🔥
+
+✅ Você liberou *+10% de desconto*! (Total: *{{desconto}}%*)
+
+🔥 *Quer chegar a 30%?* Envie *10 contatos* da sua agenda! Cada indicado ganha *10% de desconto* na 1ª compra.
+
+*Como:* contato → ⋮ → Compartilhar contato → envie aqui. Pode enviar um por um ou vários. Meta: *10 indicações* 📇`;
+
+  let texto = PADRAO;
+  try {
+    const cfg = await configService.getConfiguracao('campanha_missao2_mensagem');
+    if (cfg && String(cfg).trim()) texto = String(cfg);
+  } catch (e) {
+    console.warn('⚠️ Mensagem da Missão 2: usando o texto padrão —', e.message);
+  }
+
+  const ctx = String(contexto || '').trim();
+  return texto
+    .replace(/\{\{\s*desconto\s*\}\}/g, String(sessao && sessao.descontoTotal != null ? sessao.descontoTotal : 10))
+    .replace(/\{\{\s*contexto\s*\}\}/g, ctx ? `${ctx} ` : '');
+}
+
 // Handoff: quando o fluxo visual de campanha termina (ex.: após entrada no grupo), passa o usuário para a campanha legada na Missão 2
 fluxoExecutor.setOnCampanhaFlowEnd(async (client, chatId, fluxo) => {
   const jaTinhaSessao = sessaoCampanhaService.has(chatId);
@@ -64,14 +99,7 @@ fluxoExecutor.setOnCampanhaFlowEnd(async (client, chatId, fluxo) => {
   sessao.missoes[1].concluida = true;
   // Nunca para baixo: a Missão 1 vale 10%, mas o cliente pode chegar aqui já com mais.
   sessao.descontoTotal = Math.max(Number(sessao.descontoTotal) || 0, 10);
-  const msgMissao2 = `🎉 *MISSÃO 1 CONCLUÍDA!* 🔥
-
-✅ Você liberou *+10% de desconto*! (Total: *${sessao.descontoTotal}%*)
-
-🔥 *Quer chegar a 30%?* Envie *10 contatos* da sua agenda! Cada indicado ganha *10% de desconto* na 1ª compra.
-
-*Como:* contato → ⋮ → Compartilhar contato → envie aqui. Pode enviar um por um ou vários. Meta: *10 indicações* 📇`;
-  await client.sendMessage(chatId, msgMissao2);
+  await client.sendMessage(chatId, await montarMensagemMissao2(sessao));
   // Persiste: sem isto a etapa 2 só existia em memória e um restart devolvia o cliente à Missão 1.
   sessaoCampanhaService.salvar(chatId);
   console.log(`🎁 Handoff campanha: ${chatId} passou para Missão 2 (10 contatos).`);
@@ -1205,15 +1233,7 @@ Lá você vai receber todas as promoções! Depois que entrar, me avisa aqui que
         sessao.etapa = 2;
         sessao.subEtapa = 'inicio';
         
-        const msgSucesso = `🎉 *MISSÃO 1 CONCLUÍDA!* 🎉
-
-✅ Você liberou *+10% de desconto*! (Total: *${sessao.descontoTotal}%*)
-
-🔥 *Quer chegar a 30%?* Envie *10 contatos* da sua agenda! Cada indicado ganha *10% de desconto* na 1ª compra.
-
-*Como:* contato → ⋮ → Compartilhar contato → envie aqui. Meta: *10 indicações* 📇`;
-
-        await msg.reply(msgSucesso);
+        await msg.reply(await montarMensagemMissao2(sessao));
       } else {
         // 🤖 Usa IA para responder de forma contextual
         const respostaContextual = await gerarRespostaContextualCampanha(sessao, texto);
@@ -1612,13 +1632,7 @@ client.on('group_join', async (notification) => {
           sessao.confirmaçãoAutomatica = true;
           
           // Envia mensagem de parabéns + oferta Missão 2 (10 contatos = 30%)
-          const msgSucesso = `🎉 *MISSÃO 1 CONCLUÍDA!* Vi que você entrou no grupo! 🔥
-
-✅ Você liberou *+10% de desconto*! (Total: *${sessao.descontoTotal}%*)
-
-🔥 *Quer chegar a 30%?* Envie *10 contatos* da sua agenda! Cada indicado ganha *10% de desconto* na 1ª compra.
-
-*Como:* contato → ⋮ → Compartilhar contato → envie aqui. Pode enviar um por um ou vários. Meta: *10 indicações* 📇`;
+          const msgSucesso = await montarMensagemMissao2(sessao, 'Vi que você entrou no grupo!');
 
           sessaoCampanhaService.salvar(numeroFormatado);
 

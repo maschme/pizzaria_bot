@@ -61,18 +61,21 @@ Layout com **sidebar fixa** + área de conteúdo. Navegação interna via atribu
 | Estado | Exibição |
 |--------|----------|
 | Desconectado | QR code (via `/whatsapp/qr-image`) |
-| Conectado | Nome do bot + ícone de sucesso |
+| Conectado | Nome do bot + ícone de sucesso (+ "Sincronizando grupos…" enquanto a sincronização roda) |
 
 #### Aba: Grupos (`#tabGrupos`)
 
 | Ação | Função |
 |------|--------|
-| Sincronizar | Busca grupos do WhatsApp client → salva no DB |
+| Sincronizar | Espelha os grupos do número conectado no DB: cria/atualiza os que vieram e remove os que não existem mais (ex.: grupos do número anterior) |
 | Ativar/Desativar | Controla se grupo participa da campanha |
 | Definir Geral | Marca grupo fallback quando bairro não encontrado |
 | Editar link | Define link de convite por grupo |
+| Exportar participantes (CSV) | Baixa a lista de membros do grupo com número, @lid, admin e nomes — ver [Exportação de participantes](./08-whatsapp-integracao.md#exportação-de-participantes) |
 
 **Colunas da tabela:** Nome, Bairro, Participantes, Tipo, Status, Ações
+
+**Sincronização em andamento** (ao conectar o número ou pelo botão): faixa azul com loading e a etapa atual, botão travado; o painel acompanha a cada 2 s. Ao terminar, aviso com total/novos/removidos e recarga da lista; se algum grupo removido estava configurado (ativo, bairro ou geral), o aviso cita o nome para revisar a campanha. Detalhes em [WhatsApp e Integrações](./08-whatsapp-integracao.md#sincronização-de-grupos).
 
 #### Aba: Gatilhos (`#tabGatilhos`)
 

@@ -127,7 +127,8 @@ Fluxos com `tipo = 'automacao'` executados **fora** do WhatsApp:
 
 ### Grupos WhatsApp
 
-- Sincronização com client WhatsApp (`group_join`, listagem)
+- Sincronização com o número conectado: automática ao conectar (com novas tentativas) e manual; espelha os grupos, removendo os que o número não tem mais
+- Entrada em grupo detectada por `group_join`
 - Mapeamento bairro → grupo
 - Grupo geral como fallback
 - Link de convite editável

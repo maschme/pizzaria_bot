@@ -17,7 +17,7 @@
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| GET | `/whatsapp/status` | Status da conexão |
+| GET | `/whatsapp/status` | Status da conexão (inclui `sincronizacaoGrupos`) |
 | GET | `/whatsapp/qr` | QR code (texto) |
 | GET | `/whatsapp/qr-image` | QR code (PNG base64) |
 
@@ -94,12 +94,15 @@ Router: `routes/dashboardRoutes.js`
 | GET | `/api/dashboard/grupos/estatisticas` | — | Estatísticas |
 | GET | `/api/dashboard/grupos/debug` | — | Debug grupos ativos |
 | GET | `/api/dashboard/grupos/buscar/:bairro` | — | Busca por bairro |
-| POST | `/api/dashboard/grupos/sincronizar` | — | Sync com WhatsApp |
+| POST | `/api/dashboard/grupos/sincronizar` | — | Inicia a sincronização em segundo plano; responde 202 com o estado |
+| GET | `/api/dashboard/grupos/sincronizacao` | — | Estado da sincronização (`emAndamento`, `etapa`, `resultado`, `erro`) |
 | POST | `/api/dashboard/grupos/:grupoId/link` | `{ linkConvite }` | Define link |
 | PUT | `/api/dashboard/grupos/:grupoId` | body parcial | Atualiza |
 | POST | `/api/dashboard/grupos/:grupoId/ativar` | — | Ativa |
 | POST | `/api/dashboard/grupos/:grupoId/desativar` | — | Desativa |
 | POST | `/api/dashboard/grupos/:grupoId/definir-geral` | — | Marca como geral |
+| GET | `/api/dashboard/grupos/:grupoId/participantes` | — | Participantes do grupo (JSON) |
+| GET | `/api/dashboard/grupos/:grupoId/participantes/csv` | — | Participantes em CSV (UTF-8 com BOM, para Excel) |
 
 ### Gatilhos
 

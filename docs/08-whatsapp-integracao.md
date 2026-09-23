@@ -38,10 +38,10 @@ Gera QR code no terminal (`qrcode-terminal`) e armazena para API:
 ### `ready`
 
 Após conexão:
-1. Log de sucesso
-2. `grupoService.sincronizarGrupos(client)` — sync grupos no DB
-3. `setWhatsappClient(client)` — injeta nas rotas dashboard
-4. Injeta listener de labels CRM via Puppeteer
+1. Log de sucesso e `setWhatsappClient(client)` — injeta nas rotas dashboard
+2. `abordagemService.iniciarScheduler(client)` — primeiro, para nada abaixo impedir o scheduler de ligar
+3. `grupoService.sincronizarAoConectar(client)` — sincroniza grupos **em segundo plano** (não bloqueia o `ready`); ver [Sincronização de grupos](#sincronização-de-grupos)
+4. Injeta listener de labels CRM via Puppeteer (só no motor wwebjs)
 
 ### `message`
 
@@ -150,6 +150,51 @@ APIs debug: `/campanha/sessoes`, `/campanha/sessao/:numero`
 `grupoWhatsappService.buscarPorBairro(bairro)` — match fuzzy por nome de bairro.
 
 Se não encontrar → usa grupo marcado `isGrupoGeral = true`.
+
+### Sincronização de grupos
+
+Código: `services/grupoWhatsappService.js` (`sincronizarGrupos`, `sincronizarAoConectar`, `getEstadoSincronizacao`).
+
+A tabela `grupos_whatsapp` é um **espelho dos grupos do número conectado**:
+
+- Grupos que vieram do WhatsApp são criados ou atualizados (nome, participantes, link de convite quando o número é admin; link manual já salvo é preservado).
+- Grupos que **não vieram** são **removidos** do banco — ex.: ao trocar o número, somem os grupos do número anterior. A configuração deles (bairro, ativo, geral) vai junto; o resultado lista em `removidosEmUso` os removidos que estavam configurados, e o painel avisa para revisar a campanha.
+- Proteção: só remove quando a leitura é **completa e não vazia**. Lista vazia, erro da API ou a lista parcial do fallback `Store.Chat` (wwebjs) não apagam nada.
+
+**Quando roda**
+
+| Gatilho | Comportamento |
+|---------|---------------|
+| Número conecta (`ready`) | `sincronizarAoConectar`: em segundo plano; se vier 0 grupos, tenta de novo até 4 vezes com 45 s de intervalo (na Evolution os grupos só aparecem depois que a instância termina de baixá-los após o pareamento). No wwebjs, 1 tentativa |
+| Botão **Sincronizar** | `POST /api/dashboard/grupos/sincronizar` responde na hora (202) e a sincronização segue em segundo plano, sem cache |
+
+Só roda uma sincronização por vez: um pedido durante outra em andamento reaproveita a mesma.
+
+**Estado exposto ao painel** — `GET /api/dashboard/grupos/sincronizacao` e o campo `sincronizacaoGrupos` de `GET /whatsapp/status`:
+
+```jsonc
+{
+  "emAndamento": true,
+  "origem": "conexao",          // conexao | manual
+  "etapa": "Aguardando o WhatsApp baixar os grupos (tentativa 2 de 4)",
+  "inicio": "...", "fim": null,
+  "resultado": null,            // ao terminar: { total, novos, atualizados, removidos, removidosEmUso, linksObtidos, linksManuais, errosIndividuais }
+  "erro": null
+}
+```
+
+**Motor Evolution** (`services/evolutionClient.js`, `_buscarGrupos`): usa `GET /group/fetchAllGroups?getParticipants=false` (timeout 90 s). A lista fica em cache por 5 min, mas lista vazia **não** é cacheada e os caches são limpos a cada nova conexão. A sincronização manual ignora o cache e, em erro, propaga a mensagem da Evolution em vez de devolver lista vazia.
+
+### Exportação de participantes
+
+`grupoWhatsappService.extrairParticipantesGrupo` + `participantesParaCsv`. Colunas do CSV: `grupo_id, grupo_nome, numero, whatsapp_id, whatsapp_lid, nome, pushname, is_admin, is_super_admin`.
+
+| Coluna | Origem |
+|--------|--------|
+| `pushname` | Nome de perfil do WhatsApp (o "~Nome" da lista de membros). Na Evolution: o `name` de `/group/participants`; se vazio, o `pushName` de `/chat/findContacts`, procurado pelo @lid e pelo telefone |
+| `nome` | Nome cadastrado na nossa tabela `contatos`, procurado pelo @lid e pelas variantes do telefone (9º dígito/DDI) |
+
+Limite: o WhatsApp só entrega o nome de perfil de quem já mandou mensagem vista pela instância. Membros que nunca falaram (em número recém-conectado, a maioria) saem sem `pushname`. Os nomes que aparecem no celular vêm da agenda do aparelho e não chegam pela API.
 
 ---
 

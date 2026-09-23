@@ -47,11 +47,23 @@ const mysql2Config = {
 
 // Handoff: quando o fluxo visual de campanha termina (ex.: após entrada no grupo), passa o usuário para a campanha legada na Missão 2
 fluxoExecutor.setOnCampanhaFlowEnd(async (client, chatId, fluxo) => {
+  const jaTinhaSessao = sessaoCampanhaService.has(chatId);
   const sessao = getOuCriarSessaoCampanha(chatId);
+
+  // Quem já passou da Missão 1 não volta para ela. O fluxo de campanha termina por vários
+  // caminhos, inclusive o "você já participou desta campanha": sem esta guarda, o cliente recebia
+  // "MISSÃO 1 CONCLUÍDA" de novo, era mandado de volta a juntar 10 indicações e tinha o desconto
+  // acumulado zerado para 10%.
+  if (jaTinhaSessao && Number(sessao.etapa) >= 2) {
+    console.log(`↩️ Handoff ignorado: ${chatId} já está na etapa ${sessao.etapa} da campanha (desconto ${sessao.descontoTotal}%).`);
+    return;
+  }
+
   sessao.etapa = 2;
   sessao.subEtapa = 'aguardando_contatos';
   sessao.missoes[1].concluida = true;
-  sessao.descontoTotal = 10;
+  // Nunca para baixo: a Missão 1 vale 10%, mas o cliente pode chegar aqui já com mais.
+  sessao.descontoTotal = Math.max(Number(sessao.descontoTotal) || 0, 10);
   const msgMissao2 = `🎉 *MISSÃO 1 CONCLUÍDA!* 🔥
 
 ✅ Você liberou *+10% de desconto*! (Total: *${sessao.descontoTotal}%*)
@@ -60,6 +72,8 @@ fluxoExecutor.setOnCampanhaFlowEnd(async (client, chatId, fluxo) => {
 
 *Como:* contato → ⋮ → Compartilhar contato → envie aqui. Pode enviar um por um ou vários. Meta: *10 indicações* 📇`;
   await client.sendMessage(chatId, msgMissao2);
+  // Persiste: sem isto a etapa 2 só existia em memória e um restart devolvia o cliente à Missão 1.
+  sessaoCampanhaService.salvar(chatId);
   console.log(`🎁 Handoff campanha: ${chatId} passou para Missão 2 (10 contatos).`);
 });
 

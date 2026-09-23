@@ -80,15 +80,84 @@ async function listarGruposDoWhatsapp(client, { forcar = false } = {}) {
     throw new Error('Fallback Store.Chat falhou: ' + raw.__error);
   }
 
-  return (Array.isArray(raw) ? raw : []).map((g) => ({
+  const lista = (Array.isArray(raw) ? raw : []).map((g) => ({
     grupoId: g.grupoId,
     nome: g.nome,
     participantes: g.participantes || 0,
     chatObj: null
   }));
+  // Store.Chat só tem os chats já carregados no WhatsApp Web: lista parcial,
+  // não serve de base para remover grupos do banco.
+  lista.parcial = true;
+  return lista;
 }
 
-async function sincronizarGrupos(client, { forcar = false } = {}) {
+// Estado da sincronização, exposto ao painel (loading/aviso). Uma por vez:
+// quem pedir enquanto outra roda recebe a mesma promise.
+const estadoSync = {
+  emAndamento: false,
+  origem: null,          // 'conexao' | 'manual'
+  etapa: null,           // texto curto para o painel
+  inicio: null,
+  fim: null,
+  resultado: null,
+  erro: null
+};
+let syncEmCurso = null;
+
+function getEstadoSincronizacao() {
+  return { ...estadoSync };
+}
+
+function iniciarSync(origem, trabalho) {
+  if (syncEmCurso) return syncEmCurso;
+  Object.assign(estadoSync, {
+    emAndamento: true, origem, etapa: 'Lendo grupos do WhatsApp',
+    inicio: new Date(), fim: null, resultado: null, erro: null
+  });
+  syncEmCurso = (async () => {
+    try {
+      const r = await trabalho();
+      estadoSync.resultado = r;
+      return r;
+    } catch (e) {
+      estadoSync.erro = e.message || String(e);
+      throw e;
+    } finally {
+      estadoSync.emAndamento = false;
+      estadoSync.etapa = null;
+      estadoSync.fim = new Date();
+      syncEmCurso = null;
+    }
+  })();
+  return syncEmCurso;
+}
+
+function sincronizarGrupos(client, { forcar = false } = {}) {
+  return iniciarSync('manual', () => executarSincronizacao(client, { forcar }));
+}
+
+/**
+ * Sincronização disparada ao conectar o número. Logo após o pareamento a
+ * Evolution ainda não baixou os grupos e devolve lista vazia — tenta de novo
+ * algumas vezes, mantendo o painel em "sincronizando" durante a espera.
+ */
+function sincronizarAoConectar(client, { tentativas = 4, intervaloMs = 45000 } = {}) {
+  return iniciarSync('conexao', async () => {
+    for (let i = 1; ; i++) {
+      if (!client?.info) throw new Error('WhatsApp desconectou durante a sincronização');
+      estadoSync.etapa = i === 1
+        ? 'Lendo grupos do WhatsApp'
+        : `Aguardando o WhatsApp baixar os grupos (tentativa ${i} de ${tentativas})`;
+      const r = await executarSincronizacao(client, { forcar: i > 1 });
+      if (r.total || i >= tentativas) return r;
+      console.log(`⏳ Nenhum grupo retornado ainda; nova tentativa em ${intervaloMs / 1000}s`);
+      await new Promise((ok) => setTimeout(ok, intervaloMs));
+    }
+  });
+}
+
+async function executarSincronizacao(client, { forcar = false } = {}) {
   console.log('🔄 Iniciando sincronização de grupos do WhatsApp...');
 
   try {
@@ -98,6 +167,7 @@ async function sincronizarGrupos(client, { forcar = false } = {}) {
 
     const grupos = await listarGruposDoWhatsapp(client, { forcar });
     console.log(`📋 Encontrados ${grupos.length} grupos`);
+    estadoSync.etapa = `Gravando ${grupos.length} grupos`;
 
     let novos = 0;
     let atualizados = 0;
@@ -159,6 +229,22 @@ async function sincronizarGrupos(client, { forcar = false } = {}) {
       }
     }
 
+    // Remove os grupos que o número conectado não tem mais (ex.: trocou o número).
+    // Só com lista completa e não vazia: vazia/parcial apagaria grupos válidos.
+    let removidos = 0;
+    const removidosEmUso = [];
+    if (grupos.length && !grupos.parcial) {
+      const orfaos = await GrupoWhatsapp.findAll({
+        where: { grupoId: { [Op.notIn]: grupos.map((g) => g.grupoId) } }
+      });
+      for (const o of orfaos) {
+        if (o.ativo || o.isGrupoGeral || o.bairro) removidosEmUso.push(o.nome || o.grupoId);
+        await o.destroy();
+        removidos++;
+        console.log(`➖ Removido (não está no número conectado): ${o.nome || o.grupoId}`);
+      }
+    }
+
     cacheTimestamp = null;
 
     console.log(`\n✅ Sincronização concluída:`);
@@ -167,12 +253,16 @@ async function sincronizarGrupos(client, { forcar = false } = {}) {
     console.log(`   🔄 Atualizados: ${atualizados}`);
     console.log(`   🔗 Links automáticos: ${linksObtidos}`);
     console.log(`   ✋ Links manuais preservados: ${linksManuais}`);
+    console.log(`   ➖ Removidos: ${removidos}`);
+    if (removidosEmUso.length) console.log(`   ⚠️ Removidos que estavam configurados: ${removidosEmUso.join(', ')}`);
     if (errosIndividuais) console.log(`   ⚠️ Erros individuais: ${errosIndividuais}`);
 
     return {
       total: grupos.length,
       novos,
       atualizados,
+      removidos,
+      removidosEmUso,
       linksObtidos,
       linksManuais,
       errosIndividuais
@@ -634,6 +724,8 @@ function slugArquivo(nome) {
 
 module.exports = {
   sincronizarGrupos,
+  sincronizarAoConectar,
+  getEstadoSincronizacao,
   listarGrupos,
   getGruposAtivos,
   getGrupoPorBairro,

@@ -610,6 +610,13 @@
                   <h5 class="mb-0 fw-bold">Grupos do WhatsApp</h5>
                   <button class="btn btn-danger btn-modern sync-btn" id="btnSincronizar"><i class="bi bi-arrow-repeat me-2"></i>Sincronizar</button>
                 </div>
+                <div id="syncBanner" class="alert alert-info d-none align-items-center gap-3 mb-4" style="display:flex" role="status">
+                  <div class="loading"></div>
+                  <div>
+                    <strong id="syncBannerTitulo">Sincronizando grupos do WhatsApp…</strong>
+                    <div class="small" id="syncBannerEtapa">Isso pode levar alguns minutos. Pode continuar usando o painel.</div>
+                  </div>
+                </div>
                 <div class="table-responsive">
                   <table class="table table-modern">
                     <thead><tr><th>Status</th><th>Nome</th><th>Bairro</th><th>Link</th><th>Part.</th><th>Tipo</th><th>Ações</th></tr></thead>
@@ -1067,12 +1074,13 @@
     let fluxosChatCache = [];
     let chatFiltroNaoLidas = false;
 
-    function showToast(message, type = 'success') {
+    function showToast(message, type = 'success', duracaoMs = 3000) {
       const el = document.createElement('div');
       el.className = `toast show align-items-center text-white bg-${type} border-0`;
       el.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      el.querySelector('.btn-close').addEventListener('click', () => el.remove());
       document.getElementById('toastContainer').appendChild(el);
-      setTimeout(() => el.remove(), 3000);
+      setTimeout(() => el.remove(), duracaoMs);
     }
 
     async function api(endpoint, options = {}) {
@@ -1534,17 +1542,78 @@
       });
     }
 
+    // Sincronização de grupos roda em segundo plano no servidor (ao conectar o
+    // número ou pelo botão). Enquanto roda: faixa com loading e botão travado;
+    // ao terminar: aviso com o resultado e recarga da lista.
+    let syncGruposFimVisto;      // undefined = ainda não leu o estado nesta página
+    let syncGruposPollTimer = null;
+
+    function atualizarSyncGrupos(estado) {
+      if (!estado) return;
+      const banner = document.getElementById('syncBanner');
+      const btn = document.getElementById('btnSincronizar');
+
+      if (estado.emAndamento) {
+        banner.classList.remove('d-none');
+        document.getElementById('syncBannerTitulo').textContent = estado.origem === 'conexao'
+          ? 'Número conectado — sincronizando grupos do WhatsApp…'
+          : 'Sincronizando grupos do WhatsApp…';
+        document.getElementById('syncBannerEtapa').textContent =
+          `${estado.etapa || 'Processando'}. Isso pode levar alguns minutos; pode continuar usando o painel.`;
+        btn.disabled = true; btn.classList.add('syncing');
+        if (!syncGruposPollTimer) {
+          syncGruposPollTimer = setInterval(async () => {
+            try {
+              const r = await fetch(`${API_BASE}/grupos/sincronizacao`);
+              const d = await r.json();
+              if (d.success) atualizarSyncGrupos(d.data);
+            } catch (_) { /* servidor fora do ar: o próximo ciclo tenta de novo */ }
+          }, 2000);
+        }
+        if (syncGruposFimVisto === undefined) syncGruposFimVisto = null;
+        return;
+      }
+
+      banner.classList.add('d-none');
+      btn.disabled = false; btn.classList.remove('syncing');
+      if (syncGruposPollTimer) { clearInterval(syncGruposPollTimer); syncGruposPollTimer = null; }
+
+      // Primeira leitura da página com sync já terminada: só registra, sem aviso antigo
+      if (syncGruposFimVisto === undefined) { syncGruposFimVisto = estado.fim; return; }
+      if (!estado.fim || estado.fim === syncGruposFimVisto) return;
+      syncGruposFimVisto = estado.fim;
+
+      if (estado.erro) {
+        showToast(`Falha ao sincronizar grupos: ${escHtml(estado.erro)}`, 'danger', 10000);
+      } else {
+        const r = estado.resultado || {};
+        if (!r.total) {
+          showToast('Nenhum grupo retornado pelo WhatsApp. Se acabou de conectar, aguarde 1–2 min e sincronize de novo.', 'warning', 10000);
+        } else {
+          let msg = `Grupos sincronizados: ${r.total} no WhatsApp — ${r.novos} novos, ${r.removidos || 0} removidos.`;
+          if (r.removidosEmUso?.length) {
+            msg += `<br><strong>Atenção:</strong> removidos grupos que estavam configurados (ativo/bairro/geral): ${r.removidosEmUso.map(escHtml).join(', ')}. Revise a configuração da campanha.`;
+          }
+          showToast(msg, r.removidosEmUso?.length ? 'warning' : 'success', r.removidosEmUso?.length ? 15000 : 6000);
+        }
+      }
+      carregarGrupos(); carregarStatus(); carregarDashboard();
+    }
+
     async function carregarWhatsappStatus() {
       try {
         const res = await fetch('/whatsapp/status');
         const data = await res.json();
         const container = document.getElementById('whatsappContent');
         const statusEl = document.getElementById('sidebarStatus');
+        atualizarSyncGrupos(data.data?.sincronizacaoGrupos);
 
         if (data.data?.connected) {
           statusEl.className = 'sidebar-status connected';
           statusEl.innerHTML = '<span class="dot"></span><span>WhatsApp conectado</span>';
-          container.innerHTML = `<div class="text-success"><i class="bi bi-check-circle-fill" style="font-size:3rem"></i><h5 class="mt-2">Conectado</h5><p class="text-secondary mb-0">${data.data.info?.pushname || 'Bot'}</p></div>`;
+          const syncInfo = data.data.sincronizacaoGrupos?.emAndamento
+            ? '<p class="small text-info mt-2 mb-0"><span class="loading"></span> Sincronizando grupos…</p>' : '';
+          container.innerHTML = `<div class="text-success"><i class="bi bi-check-circle-fill" style="font-size:3rem"></i><h5 class="mt-2">Conectado</h5><p class="text-secondary mb-0">${data.data.info?.pushname || 'Bot'}</p>${syncInfo}</div>`;
         } else {
           statusEl.className = 'sidebar-status disconnected';
           statusEl.innerHTML = '<span class="dot"></span><span>WhatsApp desconectado</span>';
@@ -2210,9 +2279,11 @@
     document.getElementById('switchCampanha').addEventListener('change', function() { atualizarConfig('campanha_ativa', this.checked); });
     document.getElementById('btnSincronizar').addEventListener('click', async function() {
       this.disabled = true; this.classList.add('syncing');
-      const data = await api('/grupos/sincronizar', { method: 'POST' });
-      this.disabled = false; this.classList.remove('syncing');
-      if (data.success) { const r = data.data || {}; if (!r.total) showToast('Nenhum grupo retornado pelo WhatsApp. Se acabou de conectar, aguarde 1–2 min e sincronize de novo.', 'warning'); else showToast(`Sincronização concluída: ${r.total} grupos (${r.novos} novos, ${r.atualizados} atualizados)`); carregarGrupos(); carregarStatus(); carregarDashboard(); } else showToast(data.error || 'Erro', 'danger');
+      let data;
+      try { data = await api('/grupos/sincronizar', { method: 'POST' }); }
+      catch (_) { this.disabled = false; this.classList.remove('syncing'); return; }
+      if (data.success) atualizarSyncGrupos(data.data);
+      else { this.disabled = false; this.classList.remove('syncing'); showToast(data.error || 'Erro', 'danger'); }
     });
     document.getElementById('btnSalvarGatilho').addEventListener('click', async function() {
       const form = document.getElementById('formGatilho');

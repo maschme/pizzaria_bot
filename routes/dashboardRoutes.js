@@ -194,14 +194,21 @@ router.post('/grupos/:grupoId/link', async (req, res) => {
   }
 });
 
+router.get('/grupos/sincronizacao', (req, res) => {
+  res.json({ success: true, data: grupoService.getEstadoSincronizacao() });
+});
+
 router.post('/grupos/sincronizar', async (req, res) => {
   try {
     if (!whatsappClient?.info) {
       return res.status(503).json({ success: false, error: 'WhatsApp não conectado' });
     }
 
-    const resultado = await grupoService.sincronizarGrupos(whatsappClient, { forcar: true });
-    res.json({ success: true, data: resultado });
+    // Responde na hora e roda em segundo plano (em conta grande leva minutos);
+    // o painel acompanha por GET /grupos/sincronizacao.
+    grupoService.sincronizarGrupos(whatsappClient, { forcar: true })
+      .catch((e) => console.error('❌ API sincronizar grupos:', e.message || e));
+    res.status(202).json({ success: true, data: grupoService.getEstadoSincronizacao() });
   } catch (error) {
     const msg = error?.message || String(error);
     console.error('❌ API sincronizar grupos:', msg);

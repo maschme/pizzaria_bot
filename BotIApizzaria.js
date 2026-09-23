@@ -454,22 +454,12 @@ client.on('ready', async () => {
   // embora o bot continue respondendo normalmente a quem escreve. É difícil de perceber.
   abordagemService.iniciarScheduler(client);
 
-  // Sincroniza grupos automaticamente ao conectar
-  try {
-    console.log('🔄 Sincronizando grupos do WhatsApp...');
-    const r = await grupoService.sincronizarGrupos(client);
-    // Evolution: logo após o pareamento os grupos ainda não foram baixados e a
-    // lista vem vazia — tenta de novo em 1 min, sem cache.
-    if (!r.total && !client.pupPage) {
-      setTimeout(() => {
-        if (!client.info) return;
-        grupoService.sincronizarGrupos(client, { forcar: true })
-          .catch((e) => console.error('⚠️ Erro ao re-sincronizar grupos:', e.message));
-      }, 60000);
-    }
-  } catch (err) {
-    console.error('⚠️ Erro ao sincronizar grupos:', err.message);
-  }
+  // Sincroniza grupos automaticamente ao conectar, em segundo plano (pode levar
+  // minutos: na Evolution os grupos só aparecem depois de baixados). O painel
+  // acompanha pelo estado exposto em /whatsapp/status.
+  console.log('🔄 Sincronizando grupos do WhatsApp...');
+  grupoService.sincronizarAoConectar(client, { tentativas: client.pupPage ? 1 : 4 })
+    .catch((err) => console.error('⚠️ Erro ao sincronizar grupos:', err.message));
 
   // Injeção de listener de etiquetas: só existe no motor wwebjs (Puppeteer)
   if (!client.pupPage) {
@@ -588,6 +578,7 @@ app.get('/whatsapp/status', (req, res) => {
       connected: whatsappState.status === 'connected',
       qrAvailable: whatsappState.qrCode !== null,
       lastQrUpdate: whatsappState.lastQrUpdate,
+      sincronizacaoGrupos: grupoService.getEstadoSincronizacao(),
       info: whatsappState.info ? {
         pushname: whatsappState.info.pushname,
         wid: whatsappState.info.wid?._serialized

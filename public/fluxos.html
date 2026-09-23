@@ -879,10 +879,10 @@
           preview = node.data.texto?.substring(0, 80) || '(configurar mensagem)';
           break;
         case 'wait':
-          preview = `Aguarda resposta → {{${node.data.variavelResposta || 'resposta'}}}`;
+          preview = `Aguarda resposta → {{${node.data.variavelResposta || 'resposta'}}}${node.data.avancarAoEntrarNoGrupo ? ' ou entrada no grupo demo' : ''}`;
           break;
         case 'wait_contacts':
-          preview = `Aguarda ${node.data.meta || 10} contatos (indicações)`;
+          preview = `Aguarda ${node.data.meta || 10} contatos (indicações)${node.data.simulacao ? ' — SIMULAÇÃO' : ''}`;
           break;
         case 'condition':
           preview = node.data.pergunta?.substring(0, 60) || '(configurar pergunta)';
@@ -1401,6 +1401,10 @@
               <input type="number" value="${node.data.timeout || 300000}" onchange="updateNodeData('timeout', parseInt(this.value))" min="10000" step="10000">
               <div class="help-text">Tempo máximo de espera (padrão: 5 min)</div>
             </div>
+            <div class="form-group">
+              <label><input type="checkbox" ${node.data.avancarAoEntrarNoGrupo ? 'checked' : ''} onchange="updateNodeData('avancarAoEntrarNoGrupo', this.checked)"> Avançar quando entrar no grupo de demonstração</label>
+              <div class="help-text">Se a pessoa entrar num grupo marcado como "demonstração" na aba Grupos, o fluxo segue sozinho, com {{entradaGrupoDetectada}} = "sim".</div>
+            </div>
           `;
           break;
 
@@ -1410,6 +1414,10 @@
               <label>Meta de indicações</label>
               <input type="number" value="${node.data.meta ?? 10}" onchange="updateNodeData('meta', parseInt(this.value) || 10)" min="1" placeholder="10">
               <div class="help-text">Quantidade de contatos (vCard) para concluir</div>
+            </div>
+            <div class="form-group">
+              <label><input type="checkbox" ${node.data.simulacao ? 'checked' : ''} onchange="updateNodeData('simulacao', this.checked)"> Modo simulação (demonstração)</label>
+              <div class="help-text">Só conta os contatos nesta conversa: não grava indicações e os indicados não recebem mensagem. Use em fluxos de demonstração.</div>
             </div>
             <div class="form-group">
               <label>Mensagem de convite (editável)</label>

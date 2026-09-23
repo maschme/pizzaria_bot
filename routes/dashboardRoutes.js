@@ -247,6 +247,16 @@ router.post('/grupos/:grupoId/desativar', async (req, res) => {
   }
 });
 
+router.post('/grupos/:grupoId/demonstracao', async (req, res) => {
+  try {
+    const ehDemonstracao = req.body?.demonstracao !== false;
+    const grupo = await grupoService.definirGrupoDemonstracao(decodeURIComponent(req.params.grupoId), ehDemonstracao);
+    res.json({ success: true, message: ehDemonstracao ? 'Marcado como grupo de demonstração' : 'Desmarcado', data: grupo });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/grupos/:grupoId/definir-geral', async (req, res) => {
   try {
     const { grupoId } = req.params;

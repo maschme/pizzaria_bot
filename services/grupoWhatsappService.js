@@ -421,6 +421,21 @@ async function definirGrupoGeral(grupoId) {
   });
 }
 
+/**
+ * Grupo de demonstração: usado pelo fluxo demo-campanha-30. Marcar tira o grupo da campanha
+ * (inativo, não é geral, tipo 'demonstracao'), porque a entrada nele não pode valer como Missão 1.
+ */
+async function definirGrupoDemonstracao(grupoId, ehDemonstracao = true) {
+  return await atualizarGrupo(grupoId, ehDemonstracao
+    ? { tipo: 'demonstracao', ativo: false, isGrupoGeral: false }
+    : { tipo: 'outro' });
+}
+
+async function isGrupoDemonstracao(grupoId) {
+  const grupo = await GrupoWhatsapp.findOne({ where: { grupoId, tipo: 'demonstracao' } });
+  return !!grupo;
+}
+
 async function isGrupoCampanha(grupoId) {
   const grupo = await GrupoWhatsapp.findOne({
     where: {
@@ -774,6 +789,8 @@ module.exports = {
   desativarGrupo,
   definirGrupoGeral,
   isGrupoCampanha,
+  definirGrupoDemonstracao,
+  isGrupoDemonstracao,
   getEstatisticas,
   invalidarCache,
   extrairParticipantesGrupo,

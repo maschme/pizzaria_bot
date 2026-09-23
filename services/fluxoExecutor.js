@@ -402,6 +402,9 @@ class FluxoExecutor {
     this.waitContactsMeta = meta;
     this.variaveis.qtIndicados = 0;
     this.variaveis.metaIndicados = meta;
+    // Modo simulação (fluxos de demonstração): conta os contatos só nesta conversa,
+    // sem gravar indicações nem enfileirar mensagem para os indicados.
+    this.contatosSimulados = node.data.simulacao ? new Set() : null;
 
     const mensagemConvite = (node.data.mensagemConvite || '').trim();
     if (mensagemConvite) {
@@ -948,11 +951,18 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     const fluxoConduzCampanhaInteira = (this.nodes || []).some((n) =>
       n && n.type === 'action' && ACOES_QUE_ENVIAM_CUPOM.has((n.data || {}).tipo));
 
+    // Fluxo de demonstração (nó de contatos em modo simulação): não tem cupom real, mas também não
+    // pode cair no bot legado — ele mandaria "MISSÃO 1 CONCLUÍDA" e passaria a esperar indicações
+    // de verdade de quem só estava vendo a demo.
+    const fluxoEhSimulacao = (this.nodes || []).some((n) =>
+      n && n.type === 'wait_contacts' && (n.data || {}).simulacao);
+
     const deveFazerHandoff = ehFluxoCampanha
       && typeof onCampanhaFlowEnd === 'function'
       && !this.fluxoCompletouCampanha
       && !iniciadoPeloSistema
-      && !fluxoConduzCampanhaInteira;
+      && !fluxoConduzCampanhaInteira
+      && !fluxoEhSimulacao;
 
     if (deveFazerHandoff) {
       try {
@@ -986,11 +996,23 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
     }
 
     try {
-      const { qtInseridos, qtTotal, completouMissao } = await indicacaoService.registrarIndicacoes(
-        this.chatId,
-        indicados,
-        this.getIdWhatsappParaDb()
-      );
+      let qtInseridos, qtTotal, completouMissao;
+      if (currentNode.data.simulacao) {
+        if (!this.contatosSimulados) this.contatosSimulados = new Set();
+        const antes = this.contatosSimulados.size;
+        for (const i of indicados) this.contatosSimulados.add(i.numero);
+        qtTotal = this.contatosSimulados.size;
+        qtInseridos = qtTotal - antes;
+        completouMissao = qtTotal >= this.waitContactsMeta;
+        this.variaveis.nomesIndicados = indicados.map((i) => i.nome).filter(Boolean).join(', ');
+        console.log(`🎭 [Simulação] ${qtTotal}/${this.waitContactsMeta} contatos (nada gravado) para ${this.chatId}`);
+      } else {
+        ({ qtInseridos, qtTotal, completouMissao } = await indicacaoService.registrarIndicacoes(
+          this.chatId,
+          indicados,
+          this.getIdWhatsappParaDb()
+        ));
+      }
       this.variaveis.qtIndicados = qtTotal;
       this.variaveis.metaIndicados = this.waitContactsMeta;
 
@@ -1066,6 +1088,22 @@ Responda apenas SIM ou NAO (sem pontuação ou explicação):`;
       default:
         return false;
     }
+  }
+
+  /**
+   * A pessoa entrou num grupo de demonstração. Só tem efeito se o fluxo está parado num nó
+   * "Aguardar" com `avancarAoEntrarNoGrupo`: grava {{entradaGrupoDetectada}} = "sim" e segue como
+   * se ela tivesse respondido — o fluxo decide o que dizer (ex.: "percebi que você entrou").
+   */
+  async sinalizarEntradaGrupo(grupoId) {
+    const node = this.getNode(this.currentNodeId);
+    if (!this.aguardandoResposta || !node || node.type !== 'wait' || !node.data.avancarAoEntrarNoGrupo) {
+      return false;
+    }
+    this.variaveis.entradaGrupoDetectada = 'sim';
+    this.variaveis.grupoEntradaId = grupoId;
+    await this.logExec('grupo_entrada_detectada', `Entrada no grupo ${grupoId} detectada`, node, { grupoId });
+    return this.processMessage('(entrou no grupo — detectado automaticamente)');
   }
 
   // Substitui variáveis no texto
@@ -1145,6 +1183,31 @@ function encerrarSessoesPorFluxoId(fluxoId) {
   return total;
 }
 
+/**
+ * Entrada de `membroId` no grupo `grupoId` (só para grupos de demonstração — ver group_join no
+ * BotIApizzaria). Acha a sessão pelo id recebido, pelas variantes do telefone (9º dígito) ou, se
+ * vier @lid, pelo telefone que o WhatsApp devolver para ele.
+ */
+async function sinalizarEntradaGrupo(client, membroId, grupoId) {
+  const candidatos = new Set([String(membroId || '').trim()]);
+  let base = String(membroId || '');
+  if (base.endsWith('@lid') && client) {
+    try {
+      const contato = await client.getContactById(base);
+      if (contato?.number) base = `${contato.number}@c.us`;
+    } catch (_) { /* segue só com o @lid */ }
+  }
+  if (base.endsWith('@c.us')) {
+    candidatos.add(base);
+    for (const d of telefone.variantes(base)) candidatos.add(`${d}@c.us`);
+  }
+  for (const k of candidatos) {
+    const executor = k && sessoesFluxo.get(k);
+    if (executor) return executor.sinalizarEntradaGrupo(grupoId);
+  }
+  return false;
+}
+
 function getSessaoFluxo(chatId) {
   return sessoesFluxo.get(chatId);
 }
@@ -1171,6 +1234,7 @@ module.exports = {
   processarMensagemFluxo,
   processarContatosFluxo,
   estaAguardandoContatos,
+  sinalizarEntradaGrupo,
   temFluxoAtivo,
   encerrarFluxo,
   encerrarSessoesPorFluxoId,

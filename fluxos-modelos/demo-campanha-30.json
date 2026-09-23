@@ -1,0 +1,507 @@
+{
+  "modelo": {
+    "slug": "demo-campanha-30",
+    "titulo": "Demonstração: campanha de indicação até 30%",
+    "descricao": "Para mostrar o produto a donos de delivery: a pessoa passa pela campanha como cliente e, a cada etapa, recebe \"Nos bastidores\" explicando o que o bot fez. Sem efeito real: cupons fictícios, indicações em modo simulação (não grava nem manda mensagem aos amigos), sem marcar o contato.",
+    "categoria": "demonstracao",
+    "requer": [],
+    "aviso": "Crie um grupo real só para a demo e, na aba Grupos, marque-o como grupo de demonstração (botão com ícone de quadro). Assim o bot percebe a entrada e avança a demo, sem contar como Missão 1 de verdade.",
+    "variaveis": [
+      {
+        "chave": "LINK_GRUPO_DEMO",
+        "rotulo": "Link do grupo de demonstração",
+        "exemplo": "https://chat.whatsapp.com/XXXX",
+        "ajuda": "Grupo real criado só para a demo (Missão 1)."
+      },
+      {
+        "chave": "CONTATO_COMERCIAL",
+        "rotulo": "Contato comercial (fim da demo)",
+        "exemplo": "https://wa.me/5541999999999",
+        "ajuda": "Para onde o dono do delivery vai se quiser contratar."
+      }
+    ]
+  },
+  "schemaVersion": 1,
+  "nome": "Demonstração — Campanha de indicação 30%",
+  "tipo": "campanha",
+  "descricao": "Demonstração guiada da campanha de indicação, com explicações \"Nos bastidores\". Sem efeito real.",
+  "gatilho": {
+    "tipo": "mensagem_exata",
+    "valor": "Quero ver a demonstração da campanha de 30%",
+    "palavras": []
+  },
+  "nodes": [
+    {
+      "id": "d1",
+      "type": "trigger",
+      "x": 300,
+      "y": 100,
+      "data": {
+        "tipo": "mensagem_exata",
+        "valor": "Quero ver a demonstração da campanha de 30%",
+        "palavras": []
+      }
+    },
+    {
+      "id": "d2",
+      "type": "message",
+      "x": 600,
+      "y": 100,
+      "data": {
+        "texto": "👋 Olá! Esta é uma *demonstração* da *Campanha de Indicação — até 30% de desconto*, a mesma que roda no WhatsApp de um delivery de verdade.\n\nVocê vai passar pelo fluxo como se fosse um cliente. Depois de cada etapa, eu mando uma mensagem 🔧 *Nos bastidores* explicando o que o bot fez e o que acontece na versão real.\n\nNada aqui é real: os cupons são fictícios e ninguém recebe mensagem em seu nome. Pode repetir quando quiser.",
+        "delay": 500
+      }
+    },
+    {
+      "id": "d3",
+      "type": "message",
+      "x": 900,
+      "y": 100,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nO fluxo começou porque você mandou a frase de gatilho. No seu delivery, essa frase vem pronta no link do anúncio, do Instagram ou do cardápio — e o bot registra de qual canal cada cliente veio.\n\nNa versão real ele também confere se o cliente já participou da campanha, para ninguém ganhar o desconto duas vezes.",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d4",
+      "type": "message",
+      "x": 1200,
+      "y": 100,
+      "data": {
+        "texto": "Vamos lá! São *3 missões rápidas* e o desconto chega a *30%*. 🍕\n\nPara começar: *qual é o seu bairro?*",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d5",
+      "type": "wait",
+      "x": 1500,
+      "y": 100,
+      "data": {
+        "variavelResposta": "respostaBairro",
+        "timeout": 600000
+      }
+    },
+    {
+      "id": "d6",
+      "type": "ia",
+      "x": 1800,
+      "y": 100,
+      "data": {
+        "instrucao": "Extraia APENAS o nome do bairro da mensagem. Se nao conseguir identificar, responda NAO_IDENTIFICADO. Exemplos: moro no centro -> Centro | meu bairro e gloria -> Gloria",
+        "variavelSaida": "bairro"
+      }
+    },
+    {
+      "id": "d7",
+      "type": "condition_var",
+      "x": 2100,
+      "y": 100,
+      "data": {
+        "variavelNome": "bairro",
+        "operador": "igual",
+        "valorComparacao": "NAO_IDENTIFICADO"
+      }
+    },
+    {
+      "id": "d8",
+      "type": "message",
+      "x": 2400,
+      "y": 100,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nVocê escreveu: \"{{respostaBairro}}\"\nA inteligência artificial entendeu que o seu bairro é *{{bairro}}*.\n\nNa versão real, o bot procura o grupo de promoções *desse bairro* entre os grupos do WhatsApp do delivery, que o painel sincroniza sozinho. Cada bairro pode ter o seu grupo, e existe um grupo geral para quem não se encaixa em nenhum.",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d9",
+      "type": "message",
+      "x": 2400,
+      "y": 320,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nNão consegui identificar um bairro em \"{{respostaBairro}}\". Na versão real, o cliente vai para o *grupo geral* — vamos seguir com ele.",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d10",
+      "type": "message",
+      "x": 2700,
+      "y": 100,
+      "data": {
+        "texto": "*MISSÃO 1* — Entre no nosso grupo de promoções:\n\n{{LINK_GRUPO_DEMO}}\n\nFique tranquilo: o grupo é silenciado e as promoções chegam de vez em quando.\n\nEntre e veja o que acontece. 😉 (Se preferir, pode me avisar aqui: *entrei*.)",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d11",
+      "type": "wait",
+      "x": 3000,
+      "y": 100,
+      "data": {
+        "variavelResposta": "confirmacaoGrupo",
+        "timeout": 600000,
+        "avancarAoEntrarNoGrupo": true
+      }
+    },
+    {
+      "id": "d11b",
+      "type": "condition_var",
+      "x": 3300,
+      "y": 100,
+      "data": {
+        "variavelNome": "entradaGrupoDetectada",
+        "operador": "igual",
+        "valorComparacao": "sim"
+      }
+    },
+    {
+      "id": "d11c",
+      "type": "message",
+      "x": 3600,
+      "y": 100,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nViu? Você não precisou me avisar: *eu percebi sozinho* que você entrou no grupo.\n\nO WhatsApp avisa o bot quando alguém entra num grupo do delivery. Ele confere se aquela pessoa está no meio da campanha e libera a missão na hora.",
+        "delay": 800
+      }
+    },
+    {
+      "id": "d12",
+      "type": "condition",
+      "x": 3600,
+      "y": 320,
+      "data": {
+        "pergunta": "O cliente confirmou que entrou no grupo de WhatsApp? (respondeu entrei, pronto, feito, ja entrei, etc)"
+      }
+    },
+    {
+      "id": "d12b",
+      "type": "message",
+      "x": 3900,
+      "y": 320,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nA inteligência artificial entendeu que \"{{confirmacaoGrupo}}\" quer dizer que você entrou.\n\nE se você não tivesse avisado? Na versão real (e aqui também), o bot *percebe sozinho* quando o cliente entra no grupo e libera a missão na hora.",
+        "delay": 800
+      }
+    },
+    {
+      "id": "d13",
+      "type": "message",
+      "x": 3900,
+      "y": 540,
+      "data": {
+        "texto": "Hmm, ainda não vi você no grupo. 🤔\n\nEntre pelo link:\n{{LINK_GRUPO_DEMO}}\n\n🔧 Nos bastidores: assim que você entrar eu percebo sozinho. Se responder algo que a inteligência artificial não entende como \"entrei\", chega este lembrete.",
+        "delay": 500
+      }
+    },
+    {
+      "id": "d14",
+      "type": "message",
+      "x": 4200,
+      "y": 100,
+      "data": {
+        "texto": "Parabéns!!! 🎉\n\nVocê liberou *+10% de desconto*!\n\n*Seu progresso:*\nDesconto atual: *10%*\nMissões: *1/3 concluídas*",
+        "delay": 500
+      }
+    },
+    {
+      "id": "d15",
+      "type": "message",
+      "x": 4500,
+      "y": 100,
+      "data": {
+        "texto": "🎟️ *Seu cupom de 10% de desconto:* DEMO-XK42\n\nÉ só seu e vale para 1 pedido nos próximos 15 dias. Faça seu pedido pelo cardápio e informe o cupom no final.\n\n_(cupom fictício — é uma demonstração)_",
+        "delay": 800
+      }
+    },
+    {
+      "id": "d16",
+      "type": "message",
+      "x": 4800,
+      "y": 100,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nO bot criou um *cupom único* direto no sistema de pedidos (Multipedidos): 1 uso, com validade, e não serve para outra pessoa.\n\nSe o sistema de pedidos estiver fora do ar, ele usa um cupom da lista reserva — o cliente nunca fica sem resposta.",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d17",
+      "type": "wait_contacts",
+      "x": 5100,
+      "y": 100,
+      "data": {
+        "meta": 2,
+        "simulacao": true,
+        "variavelResposta": "qtIndicados",
+        "mensagemConvite": "*MISSÃO 2* — Que tal presentear *2 amigos* com um cupom de 10%? E ainda subir o seu desconto para *20%*!\n\nToque no 📎 → *Contato*, escolha 2 pessoas da sua agenda e envie aqui.\n\n_(é uma demonstração: ninguém vai receber mensagem)_",
+        "mensagemProgresso": "✅ {{qtIndicados}}/{{metaIndicados}} indicações recebidas."
+      }
+    },
+    {
+      "id": "d18",
+      "type": "message",
+      "x": 5400,
+      "y": 100,
+      "data": {
+        "texto": "Parabéns!!! 🎉\n\nVocê liberou *+20% de desconto*!\n\n*Seu progresso:*\nDesconto atual: *20%*\nMissões: *2/3 concluídas*",
+        "delay": 500
+      }
+    },
+    {
+      "id": "d19",
+      "type": "message",
+      "x": 5700,
+      "y": 100,
+      "data": {
+        "texto": "🎟️ *Seu cupom agora vale 20%:* DEMO-XK42\n\nÉ o mesmo código de antes — agora valendo mais, e com a validade renovada.",
+        "delay": 800
+      }
+    },
+    {
+      "id": "d20",
+      "type": "message",
+      "x": 6000,
+      "y": 100,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nNa versão real a meta é de *10 indicações* (você escolhe o número). O bot:\n\n• grava cada indicação e não conta o mesmo amigo duas vezes;\n• manda a cada amigo um convite com cupom de 10%, só dentro do horário de funcionamento do delivery;\n• respeita quem pediu para não receber mensagens.\n\nE o cupom não muda de código: o mesmo cupom sobe para 20%, então o cliente não se confunde.",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d21",
+      "type": "message",
+      "x": 6300,
+      "y": 100,
+      "data": {
+        "texto": "*MISSÃO 3* — a última! 🏁\n\nQuer chegar a *30%*? Deixe a sua avaliação sobre nós no Google:\n_(aqui vai o link de avaliação do seu delivery)_\n\nDepois me avise aqui (ex.: *avaliei*).",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d22",
+      "type": "wait",
+      "x": 6600,
+      "y": 100,
+      "data": {
+        "variavelResposta": "respostaAvaliacao",
+        "timeout": 600000
+      }
+    },
+    {
+      "id": "d23",
+      "type": "message",
+      "x": 6900,
+      "y": 100,
+      "data": {
+        "texto": "Parabéns!!! 🏆\n\nVocê chegou a *30% de desconto*!\n\n🎟️ Cupom: DEMO-XK42 — agora valendo 30%.\nMissões: *3/3 concluídas*",
+        "delay": 500
+      }
+    },
+    {
+      "id": "d24",
+      "type": "message",
+      "x": 7200,
+      "y": 100,
+      "data": {
+        "texto": "🔧 *Nos bastidores*\n\nA avaliação no Google é o que mais traz clientes novos para um delivery.\n\n⚠️ Atenção: a política do Google não permite dar recompensa em troca de avaliação. Por isso a 3ª missão é configurável: pode ser avaliar, seguir no Instagram, postar uma foto do pedido… você decide o que faz sentido para o seu negócio.",
+        "delay": 1500
+      }
+    },
+    {
+      "id": "d25",
+      "type": "end",
+      "x": 7500,
+      "y": 100,
+      "data": {
+        "mensagemFinal": "✅ *Fim da demonstração*\n\nEm poucos minutos você viu o bot:\n\n• entender respostas livres com inteligência artificial;\n• levar o cliente para o grupo de promoções do bairro;\n• criar e promover um cupom único no sistema de pedidos;\n• transformar cada cliente em novas indicações;\n• pedir a avaliação no Google.\n\nTudo roda sozinho no WhatsApp do seu delivery, e cada mensagem e etapa é editável no painel.\n\nQuer colocar no seu delivery? Fale com a gente: {{CONTATO_COMERCIAL}}\n\nPara ver de novo, mande: Quero ver a demonstração da campanha de 30%"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_d1_d2",
+      "source": "d1",
+      "target": "d2",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d2_d3",
+      "source": "d2",
+      "target": "d3",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d3_d4",
+      "source": "d3",
+      "target": "d4",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d4_d5",
+      "source": "d4",
+      "target": "d5",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d5_d6",
+      "source": "d5",
+      "target": "d6",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d6_d7",
+      "source": "d6",
+      "target": "d7",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d7_d9",
+      "source": "d7",
+      "target": "d9",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "e_d7_d8",
+      "source": "d7",
+      "target": "d8",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "e_d8_d10",
+      "source": "d8",
+      "target": "d10",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d9_d10",
+      "source": "d9",
+      "target": "d10",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d10_d11",
+      "source": "d10",
+      "target": "d11",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d11_d11b",
+      "source": "d11",
+      "target": "d11b",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d11b_d11c",
+      "source": "d11b",
+      "target": "d11c",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "e_d11b_d12",
+      "source": "d11b",
+      "target": "d12",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "e_d11c_d14",
+      "source": "d11c",
+      "target": "d14",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d12_d12b",
+      "source": "d12",
+      "target": "d12b",
+      "sourceHandle": "output-true"
+    },
+    {
+      "id": "e_d12_d13",
+      "source": "d12",
+      "target": "d13",
+      "sourceHandle": "output-false"
+    },
+    {
+      "id": "e_d12b_d14",
+      "source": "d12b",
+      "target": "d14",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d13_d11",
+      "source": "d13",
+      "target": "d11",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d14_d15",
+      "source": "d14",
+      "target": "d15",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d15_d16",
+      "source": "d15",
+      "target": "d16",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d16_d17",
+      "source": "d16",
+      "target": "d17",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d17_d18",
+      "source": "d17",
+      "target": "d18",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d18_d19",
+      "source": "d18",
+      "target": "d19",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d19_d20",
+      "source": "d19",
+      "target": "d20",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d20_d21",
+      "source": "d20",
+      "target": "d21",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d21_d22",
+      "source": "d21",
+      "target": "d22",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d22_d23",
+      "source": "d22",
+      "target": "d23",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d23_d24",
+      "source": "d23",
+      "target": "d24",
+      "sourceHandle": "output"
+    },
+    {
+      "id": "e_d24_d25",
+      "source": "d24",
+      "target": "d25",
+      "sourceHandle": "output"
+    }
+  ],
+  "viewport": {
+    "x": 100,
+    "y": 0,
+    "zoom": 0.6
+  }
+}

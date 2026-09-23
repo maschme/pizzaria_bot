@@ -35,8 +35,9 @@ const GrupoWhatsapp = sequelize.define('GrupoWhatsapp', {
     defaultValue: 0
   },
   tipo: {
-    type: DataTypes.ENUM('campanha', 'promocao', 'suporte', 'outro'),
-    defaultValue: 'outro'
+    type: DataTypes.ENUM('campanha', 'promocao', 'suporte', 'outro', 'demonstracao'),
+    defaultValue: 'outro',
+    comment: "'demonstracao': entrada no grupo só avança o fluxo de demonstração da pessoa, nunca a campanha"
   },
   ativo: {
     type: DataTypes.BOOLEAN,

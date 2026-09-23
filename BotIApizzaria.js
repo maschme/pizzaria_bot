@@ -1583,6 +1583,21 @@ client.on('group_join', async (notification) => {
 
   console.log(`\n📥 Nova entrada no grupo: ${grupoID}`);
 
+  // Grupo de demonstração (fluxo demo-campanha-30): a entrada só avança a demo da pessoa, se houver
+  // uma parada esperando por isso. Nunca vale como Missão 1 nem mexe no cadastro.
+  try {
+    if (await grupoService.isGrupoDemonstracao(grupoID)) {
+      for (const membro of novosMembros || []) {
+        const avancou = await fluxoExecutor.sinalizarEntradaGrupo(client, membro, grupoID);
+        console.log(`🎭 Grupo de demonstração: ${membro} ${avancou ? 'avançou na demo' : 'sem demo esperando a entrada'}`);
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('⚠️ Erro ao tratar entrada em grupo de demonstração:', err.message);
+    return;
+  }
+
   // Verifica se é um dos nossos grupos de campanha (banco primeiro, fallback local)
   let verificacaoGrupo = await isGrupoCampanhaDB(grupoID);
   if (!verificacaoGrupo.valido) {

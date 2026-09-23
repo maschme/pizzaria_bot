@@ -1663,8 +1663,10 @@
           <td><input type="text" class="form-control form-control-modern form-control-sm input-bairro" value="${g.bairro || ''}" placeholder="Bairro" data-grupo-id="${g.grupoId}" onchange="atualizarBairro(this)"></td>
           <td><div class="d-flex align-items-center gap-1"><input type="text" class="form-control form-control-modern form-control-sm" value="${g.linkConvite || ''}" placeholder="Link" id="link-${g.grupoId.replace(/[@.]/g, '_')}" style="min-width:180px"><button class="btn btn-sm btn-outline-primary" onclick="salvarLink('${g.grupoId}')"><i class="bi bi-save"></i></button>${g.linkConvite ? '<span class="badge bg-success"><i class="bi bi-check"></i></span>' : '<span class="badge bg-danger pulse"><i class="bi bi-exclamation-triangle"></i></span>'}</div></td>
           <td>${g.participantes || 0}</td>
-          <td><span class="badge bg-secondary">${g.tipo || '-'}</span></td>
-          <td><div class="btn-group">${g.ativo ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleGrupo('${g.grupoId}', false)" title="Desativar"><i class="bi bi-x"></i></button>` : `<button class="btn btn-sm btn-outline-success" onclick="toggleGrupo('${g.grupoId}', true)" title="Ativar"><i class="bi bi-check"></i></button>`}${!g.isGrupoGeral ? ` <button class="btn btn-sm btn-outline-warning" onclick="definirGeral('${g.grupoId}')" title="Definir como geral"><i class="bi bi-star"></i></button>` : ''} <button class="btn btn-sm btn-outline-info" onclick="exportarParticipantesCsv('${g.grupoId}')" title="Exportar participantes CSV"><i class="bi bi-filetype-csv"></i></button></div></td>
+          <td>${g.tipo === 'demonstracao' ? '<span class="badge bg-info text-dark">demonstração</span>' : `<span class="badge bg-secondary">${g.tipo || '-'}</span>`}</td>
+          <td><div class="btn-group">${g.tipo === 'demonstracao'
+            ? `<button class="btn btn-sm btn-info" onclick="marcarDemonstracao('${g.grupoId}', false)" title="Desmarcar grupo de demonstração"><i class="bi bi-easel-fill"></i></button>`
+            : `<button class="btn btn-sm btn-outline-info" onclick="marcarDemonstracao('${g.grupoId}', true)" title="Marcar como grupo de demonstração"><i class="bi bi-easel"></i></button>`} ${g.ativo ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleGrupo('${g.grupoId}', false)" title="Desativar"><i class="bi bi-x"></i></button>` : `<button class="btn btn-sm btn-outline-success" onclick="toggleGrupo('${g.grupoId}', true)" title="Ativar"><i class="bi bi-check"></i></button>`}${!g.isGrupoGeral ? ` <button class="btn btn-sm btn-outline-warning" onclick="definirGeral('${g.grupoId}')" title="Definir como geral"><i class="bi bi-star"></i></button>` : ''} <button class="btn btn-sm btn-outline-info" onclick="exportarParticipantesCsv('${g.grupoId}')" title="Exportar participantes CSV"><i class="bi bi-filetype-csv"></i></button></div></td>
         </tr>
       `).join('');
     }
@@ -1715,6 +1717,12 @@
     async function toggleGrupo(grupoId, ativo) {
       const data = await api(`/grupos/${encodeURIComponent(grupoId)}/${ativo ? 'ativar' : 'desativar'}`, { method: 'POST' });
       if (data.success) { showToast(ativo ? 'Grupo ativado' : 'Grupo desativado'); carregarGrupos(); carregarStatus(); carregarDashboard(); }
+    }
+    async function marcarDemonstracao(grupoId, demonstracao) {
+      if (demonstracao && !confirm('Marcar como grupo de demonstração?\n\nEle sai da campanha (fica inativo) e a entrada de alguém nele só faz avançar o fluxo de demonstração.')) return;
+      const data = await api(`/grupos/${encodeURIComponent(grupoId)}/demonstracao`, { method: 'POST', body: JSON.stringify({ demonstracao }) });
+      if (data.success) { showToast(data.message); carregarGrupos(); carregarStatus(); carregarDashboard(); }
+      else showToast(data.error || 'Erro', 'danger');
     }
     async function definirGeral(grupoId) {
       const data = await api(`/grupos/${encodeURIComponent(grupoId)}/definir-geral`, { method: 'POST' });

@@ -115,6 +115,15 @@ function variantes(entrada) {
 }
 
 /**
+ * Forma **sem** o 9º dígito (a mais curta das variantes). Serve de chave de agrupamento: as duas
+ * formas do mesmo celular caem na mesma chave. Não use para gravar nem para enviar.
+ */
+function formaCurta(entrada) {
+  const vars = variantes(entrada);
+  return vars.length ? vars[vars.length - 1] : '';
+}
+
+/**
  * Dá para mandar mensagem de WhatsApp para este número?
  *
  * Guarda de saída da abordagem ativa: o bot abre conversa por conta própria, então um número que
@@ -195,6 +204,7 @@ module.exports = {
   comDdi,
   canonico,
   variantes,
+  formaCurta,
   mesmoNumero,
   ehPlausivelParaWhatsapp,
   chatId,

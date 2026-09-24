@@ -16,6 +16,7 @@ const webhookEventoService = require('../services/webhookEventoService');
 const integracaoService = require('../services/multipedidosIntegracaoService');
 const cupomService = require('../services/multipedidosCupomService');
 const posVendaService = require('../services/posVendaService');
+const contatoService = require('../services/contatoService');
 
 const ORIGEM = 'multipedidos';
 
@@ -86,6 +87,17 @@ async function processarEvento(req, body) {
     return;
   }
   if (!pedido || typeof pedido !== 'object' || !pedido.id || !pedido.order_status) return;
+
+  // Nome do cadastro → contatos. Isolado: falha aqui não pode impedir cupom nem pós-venda.
+  // Não loga nome nem telefone (dado pessoal).
+  try {
+    const n = await contatoService.salvarNomeDoPedidoMultipedidos(pedido);
+    if (n.acao === 'criado' || n.acao === 'atualizado') {
+      console.log(`👤 Nome do cliente ${n.acao === 'criado' ? 'gravado em contato novo' : 'atualizado'} (pedido ${pedido.order_no || pedido.id})`);
+    }
+  } catch (e) {
+    console.warn('⚠️ Nome do cliente (Multipedidos):', e.message);
+  }
 
   const r = await cupomService.registrarUsoPorPedido(pedido);
   if (r.acao === 'usado') {

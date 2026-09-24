@@ -68,6 +68,39 @@ Gravar canônico e ler por variantes resolve sem tocar no que já está lá. Os 
 | Dashboard | mostrava "sem contato" e "não em fluxo" para quem existe |
 | Cliente e pedido legados | busca pelos últimos 8 dígitos podia casar cliente de outro DDD |
 
+## Nome do cliente e conversas duplicadas no chat
+
+Acrescentado em 23/09/2026.
+
+**Nome.** Nada gravava `contatos.nome`, então todo contato aparecia sem nome. Agora o webhook da Multipedidos grava o nome do cadastro do cliente (`client.name`, ou `name` na raiz) a cada evento de pedido, em `contatoService.salvarNomeDoPedidoMultipedidos`:
+
+- procura o contato por **todas** as formas do número; se houver duplicata antiga, as duas linhas recebem o nome
+- contato que não existe nasce com `resolverIdGravavel`, então a primeira mensagem dele no WhatsApp já o encontra com nome
+- o cadastro prevalece sobre o perfil do WhatsApp: se o nome mudar lá, muda aqui
+- pedido de mesa/balcão (sem telefone), telefone mascarado de marketplace e "nome" sem letras são ignorados
+- o log não mostra nome nem telefone
+
+Para os pedidos que chegaram antes disso, os nomes saem do que já foi capturado em `webhook_eventos`:
+
+```bash
+node scripts/contatos-nomes-multipedidos.js
+```
+
+Sem `--aplicar` só conta. Com `--aplicar`, grava (o nome mais recente de cada cliente vence).
+
+**Conversas duplicadas.** O WhatsApp pode manter várias conversas para a mesma pessoa: sem o 9º dígito (como a conta foi registrada), com o 9 (aberta pelo bot a partir do número do pedido) e pela conta `@lid`. O chat do painel mostrava cada uma numa linha, uma pelo nome, outra pelo número, outra pelo id. Agora `chatService` junta as conversas por pessoa:
+
+| Junta quando | Como |
+|---|---|
+| números iguais a menos do 9º dígito | `telefone.formaCurta()` |
+| `@lid` ligado a um telefone | `contatos.whatsapp_lid`, ou o que o motor souber (`getContactLidAndPhone`) |
+
+Nome igual não junta: dois "João" são duas pessoas. O que o motor ensinar sobre um `@lid` é gravado em `contatos.whatsapp_lid` do contato que já existe, para não se perder quando o bot reinicia. No motor Evolution, o vínculo também é aprendido da lista de conversas, quando a Evolution o traz.
+
+Na tela: uma linha por pessoa, com o nome do cadastro primeiro (depois o perfil do WhatsApp, depois o número) e a etiqueta "N conversas" quando houver junção. Ao abrir, as mensagens de todas as conversas aparecem numa linha do tempo só. A resposta do operador vai para a conversa em que o cliente escreveu por último.
+
+Limite: um `@lid` que nem o banco nem o motor conseguem ligar a um telefone continua numa linha separada até o vínculo aparecer (por exemplo, quando o cliente entra num fluxo, que grava o `@lid` no contato).
+
 ## Diagnóstico
 
 Quando alguém abordado pelo bot não responder como esperado:

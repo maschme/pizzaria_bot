@@ -590,6 +590,11 @@ class EvolutionClient extends EventEmitter {
       for (const c of lista) {
         const jid = c.remoteJid || c.id;
         if (!jid || String(jid).endsWith('@g.us')) continue;
+        // Conversa @lid: a última mensagem pode trazer o telefone (varia com a versão da Evolution).
+        // Sem isso, o vínculo só era aprendido de mensagem recebida depois do último restart.
+        const chaveUltima = c.lastMessage?.key || {};
+        const alt = chaveUltima.remoteJidAlt || chaveUltima.senderPn || c.remoteJidAlt;
+        if (alt) this._aprenderLid(jid, alt);
         out.push(this._criarChatObj({
           chatId: paraCUs(jid),
           nome: c.pushName || c.name || paraCUs(jid),

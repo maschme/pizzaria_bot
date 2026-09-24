@@ -1298,11 +1298,12 @@
         return;
       }
       listEl.innerHTML = chatsListaCache.map(c => {
-        const active = chatSelecionado && chatSelecionado.chatId === c.chatId ? ' active' : '';
+        const active = chatSelecionado && (chatSelecionado.chatId === c.chatId || (c.chatIds || []).includes(chatSelecionado.chatId)) ? ' active' : '';
         const unreadCls = c.temNaoLidas ? ' unread' : '';
         let badges = '';
         if (c.em_fluxo) badges += '<span class="chat-badge chat-badge-fluxo">Fluxo</span>';
         if (c.em_campanha) badges += '<span class="chat-badge chat-badge-campanha">Campanha</span>';
+        if (c.conversasUnificadas > 1) badges += '<span class="chat-badge" title="Mesma pessoa em ' + c.conversasUnificadas + ' conversas do WhatsApp (com/sem 9º dígito ou conta @lid); as mensagens aparecem juntas">' + c.conversasUnificadas + ' conversas</span>';
         const unread = c.naoLidas > 0 ? '<span class="chat-badge chat-badge-unread">' + (c.naoLidas > 99 ? '99+' : c.naoLidas) + '</span>' : '';
         return `<div class="chat-list-item${active}${unreadCls}" data-chat-id="${escHtml(c.chatId)}">
           <div class="chat-name">${escHtml(c.nome)}</div>
@@ -1362,7 +1363,8 @@
       }
       const info = data.data;
       if (info.nome) {
-        header.innerHTML = '<strong>' + escHtml(info.nome) + '</strong><br><small class="text-secondary">' + escHtml(info.chatId) + '</small>';
+        const juntas = (info.chatIds || []).length > 1 ? ' · ' + info.chatIds.length + ' conversas juntas' : '';
+        header.innerHTML = '<strong>' + escHtml(info.nome) + '</strong><br><small class="text-secondary">' + escHtml(info.chatId + juntas) + '</small>';
       }
       const msgs = info.mensagens || [];
       if (!msgs.length) {

@@ -2,6 +2,8 @@
 
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../database/connection');
+const telefone = require('./telefoneService');
+const contatoIdService = require('./contatoIdService');
 
 const config = {
   host: dbConfig.host,
@@ -103,8 +105,78 @@ async function deletarContato(whatsappId, opts = {}) {
   }
 }
 
+/** Nome como veio do cadastro, sem espaços sobrando. Vazio ou só números não é nome. */
+function limparNome(nome) {
+  const n = String(nome == null ? '' : nome).replace(/\s+/g, ' ').trim().slice(0, 255);
+  if (!n || !/\p{L}/u.test(n)) return '';
+  return n;
+}
+
+/**
+ * Grava o nome do cliente vindo do cadastro de um sistema de pedidos (Multipedidos).
+ *
+ * O cadastro é a fonte mais confiável de nome que temos (o perfil do WhatsApp é apelido, emoji ou
+ * nada), então ele prevalece: atualiza o nome sempre que mudar.
+ *
+ * Procura o contato por **todas** as formas do número (com e sem o 9º dígito): se houver duplicata
+ * antiga, as duas linhas recebem o nome. Contato que ainda não existe nasce no formato gravável
+ * (`resolverIdGravavel`), para que a primeira mensagem dele no WhatsApp já o encontre com nome.
+ *
+ * @param {string} telefoneBruto - número em qualquer formato (já validado como plausível)
+ * @param {string} nome
+ * @returns {Promise<{acao: 'criado'|'atualizado'|'igual'|'ignorado', whatsapp_id?: string}>}
+ */
+async function salvarNomeDoCadastro(telefoneBruto, nome) {
+  const nomeLimpo = limparNome(nome);
+  const alvo = telefone.clausulaIn('whatsapp_id', telefoneBruto);
+  if (!nomeLimpo || !alvo) return { acao: 'ignorado' };
+
+  const conn = await mysql.createConnection(config);
+  try {
+    const [existentes] = await conn.execute(
+      `SELECT id, whatsapp_id, nome FROM contatos WHERE ${alvo.sql}`, alvo.params);
+
+    if (existentes.length) {
+      const desatualizados = existentes.filter((c) => (c.nome || '') !== nomeLimpo);
+      if (!desatualizados.length) return { acao: 'igual', whatsapp_id: existentes[0].whatsapp_id };
+      await conn.execute(
+        `UPDATE contatos SET nome = ? WHERE id IN (${desatualizados.map(() => '?').join(', ')})`,
+        [nomeLimpo, ...desatualizados.map((c) => c.id)]
+      );
+      return { acao: 'atualizado', whatsapp_id: existentes[0].whatsapp_id };
+    }
+
+    const wid = await contatoIdService.resolverIdGravavel(telefoneBruto, { conn });
+    if (!wid) return { acao: 'ignorado' };
+    // ON DUPLICATE: corrida com uma mensagem chegando do mesmo número ao mesmo tempo.
+    await conn.execute(
+      `INSERT INTO contatos (whatsapp_id, nome) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE nome = VALUES(nome)`,
+      [wid, nomeLimpo]
+    );
+    return { acao: 'criado', whatsapp_id: wid };
+  } finally {
+    await conn.end();
+  }
+}
+
+/**
+ * Nome + telefone de um pedido da Multipedidos → contatos. Pedido de mesa/balcão (sem telefone ou
+ * sem nome) e telefone mascarado de marketplace são ignorados.
+ */
+async function salvarNomeDoPedidoMultipedidos(pedido) {
+  if (!pedido || typeof pedido !== 'object') return { acao: 'ignorado' };
+  const cliente = pedido.client && typeof pedido.client === 'object' ? pedido.client : {};
+  const fone = [cliente.phone, pedido.phone].find((f) => telefone.ehPlausivelParaWhatsapp(f));
+  if (!fone) return { acao: 'ignorado' };
+  return salvarNomeDoCadastro(fone, cliente.name || pedido.name);
+}
+
 module.exports = {
   listarContatos,
   deletarContato,
-  normalizarWhatsappId
+  normalizarWhatsappId,
+  limparNome,
+  salvarNomeDoCadastro,
+  salvarNomeDoPedidoMultipedidos
 };

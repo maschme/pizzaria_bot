@@ -30,6 +30,182 @@ function invalidarCacheConversas() {
   cacheConversas = null;
   cacheChatsMap = new Map();
   cacheConversasTs = 0;
+  cachePessoas = null;
+}
+
+// ============================================================
+// Uma pessoa, várias conversas
+// ============================================================
+//
+// O WhatsApp pode manter mais de uma conversa para o mesmo cliente: uma com o número sem o 9º
+// dígito (como a conta dele foi registrada), outra com o 9 (aberta pelo bot a partir do número do
+// pedido), outra pela conta @lid. Na tela isso virava duas ou três entradas — uma com o nome, outra
+// com o id, outra com o número. Aqui elas são juntadas numa "pessoa": a lista mostra uma entrada
+// e, ao abrir, as mensagens de todas as conversas aparecem juntas, em ordem.
+//
+// Como saber que é a mesma pessoa:
+//   - números: mesma forma curta (telefone.formaCurta), ou seja, iguais a menos do 9º dígito
+//   - @lid: pelo telefone ligado a ele em contatos.whatsapp_lid, ou pelo que o motor do WhatsApp
+//     souber (getContactLidAndPhone). O que o motor ensinar fica gravado em contatos, para não
+//     depender da memória dele depois de reiniciar.
+// Nome igual NÃO junta: dois "João" são duas pessoas.
+
+let cachePessoas = null;
+/** @lid → dígitos do telefone, aprendido do motor. null = motor não sabe (reconsulta depois). */
+const lidParaPn = new Map();
+const LID_NEGATIVO_TTL_MS = 5 * 60 * 1000;
+
+function pareceNome(s) {
+  const t = String(s == null ? '' : s).trim();
+  return !!t && !t.includes('@') && /\p{L}/u.test(t);
+}
+
+/** Grava o @lid aprendido no contato que já existe com aquele telefone (não cria contato). */
+async function gravarLidsAprendidos(pares) {
+  if (!pares.length) return;
+  const conn = await mysql.createConnection(dbConn);
+  try {
+    for (const { lid, pn } of pares) {
+      const alvo = telefone.clausulaIn('whatsapp_id', pn);
+      if (!alvo) continue;
+      await conn.execute(
+        `UPDATE contatos SET whatsapp_lid = ?
+          WHERE ${alvo.sql} AND (whatsapp_lid IS NULL OR whatsapp_lid = '')`,
+        [lid, ...alvo.params]
+      );
+    }
+  } catch (e) {
+    if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') {
+      console.warn('⚠️ Gravar @lid aprendido:', e.message);
+    }
+  } finally {
+    await conn.end().catch(() => {});
+  }
+}
+
+/** Telefone (dígitos) de cada @lid da lista, quando se sabe. */
+async function resolverLids(client, lids, maps) {
+  const resultado = new Map();
+  const perguntar = [];
+  const agora = Date.now();
+  for (const lid of lids) {
+    const contato = maps.mapByLid.get(lid);
+    if (contato && contato.whatsapp_id) {
+      resultado.set(lid, normalizarDigitos(contato.whatsapp_id));
+      continue;
+    }
+    const cache = lidParaPn.get(lid);
+    if (cache && cache.pn) resultado.set(lid, cache.pn);
+    else if (!cache || agora - cache.em > LID_NEGATIVO_TTL_MS) perguntar.push(lid);
+  }
+
+  if (perguntar.length && client && typeof client.getContactLidAndPhone === 'function') {
+    const aprendidos = [];
+    try {
+      const res = await client.getContactLidAndPhone(perguntar);
+      const lista = Array.isArray(res) ? res : [];
+      perguntar.forEach((lid, i) => {
+        const pn = normalizarDigitos(lista[i] && lista[i].pn);
+        if (pn.length >= 10 && !telefone.ehLid(lista[i].pn)) {
+          lidParaPn.set(lid, { pn, em: agora });
+          resultado.set(lid, pn);
+          aprendidos.push({ lid, pn });
+        } else {
+          lidParaPn.set(lid, { pn: null, em: agora });
+        }
+      });
+    } catch (_) {
+      for (const lid of perguntar) lidParaPn.set(lid, { pn: null, em: agora });
+    }
+    gravarLidsAprendidos(aprendidos).catch(() => {});
+  }
+  return resultado;
+}
+
+/**
+ * Agrupa as conversas por pessoa.
+ * @returns {Promise<{pessoas: Object[], porChatId: Map<string, Object>}>}
+ */
+async function agruparPorPessoa(client, chats) {
+  const maps = await carregarMapaContatos();
+  const lids = chats.map((c) => c.id._serialized).filter((id) => telefone.ehLid(id));
+  const pnDoLid = await resolverLids(client, lids, maps);
+
+  const porChave = new Map();
+  for (const chat of chats) {
+    const id = chat.id._serialized;
+    const pn = telefone.ehLid(id) ? (pnDoLid.get(id) || '') : normalizarDigitos(id);
+    const curta = pn ? telefone.formaCurta(pn) : '';
+    const chave = curta ? `n:${curta}` : `id:${id}`;
+    if (!porChave.has(chave)) porChave.set(chave, { pn: '', chats: [] });
+    const p = porChave.get(chave);
+    p.chats.push(chat);
+    if (pn && (!p.pn || pn.length > p.pn.length)) p.pn = pn; // prefere a forma com o 9º dígito
+  }
+
+  const pessoas = [];
+  const porChatId = new Map();
+  for (const p of porChave.values()) {
+    const membros = [...p.chats].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
+    const principal = membros[0];
+    const ids = membros.map((c) => c.id._serialized);
+
+    let contato = null;
+    for (const ref of [...ids, p.pn]) {
+      contato = ref ? acharContatoRapido(maps, ref) : null;
+      if (contato) break;
+    }
+
+    const nomeWhatsapp = membros.map((c) => c.name || c.formattedTitle).find(pareceNome) || null;
+    const lastMessage = membros.map((c) => c.lastMessage).filter(Boolean)
+      .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))[0] || null;
+
+    // Onde responder: a conversa em que o cliente escreveu por último. A mais recente pode ser uma
+    // que o bot abriu pelo número do pedido (com o 9º dígito), e não a que o WhatsApp dele usa.
+    const ultimaDoCliente = membros
+      .filter((c) => c.lastMessage && !c.lastMessage.fromMe && !(c.lastMessage.id && c.lastMessage.id.fromMe))
+      .sort((a, b) => (Number(b.lastMessage.timestamp) || 0) - (Number(a.lastMessage.timestamp) || 0))[0];
+
+    const pessoa = {
+      principal,
+      destino: ultimaDoCliente || principal,
+      chats: membros,
+      chatIds: ids,
+      pn: p.pn || (contato && contato.whatsapp_id ? normalizarDigitos(contato.whatsapp_id) : ''),
+      lid: ids.find((id) => telefone.ehLid(id)) || (contato && contato.whatsapp_lid) || null,
+      contato,
+      // Nome do cadastro (pedido) primeiro: o perfil do WhatsApp costuma ser apelido ou vazio.
+      nome: (contato && pareceNome(contato.nome) && String(contato.nome).trim())
+        || nomeWhatsapp
+        || p.pn
+        || principal.name || principal.formattedTitle || ids[0],
+      nomeWhatsapp,
+      unreadCount: membros.reduce((s, c) => s + (Number(c.unreadCount) || 0), 0),
+      timestamp: Number(principal.timestamp) || 0,
+      lastMessage
+    };
+    pessoas.push(pessoa);
+    for (const id of ids) porChatId.set(id, pessoa);
+  }
+  return { pessoas, porChatId, maps };
+}
+
+async function garantirPessoas(client) {
+  const chats = await garantirCacheChats(client);
+  if (cachePessoas && cachePessoas.base === chats) return cachePessoas;
+  cachePessoas = { base: chats, ...(await agruparPorPessoa(client, chats)) };
+  return cachePessoas;
+}
+
+/** A "pessoa" (conversas juntadas) de um chatId, ou null se não estiver na lista. */
+async function pessoaDoChat(client, chatId) {
+  try {
+    const { porChatId } = await garantirPessoas(client);
+    return porChatId.get(chatId) || null;
+  } catch (e) {
+    console.warn('⚠️ Agrupar conversas:', e.message);
+    return null;
+  }
 }
 
 async function garantirCacheChats(client) {
@@ -281,51 +457,54 @@ async function listarConversas(client, opts = {}) {
   const search = String(opts.search || '').toLowerCase().trim();
   const somenteNaoLidas = opts.somenteNaoLidas === true || opts.somenteNaoLidas === 'true';
 
-  const chatsBase = await garantirCacheChats(client);
-  let filtradas = ordenarChatsWhatsApp(chatsBase);
+  const { pessoas } = await garantirPessoas(client);
+  let filtradas = ordenarChatsWhatsApp(pessoas);
 
   if (somenteNaoLidas) {
-    filtradas = filtradas.filter((c) => (Number(c.unreadCount) || 0) > 0);
+    filtradas = filtradas.filter((p) => p.unreadCount > 0);
   }
 
   if (search) {
-    filtradas = filtradas.filter((c) => {
-      const nome = (c.name || c.formattedTitle || '').toLowerCase();
-      const id = (c.id?._serialized || '').toLowerCase();
-      const digs = normalizarDigitos(search);
-      return nome.includes(search) || id.includes(search) || (digs && id.includes(digs));
+    const digs = normalizarDigitos(search);
+    filtradas = filtradas.filter((p) => {
+      const nomes = [p.nome, p.nomeWhatsapp, ...p.chats.map((c) => c.name || c.formattedTitle)];
+      if (nomes.some((n) => String(n || '').toLowerCase().includes(search))) return true;
+      const ids = [...p.chatIds, p.pn].map((x) => String(x || '').toLowerCase());
+      if (ids.some((id) => id.includes(search))) return true;
+      // Número digitado com ou sem o 9º dígito encontra a pessoa nas duas formas.
+      return digs.length >= 4 && ids.some((id) => id.includes(digs)
+        || (digs.length >= 10 && telefone.mesmoNumero(id, digs)));
     });
   }
 
-  const totalNaoLidas = chatsBase.filter((c) => (Number(c.unreadCount) || 0) > 0).length;
-  const maps = await carregarMapaContatos();
+  const totalNaoLidas = pessoas.filter((p) => p.unreadCount > 0).length;
   const sessoesCampanha = sessaoCampanhaService.listarSessoes();
   const chatIdsEmFluxo = fluxoExecutor.getChatIdsEmFluxo ? fluxoExecutor.getChatIdsEmFluxo() : [];
 
   const data = [];
-  for (const chat of filtradas.slice(0, limit)) {
-    const chatId = chat.id._serialized;
-    const contato = acharContatoRapido(maps, chatId);
-    const executor = acharSessaoFluxo(chatId);
-    const digs = normalizarDigitos(chatId);
-    const campanha = sessoesCampanha.find((s) => {
-      if (s.chatId === chatId) return true;
-      return digs.length >= 8 && normalizarDigitos(s.chatId) === digs;
-    });
+  for (const p of filtradas.slice(0, limit)) {
+    const chatId = p.principal.id._serialized;
+    const refs = [...p.chatIds, p.pn ? `${p.pn}@c.us` : null].filter(Boolean);
+    const contato = p.contato;
+    const executor = refs.map((r) => acharSessaoFluxo(r)).find(Boolean) || null;
+    const campanha = sessoesCampanha.find((s) => refs.some((r) => s.chatId === r
+      || (!telefone.ehLid(r) && telefone.mesmoNumero(s.chatId, r))));
 
-    const last = chat.lastMessage;
-    const naoLidas = Number(chat.unreadCount) || 0;
+    const last = p.lastMessage;
     data.push({
       chatId,
-      nome: chat.name || chat.formattedTitle || contato?.nome || digs || chatId,
-      naoLidas,
-      temNaoLidas: naoLidas > 0,
+      chatIds: p.chatIds,
+      conversasUnificadas: p.chatIds.length,
+      nome: p.nome,
+      nomeWhatsapp: p.nomeWhatsapp,
+      naoLidas: p.unreadCount,
+      temNaoLidas: p.unreadCount > 0,
       ultimaMensagem: formatarPreviewMensagem(last),
       ultimaMensagemEm: last?.timestamp ? new Date(last.timestamp * 1000).toISOString() : null,
-      timestamp: chat.timestamp ? new Date(chat.timestamp * 1000).toISOString() : null,
-      whatsapp_id: chatId.endsWith('@c.us') ? digs : (contato?.whatsapp_id || null),
-      whatsapp_lid: chatId.includes('@lid') ? chatId : (contato?.whatsapp_lid || null),
-      em_fluxo: chatEmFluxo(chatId, chatIdsEmFluxo),
+      timestamp: p.timestamp ? new Date(p.timestamp * 1000).toISOString() : null,
+      whatsapp_id: (contato && contato.whatsapp_id) || p.pn || null,
+      whatsapp_lid: p.lid,
+      em_fluxo: refs.some((r) => chatEmFluxo(r, chatIdsEmFluxo)),
       fluxo: executor ? {
         id: executor.fluxo?.id,
         nome: executor.fluxo?.nome,
@@ -356,24 +535,42 @@ async function obterMensagens(client, chatIdRaw, opts = {}) {
   const marcarLida = opts.marcarLida !== false;
 
   const { chat, chatId } = await obterChatPorId(client, chatIdRaw);
+  const pessoa = await pessoaDoChat(client, chatId);
+  const membros = pessoa ? pessoa.chats : [chat];
 
-  if (marcarLida && (Number(chat.unreadCount) || 0) > 0) {
-    try {
-      await chat.sendSeen();
-      invalidarCacheConversas();
-    } catch (e) {
-      console.warn('⚠️ sendSeen:', e.message);
+  if (marcarLida) {
+    let marcou = false;
+    for (const c of membros) {
+      if ((Number(c.unreadCount) || 0) === 0) continue;
+      try {
+        await c.sendSeen();
+        marcou = true;
+      } catch (e) {
+        console.warn('⚠️ sendSeen:', e.message);
+      }
     }
+    if (marcou) invalidarCacheConversas();
   }
 
-  const mensagens = await fetchMensagensSeguro(client, chat, limit);
+  // Mensagens de todas as conversas da mesma pessoa, numa linha do tempo só.
+  const vistas = new Set();
+  const mensagens = [];
+  for (const c of membros) {
+    for (const m of await fetchMensagensSeguro(client, c, limit)) {
+      if (m.id && vistas.has(m.id)) continue;
+      if (m.id) vistas.add(m.id);
+      mensagens.push(m);
+    }
+  }
   mensagens.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  const ultimas = mensagens.slice(-limit);
 
   return {
-    chatId,
-    nome: chat.name || chat.formattedTitle || chatId,
-    total: mensagens.length,
-    mensagens
+    chatId: pessoa ? pessoa.principal.id._serialized : chatId,
+    chatIds: pessoa ? pessoa.chatIds : [chatId],
+    nome: pessoa ? pessoa.nome : (chat.name || chat.formattedTitle || chatId),
+    total: ultimas.length,
+    mensagens: ultimas
   };
 }
 
@@ -381,7 +578,10 @@ async function enviarMensagem(client, chatIdRaw, texto) {
   if (!client?.info) throw new Error('WhatsApp não conectado');
   const mensagem = String(texto || '').trim();
   if (!mensagem) throw new Error('Mensagem vazia');
-  const { chatId } = await obterChatPorId(client, chatIdRaw);
+  const { chatId: resolvido } = await obterChatPorId(client, chatIdRaw);
+  // Mesma pessoa em várias conversas: responde onde o cliente escreveu por último.
+  const pessoa = await pessoaDoChat(client, resolvido);
+  const chatId = pessoa ? pessoa.destino.id._serialized : resolvido;
   await client.sendMessage(chatId, mensagem);
   invalidarCacheConversas();
   return { chatId, enviado: true };
@@ -392,14 +592,16 @@ async function obterEstadoChat(client, chatIdRaw) {
   const { chat, chatId } = await obterChatPorId(client, chatIdRaw);
   const identity = await whatsappIdentityService.resolverIdentidadeCliente(client, chatId);
   const maps = await carregarMapaContatos();
-  const contato = acharContatoRapido(maps, chatId) || acharContatoRapido(maps, identity.whatsappLid);
+  const pessoa = await pessoaDoChat(client, chatId);
+  const contato = acharContatoRapido(maps, chatId) || acharContatoRapido(maps, identity.whatsappLid)
+    || (pessoa && pessoa.contato) || null;
   const executor = acharSessaoFluxo(chatId);
   const campanhaHit = sessaoCampanhaService.getSessaoPorChatId(chatId);
 
   let logs = [];
   try {
     logs = await fluxoLogService.listarLogsPorContato(
-      identity.widDigitosTelefone || chatId,
+      identity.widDigitosTelefone || (pessoa && pessoa.pn) || chatId,
       30,
       { whatsappLid: identity.whatsappLid || undefined }
     );
